@@ -552,63 +552,108 @@ function clamp(v,a,b){ return v<a?a:v>b?b:v; }
 const easeOut = t => 1 - Math.pow(1-t, 3);
 
 /* ============================================================
-   1b. El trazado — la muralla ya no es una línea recta: es una
-   sucesión de tramos rectos que giran en cada hito. Un solo escalar
-   (distancia recorrida, en las mismas unidades de siempre) se traduce
-   a una posición real del plano recorriendo esos tramos, así que todo
-   lo que ya usaba una coordenada X lineal (la cámara, el borde vivo,
-   el paneo) sigue funcionando igual: sólo cambia CÓMO esa distancia
-   se convierte en un lugar del mundo.
+   1b. El trazado — no es una línea recta ni tampoco esquinas en
+   ángulo recto: es una ruta que va derecho la mayor parte del tiempo
+   y, de tanto en tanto, se dobla en un lazo suave tipo switchback de
+   camino de montaña — se aparta de la recta, pasa por detrás de sí
+   misma, y vuelve a la recta. La altura no sale de apilar más cursos
+   de ladrillo (siempre son AL): sale de que el TERRENO trepa más rápido
+   justo dentro de esos lazos, como una ruta que gana altura en las
+   curvas cerradas — el zigzag es lo que da la sensación de altura.
+   Un solo escalar (distancia recorrida) se traduce a una posición real
+   del plano recorriendo esta ruta, así que la cámara y el paneo siguen
+   funcionando igual: sólo cambia cómo esa distancia se convierte en
+   un lugar del mundo.
    ============================================================ */
-const DIRS = [ {x:1,z:0}, {x:0,z:1}, {x:-1,z:0}, {x:0,z:-1} ]; // E, S, O, N
-
 function colDe(i){ return Math.floor(i / AL); }
 function filaDe(i){ return i % AL; }
 
-let tramos = [];
-function largoTramo(k){ return 8 + Math.floor(h(k*13.7)*9); }        // 8..16 columnas
-function primerTramo(){
-  return {colIni:0, dir:0, wx0:0, wz0:0, elev0:0, rise:0, largo: largoTramo(0)};
+// Los lazos (switchbacks): tramos largos derechos separados por curvas
+// donde el rumbo se aparta de cero, llega a un pico, y vuelve a cero —
+// como una curva en S. Se generan de a uno, bajo demanda.
+let curvas = [];
+function generarSiguienteCurva(kPrev){
+  const finAnterior = kPrev < 0 ? 0 : (curvas[kPrev].inicio + curvas[kPrev].duracion);
+  const k = kPrev + 1;
+  const gap = 45 + Math.floor(h(k*17.3) * 70);              // 45–114 columnas derechas antes del lazo
+  const inicio = finAnterior + gap;
+  const duracion = 22 + Math.floor(h(k*23.9) * 34);         // 22–55 columnas de curva
+  const pico = (95 + h(k*31.1) * 70) * Math.PI/180;         // 95°–165°: un lazo cerrado, casi una vuelta en U
+  const signoPrev = kPrev >= 0 ? curvas[kPrev].signo : (h(7.7) < 0.5 ? 1 : -1);
+  const signo = h(k*41.7 + 7) < 0.72 ? -signoPrev : signoPrev;   // casi siempre alterna de lado
+  const subeSigno = h(k*53.3 + 3) < 0.76 ? 1 : -1;                // casi siempre sube; a veces baja, de alivio
+  return {inicio, duracion, pico, signo, subeSigno};
 }
-function siguienteTramo(t, k){
-  // Gira hacia un lado u otro; a veces sigue derecho para que no sea
-  // siempre esquina. Ocasionalmente el tramo trepa una loma (crece hacia
-  // arriba en vez de sólo doblar).
-  const r = h(k*29.3);
-  const dir = r < 0.14 ? t.dir : (t.dir + (r < 0.57 ? 1 : 3)) % 4;
-  const d = DIRS[t.dir];
-  const rise = h(k*41.1) < 0.24 ? (9 + h(k*47.7)*16) : 0;
-  return {
-    colIni: t.colIni + t.largo, dir,
-    wx0: t.wx0 + d.x*t.largo*PX, wz0: t.wz0 + d.z*t.largo*PX,
-    elev0: t.elev0 + t.rise*t.largo, rise,
-    largo: largoTramo(k)
-  };
-}
-function asegurarTramosHasta(col){
-  if(tramos.length === 0) tramos.push(primerTramo());
+function asegurarCurvasHasta(col){
   let guarda = 0;
-  while(tramos[tramos.length-1].colIni + tramos[tramos.length-1].largo <= col && guarda++ < 20000){
-    tramos.push(siguienteTramo(tramos[tramos.length-1], tramos.length));
+  while((curvas.length === 0 || curvas[curvas.length-1].inicio + curvas[curvas.length-1].duracion < col + 80) && guarda++ < 20000){
+    curvas.push(generarSiguienteCurva(curvas.length - 1));
   }
 }
-function tramoPara(colFrac){
-  asegurarTramosHasta(Math.max(0, Math.floor(colFrac)));
-  for(let i=tramos.length-1; i>=0; i--) if(colFrac >= tramos[i].colIni) return tramos[i];
-  return tramos[0];
+function curvaEnColumna(c){
+  asegurarCurvasHasta(c);
+  for(let i=curvas.length-1; i>=0; i--){
+    const cv = curvas[i];
+    if(cv.inicio <= c) return (c < cv.inicio + cv.duracion) ? {cv, t:(c-cv.inicio)/cv.duracion} : null;
+  }
+  return null;
 }
-// Posición real (wx,wz en el plano, elev de altura) de una columna, o de
-// cualquier punto FRACCIONARIO entre columnas — la misma función sirve
-// para ubicar un ladrillo exacto y para mover la cámara con suavidad.
+// 0 → 1 → 0 suave: el rumbo se aparta de la recta y vuelve, sin saltos.
+function curvaBump(t){ return 0.5*(1 - Math.cos(2*Math.PI*t)); }
+// Deriva muy lenta del rumbo de fondo, como un valle que serpentea de
+// verdad a lo largo de kilómetros — sin esto, cada lazo vuelve exacto
+// al mismo rumbo de siempre y toda la muralla queda, en el fondo, sobre
+// una única línea recta: nada quedaría "lejos" en otra parte del cielo,
+// sólo derecho detrás tuyo, fuera de cámara. Con la deriva, tramos
+// construidos hace rato pueden reaparecer, lejos, en otra cresta.
+function rumboBase(c){
+  return Math.sin(c*0.0022 + 2.1)*1.1 + Math.sin(c*0.0007 + 0.4)*0.55;
+}
+function calcularRumbo(c){
+  const hit = curvaEnColumna(c);
+  const oscilacion = hit ? hit.cv.signo * hit.cv.pico * curvaBump(hit.t) : 0;
+  return rumboBase(c) + oscilacion;
+}
+function calcularSubida(c){
+  const base = 0.15*PY;                                     // subida leve y pareja en los tramos derechos
+  const hit = curvaEnColumna(c);
+  if(!hit) return base;
+  return base + hit.cv.subeSigno * 2.6*PY * curvaBump(hit.t); // fuerte dentro del lazo: ahí se gana la altura
+}
+
+// La posición se integra columna a columna (como una tortuga de Logo):
+// cada paso avanza PX en la dirección del rumbo de esa columna. Se
+// cachea de forma incremental para no recalcular todo cada vez.
+let posCache = [{wx:0, wz:0, elev:0}];
+function asegurarPosHasta(col){
+  let guarda = 0;
+  while(posCache.length <= col && guarda++ < 400000){
+    const i = posCache.length - 1;
+    const prev = posCache[i];
+    const rumbo = calcularRumbo(i);
+    posCache.push({
+      wx: prev.wx + Math.cos(rumbo)*PX,
+      wz: prev.wz + Math.sin(rumbo)*PX,
+      elev: prev.elev + calcularSubida(i)
+    });
+  }
+}
+// Posición real (wx,wz en el plano, elev de altura, dirAngulo del rumbo)
+// de una columna, o de cualquier punto FRACCIONARIO entre columnas — la
+// misma función ubica un ladrillo exacto y mueve la cámara con suavidad.
 function posEnColumna(colFrac){
-  const t = tramoPara(colFrac);
-  const d = DIRS[t.dir];
-  const n = colFrac - t.colIni;
-  return { wx: t.wx0 + d.x*n*PX, wz: t.wz0 + d.z*n*PX, dir: t.dir, elev: t.elev0 + t.rise*n };
+  const c0 = Math.max(0, Math.floor(colFrac));
+  asegurarPosHasta(c0 + 1);
+  const a = posCache[c0], b = posCache[Math.min(c0+1, posCache.length-1)];
+  const t = colFrac - c0;
+  return {
+    wx: lerp(a.wx, b.wx, t), wz: lerp(a.wz, b.wz, t),
+    dirAngulo: calcularRumbo(c0), elev: lerp(a.elev, b.elev, t)
+  };
 }
 // Altura de mundo (wy) del suelo en cualquier punto del trazado (columna
-// entera o fraccionaria): la elevación acumulada del tramo, más una
-// textura orgánica leve.
+// entera o fraccionaria): la elevación acumulada, más una textura
+// orgánica leve.
 function alturaSuelo(colFrac){
   const p = posEnColumna(colFrac);
   const jitter = (h(Math.floor(colFrac)*0.9 + 2.3) - 0.5) * 0.7 * PY;
@@ -620,15 +665,14 @@ function sueloCol(c){ return Math.round(alturaSuelo(c) / PY) * PY; }
 function cimaCol(c){ return sueloCol(c) - AL*PY; }
 function columnaLlena(c, total){ return total >= (c+1)*AL; }
 
-// Posición completa (mundo) de un ladrillo: su columna ya trae wx/wz/dir;
-// el aparejo trabado (hiladas alternadas) se desplaza a lo largo de la
-// dirección del tramo, no siempre en +X como cuando la muralla era recta.
+// Posición completa (mundo) de un ladrillo: su columna ya trae wx/wz y el
+// rumbo local; el aparejo trabado (hiladas alternadas) se desplaza a lo
+// largo de ese rumbo, no siempre en +X como cuando la muralla era recta.
 function ladrilloPos(i){
   const c = colDe(i), f = filaDe(i);
   const p = posEnColumna(c);
-  const d = DIRS[p.dir];
   const st = (f % 2) ? PX*0.5 : 0;
-  return { wx: p.wx + d.x*st, wz: p.wz + d.z*st, wy: sueloCol(c) - f*PY - LH, dir: p.dir };
+  return { wx: p.wx + Math.cos(p.dirAngulo)*st, wz: p.wz + Math.sin(p.dirAngulo)*st, wy: sueloCol(c) - f*PY - LH, dirAngulo: p.dirAngulo };
 }
 
 /* ============================================================
@@ -996,6 +1040,62 @@ function perfilMontana(amp, base, freq, fase, parallax, color){
   ctx.lineTo(W+2, H); ctx.closePath();
   ctx.fillStyle = color; ctx.fill();
 }
+
+// La muralla lejana: no es una montaña de utilería, es la muralla REAL
+// vista de lejos — como se ve la Gran Muralla asomando en una cresta
+// distinta mientras estás parado en una sección. Como el trazado gira y
+// vuelve sobre sí mismo, en cualquier momento puede haber un tramo ya
+// construido a buena distancia de la cámara (en otro brazo del mismo
+// zigzag); se muestrea liviano (nunca más de ~240 puntos, sin importar
+// cuántos ladrillos haya) y se desvanece con la distancia real a la
+// cámara, como corresponde a la niebla del horizonte.
+function dibujarMurallaLejana(total){
+  const totalCols = colDe(Math.max(0, total-1)) + 1;
+  if(totalCols < 40) return;
+  const camCol = cam.x / PX, camInfo = posEnColumna(camCol);
+  const paso = Math.max(1, Math.ceil(totalCols / 240));
+  const UMBRAL = 40*PX;       // más cerca que esto ya se dibuja en detalle: no duplicar
+  // Escala propia, mucho más comprimida que la de la cámara: una cresta
+  // lejana barre un mundo mucho más ancho dentro del mismo cielo — igual
+  // que una foto real, donde lo lejano se ve chico aunque sea enorme.
+  const escalaLejos = Math.max(0.01, cam.escala * 0.09);
+  // El alto en pantalla es una cresta estilizada, no una continuación
+  // literal de la altura real: sigue la ELEVACIÓN RELATIVA a la cámara
+  // (cuánto más alto o más bajo que el borde vivo), acotada a la franja
+  // del cielo, en vez de la coordenada de mundo cruda — que la llevaría
+  // muy abajo cuando ambos puntos ya trepan mucho.
+  const Y_CRESTA = H*HOR - 55;
+  const BASE_Y = H*HOR + 15;
+
+  let prev = null;
+  ctx.save();
+  for(let c=0; c<totalCols; c += paso){
+    const info = posEnColumna(c);
+    const dist = Math.hypot(info.wx-camInfo.wx, info.wz-camInfo.wz);
+    let pt = null;
+    if(dist >= UMBRAL){
+      const ax = info.wx + info.wz*SESGO_X;
+      const sx = (ax - cam.ax)*escalaLejos + W*ANCLA;
+      const elevDiff = info.elev - camInfo.elev;
+      const sy = clamp(Y_CRESTA - elevDiff*escalaLejos*1.6, 15, H*HOR+35);
+      const alfa = clamp(0.30 + Math.min(1, (dist-UMBRAL)/(UMBRAL*3)) * 0.24, 0.28, 0.58);
+      pt = {sx, sy, alfa};
+    }
+    if(prev && pt && Math.abs(pt.sx-prev.sx) < 260){
+      const a = (prev.alfa + pt.alfa)/2;
+      ctx.fillStyle = rgba(P.montLejos, a*0.55);
+      ctx.beginPath();
+      ctx.moveTo(prev.sx, prev.sy); ctx.lineTo(pt.sx, pt.sy);
+      ctx.lineTo(pt.sx, BASE_Y); ctx.lineTo(prev.sx, BASE_Y);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = rgba(P.montLejos, a); ctx.lineWidth = 1.1;
+      ctx.beginPath(); ctx.moveTo(prev.sx, prev.sy); ctx.lineTo(pt.sx, pt.sy); ctx.stroke();
+    }
+    prev = pt;
+  }
+  ctx.restore();
+}
+
 function dibujarNiebla(decay){
   const y = H*HOR - 70, alto = 150;
   const g = ctx.createLinearGradient(0, y, 0, y+alto);
@@ -1127,8 +1227,8 @@ function dibujarLadrillo(i, decay, ahora, ox, oy, oz, rot, alfa){
 
 function posEscombro(i){
   const c = colDe(i), s1 = h(i*17.3), s2 = h(i*23.9);
-  const p = posEnColumna(c), d = DIRS[p.dir];
-  const perp = {x: d.z, z: -d.x};   // perpendicular al tramo: "hacia el frente"
+  const p = posEnColumna(c), d = {x: Math.cos(p.dirAngulo), z: Math.sin(p.dirAngulo)};
+  const perp = {x: d.z, z: -d.x};   // perpendicular al rumbo: "hacia el frente"
   const along = (s1-0.5)*PX*5.5 - PX*0.5;
   const adelante = 6 + s2*10;
   // Se desparraman por delante y a los costados del pie, no en un montón.
@@ -1264,22 +1364,43 @@ function dibujarColumna(c, info, total, decay, ahora, escSet){
    6b. Hitos — cada tramo del trazado termina en uno, variado y
    construido con los ladrillos reales del tramo (no aparece de golpe).
    ============================================================ */
-function hitoEnColumna(c){
-  const t = tramoPara(c);
-  return (t.colIni === c && t !== tramos[0]) ? t : null;
+// Dónde aparecen los hitos: cada 8–16 columnas, sin importar si el
+// trazado en ese punto está derecho o en plena curva — igual que una
+// muralla real, que pone torres a intervalos regulares más allá de por
+// dónde vaya el terreno.
+let hitos = [];
+function generarSiguienteHito(kPrev){
+  const anterior = kPrev < 0 ? 0 : hitos[kPrev];
+  const largo = 8 + Math.floor(h((kPrev+1)*13.7) * 9);   // 8..16 columnas
+  return anterior + largo;
 }
-// El índice del tramo (dentro de la caché tramos[]) cuyo borde es la
-// columna c. Sirve para contar, en orden, cuántos hitos épicos hubo
-// antes de éste — y así repartir el elenco de 100 sin repetir ninguno.
-function indiceTramoDeColumna(c){
-  asegurarTramosHasta(c);
-  for(let i=tramos.length-1; i>=1; i--) if(tramos[i].colIni === c) return i;
+function asegurarHitosHasta(col){
+  let guarda = 0;
+  while((hitos.length === 0 || hitos[hitos.length-1] <= col) && guarda++ < 20000){
+    hitos.push(generarSiguienteHito(hitos.length - 1));
+  }
+}
+function hitoEnColumna(c){
+  if(c === 0) return null;
+  asegurarHitosHasta(c);
+  for(let i=hitos.length-1; i>=0; i--){
+    if(hitos[i] === c) return {colIni:c};
+    if(hitos[i] < c) break;
+  }
+  return null;
+}
+// El índice del hito (dentro de la caché hitos[]) que cae en la columna
+// c. Sirve para contar, en orden, cuántos hitos épicos hubo antes de
+// éste — y así repartir el elenco de 100 sin repetir ninguno.
+function indiceHitoDeColumna(c){
+  asegurarHitosHasta(c);
+  for(let i=hitos.length-1; i>=0; i--) if(hitos[i] === c) return i;
   return -1;
 }
 function esUmbralEpico(colIni){ return colIni > 25 && h(colIni*97.7) >= 0.965; }
-function rangoEpico(idxTramo){
+function rangoEpico(idxHito){
   let rango = 0;
-  for(let j=1; j<idxTramo; j++){ if(esUmbralEpico(tramos[j].colIni)) rango++; }
+  for(let j=0; j<idxHito; j++){ if(esUmbralEpico(hitos[j])) rango++; }
   return rango;
 }
 // Determinista por columna: la misma muralla siempre saca los mismos
@@ -1289,7 +1410,7 @@ function rangoEpico(idxTramo){
 function elegirHito(c){
   const rq = h(c*97.7);
   if(esUmbralEpico(c)){
-    const idx = indiceTramoDeColumna(c);
+    const idx = indiceHitoDeColumna(c);
     const rango = rangoEpico(idx) % EPICOS.length;
     const entry = EPICOS[ORDEN_EPICOS[rango]];
     return {tipo:'epico', entry};
@@ -1326,6 +1447,21 @@ function clipDesdeElSuelo(wx0, wz0, baseY, alturaVisible, anchoMundo, margen){
   const [x1, y1] = aPantalla(wx0 + anchoMundo + margen, baseY - alturaVisible, wz0);
   ctx.beginPath();
   ctx.rect(Math.min(x0,x1), Math.min(y0,y1), Math.abs(x1-x0)+1, Math.abs(y1-y0)+1);
+  ctx.clip();
+}
+// Igual, pero entre dos puntos cualesquiera del plano — hace falta cuando
+// el hito se extiende a lo largo de la perpendicular al rumbo (una puerta
+// con dos torres) y el trazado puede estar en plena curva, no sólo en X.
+function clipEntrePuntos(p0, p1, baseY, alturaVisible, margen){
+  margen = margen || 12;
+  const esquinas = [
+    aPantalla(p0.wx, baseY, p0.wz), aPantalla(p1.wx, baseY, p1.wz),
+    aPantalla(p0.wx, baseY-alturaVisible, p0.wz), aPantalla(p1.wx, baseY-alturaVisible, p1.wz)
+  ];
+  let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+  esquinas.forEach(([x,y]) => { minX=Math.min(minX,x); maxX=Math.max(maxX,x); minY=Math.min(minY,y); maxY=Math.max(maxY,y); });
+  ctx.beginPath();
+  ctx.rect(minX-margen, minY-margen, (maxX-minX)+margen*2, (maxY-minY)+margen*2);
   ctx.clip();
 }
 // Andamio: la señal de "todavía en obra" mientras el hito no llegó al 100%.
@@ -1448,19 +1584,22 @@ function dibujarTorreGenerica(c, info, p, decay, ahora, opts){
 // además un puente levadizo de madera baja hacia el frente.
 function dibujarPuerta(c, info, p, decay, ahora, opts){
   const e = cam.escala;
+  const ang = info.dirAngulo;
+  const perp = {x:-Math.sin(ang), z:Math.cos(ang)};   // perpendicular al rumbo: donde se abren las dos torres
+  const lateral = off => ({wx: info.wx + perp.x*off, wz: info.wz + perp.z*off});
   const anchoTorre = LA*0.95, anchoVano = PX*0.95;
   const anchoTotal = anchoTorre*2 + anchoVano;
   const altoTorre = (AL+2)*PY;
   const baseY = sueloCol(c);
-  const wx0 = info.wx - anchoTotal/2, wz0 = info.wz;
   const alturaVisible = clamp(altoTorre * Math.min(1, p*1.3), 0, altoTorre);
   if(alturaVisible <= 0) return;
 
+  const extremo0 = lateral(-anchoTotal/2), extremo1 = lateral(anchoTotal/2);
   ctx.save();
-  clipDesdeElSuelo(wx0, wz0, baseY, alturaVisible + PY*2, anchoTotal);
+  clipEntrePuntos(extremo0, extremo1, baseY, alturaVisible + PY*2);
   [0,1].forEach(lado => {
-    const tx = wx0 + lado*(anchoTorre+anchoVano);
-    const [px, py] = aPantalla(tx, baseY-altoTorre, wz0);
+    const pt = lateral(-anchoTotal/2 + lado*(anchoTorre+anchoVano));
+    const [px, py] = aPantalla(pt.wx, baseY-altoTorre, pt.wz);
     const w = anchoTorre*e, hh = altoTorre*e;
     if(e > 0.22){
       const ddx = PROF*e*ddxUnit*1.3, ddy = PROF*e*ORBIT_PITCH*1.3;
@@ -1473,20 +1612,23 @@ function dibujarPuerta(c, info, p, decay, ahora, opts){
     ctx.fillStyle = colorPiedra(h(c*4.4+lado+1), decay, -1);
     ctx.fillRect(px-3*e, py-PY*1.1*e, w+6*e, PY*1.1*e);
   });
-  const [pxA, pyA] = aPantalla(wx0+anchoTorre, baseY-altoTorre*0.62, wz0);
+  const puntoA = lateral(-anchoTotal/2 + anchoTorre);
+  const [pxA, pyA] = aPantalla(puntoA.wx, baseY-altoTorre*0.62, puntoA.wz);
   ctx.fillStyle = colorPiedra(h(c*4.4+9), decay, -5);
   ctx.fillRect(pxA, pyA, anchoVano*e, altoTorre*0.2*e);
   ctx.restore();
-  if(p < 1) andamio(wx0, wz0, baseY, alturaVisible, anchoTotal);
+  if(p < 1) andamio(extremo0.wx, extremo0.wz, baseY, alturaVisible, anchoTotal);
 
   if(opts.puente && p > 0.55){
-    const d = DIRS[info.dir], perp = {x: d.z, z: -d.x};
     const largo = PX*1.15, semiAncho = anchoVano*0.34;
-    const [ax,ay] = aPantalla(info.wx-semiAncho, baseY-altoTorre*0.42, info.wz);
-    const [dx,dy] = aPantalla(info.wx+semiAncho, baseY-altoTorre*0.42, info.wz);
-    const x1 = info.wx+perp.x*largo, z1 = info.wz+perp.z*largo;
-    const [bx,by] = aPantalla(x1-semiAncho, baseY, z1);
-    const [cx2,cy2] = aPantalla(x1+semiAncho, baseY, z1);
+    const p0 = lateral(-semiAncho), p1 = lateral(semiAncho);
+    const [ax,ay] = aPantalla(p0.wx, baseY-altoTorre*0.42, p0.wz);
+    const [dx,dy] = aPantalla(p1.wx, baseY-altoTorre*0.42, p1.wz);
+    const frenteX = info.wx + Math.cos(ang)*largo, frenteZ = info.wz + Math.sin(ang)*largo;
+    const p2 = {wx: frenteX + perp.x*(-semiAncho), wz: frenteZ + perp.z*(-semiAncho)};
+    const p3 = {wx: frenteX + perp.x*semiAncho, wz: frenteZ + perp.z*semiAncho};
+    const [bx,by] = aPantalla(p2.wx, baseY, p2.wz);
+    const [cx2,cy2] = aPantalla(p3.wx, baseY, p3.wz);
     ctx.fillStyle = "#7A5A3A";
     ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.lineTo(cx2,cy2); ctx.lineTo(dx,dy); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = "rgba(0,0,0,0.32)"; ctx.lineWidth = Math.max(1, e*0.9);
@@ -1952,6 +2094,7 @@ function frame(ahora){
   dibujarCielo(decay);
   perfilMontana(90, -66, 0.0016, 0.9, 0.14, P.montLejos);
   perfilMontana(58, -20, 0.0031, 2.4, 0.34, P.montCerca);
+  dibujarMurallaLejana(ladrillos.length);
   dibujarNiebla(decay);
   dibujarSuelo();
   dibujarMuro(decay, ahora);
