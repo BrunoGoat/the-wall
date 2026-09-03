@@ -500,7 +500,7 @@ input[type=range]{
         <li><b>Mantené el botón 800 ms.</b> La resistencia es el diseño: la espera carga la anticipación, el impacto la descarga y la cámara pega un envión de zoom hacia el ladrillo nuevo. Soltá antes de tiempo y no pasa nada, sin regaño.</li>
         <li><b>Colocá todos los que quieras.</b> El tope diario está apagado por defecto (panel de abajo) para que puedas probar sin esperar veinticuatro horas entre ladrillo y ladrillo.</li>
         <li><b>Alejate a «Muralla» y arrastrá.</b> El trazado es recto, apoyado sobre lomas suaves del terreno — ahí está la variación de altura, no en ladrillos apilados de más. Con una muralla larga, alejate y vas a ver, perdiéndose hacia atrás, la silueta brumosa del tramo ya construido: es la muralla real, muestreada a lo lejos, no un fondo decorativo.</li>
-        <li><b>Mirá qué aparece cada ocho a dieciséis columnas.</b> Torres chicas, grandes, esbeltas con techo cónico, bastiones anchos, faros con brasero, torres reloj, puertas de castillo y hasta puentes levadizos — nunca el mismo hito dos veces seguidas.</li>
+        <li><b>Mirá qué aparece en cada hito.</b> El primero llega rápido, después vienen espaciados: torres chicas, grandes, esbeltas con techo cónico, bastiones anchos, faros con brasero, torres reloj, puertas de castillo y hasta puentes levadizos — nunca el mismo hito dos veces seguidas.</li>
         <li><b>Probá los chips de cantidad.</b> Con 5000 hay decenas de hitos y la silueta lejana se hace bien larga: quedate un rato buscando algo especial. Es raro — puede tardar en aparecer.</li>
         <li><b>Hay cien hitos épicos distintos</b> — dragones, bestias, figuras, cascadas, objetos flotantes, auras — y ninguno se repite en toda la muralla. Cuando el ladrillo que colocás completa uno, aparece un cartel arriba anunciando cuál encontraste.</li>
         <li><b>Acercate a «Ladrillo».</b> Cada piedra tiene un tamaño propio (algunas notablemente más chicas o más grandes) y volumen real: cara superior, lateral y mortero visible entre juntas.</li>
@@ -1300,14 +1300,16 @@ function dibujarColumna(c, info, total, decay, ahora, escSet){
    6b. Hitos — cada tramo del trazado termina en uno, variado y
    construido con los ladrillos reales del tramo (no aparece de golpe).
    ============================================================ */
-// Dónde aparecen los hitos: cada 8–16 columnas, sin importar si el
-// trazado en ese punto está derecho o en plena curva — igual que una
-// muralla real, que pone torres a intervalos regulares más allá de por
-// dónde vaya el terreno.
+// Dónde aparecen los hitos: el primero llega rápido y fijo — columna 3,
+// para que el primer mes de uso real (a un ritmo de un logro cada tantos
+// días) ya tenga una torre en pantalla — y de ahí en más a un ritmo más
+// pausado (5–8 columnas), lo bastante separado para que dos hitos no se
+// pisen visualmente, sin importar si el trazado está derecho o en curva.
 let hitos = [];
 function generarSiguienteHito(kPrev){
-  const anterior = kPrev < 0 ? 0 : hitos[kPrev];
-  const largo = 8 + Math.floor(h((kPrev+1)*13.7) * 9);   // 8..16 columnas
+  if(kPrev < 0) return 3;
+  const anterior = hitos[kPrev];
+  const largo = 5 + Math.floor(h((kPrev+1)*13.7) * 4);   // 5..8 columnas
   return anterior + largo;
 }
 function asegurarHitosHasta(col){
@@ -1333,20 +1335,36 @@ function indiceHitoDeColumna(c){
   for(let i=hitos.length-1; i>=0; i--) if(hitos[i] === c) return i;
   return -1;
 }
-function esUmbralEpico(colIni){ return colIni > 25 && h(colIni*97.7) >= 0.965; }
+// El primer épico no se deja librado al azar: como acá no hay semilla
+// por usuario (todos recorren la misma muralla), dejarlo a una
+// probabilidad que "podría" no salir en años no tiene sentido — se
+// garantiza directamente que el segundo hito de la muralla (idx 1, nunca
+// el primero: antes conviene ver una torre "normal") sea épico. Con el
+// espaciado de arriba eso cae bien dentro del primer año de uso real, no
+// a los miles de ladrillos. De ahí en más los épicos vuelven a ser
+// genuinamente raros — la sorpresa de un usuario de años sigue siendo
+// real, no calendarizada.
+const PROB_EPICO_SIGUIENTE = 0.08;
+let epicoCache = [];
+function esHitoEpico(idx){
+  while(epicoCache.length <= idx){
+    const j = epicoCache.length;
+    epicoCache.push(j === 1 ? true : j > 1 && h(hitos[j]*97.7) >= (1 - PROB_EPICO_SIGUIENTE));
+  }
+  return epicoCache[idx];
+}
 function rangoEpico(idxHito){
   let rango = 0;
-  for(let j=0; j<idxHito; j++){ if(esUmbralEpico(hitos[j])) rango++; }
+  for(let j=0; j<idxHito; j++){ if(esHitoEpico(j)) rango++; }
   return rango;
 }
 // Determinista por columna: la misma muralla siempre saca los mismos
-// hitos en los mismos lugares. Los épicos son deliberadamente raros, no
-// aparecen antes de cierto punto del recorrido, y cada uno de los 100
-// del elenco sale como máximo una vez en todo el recorrido.
+// hitos en los mismos lugares, y cada uno de los 100 del elenco sale
+// como máximo una vez en todo el recorrido.
 function elegirHito(c){
   const rq = h(c*97.7);
-  if(esUmbralEpico(c)){
-    const idx = indiceHitoDeColumna(c);
+  const idx = indiceHitoDeColumna(c);
+  if(esHitoEpico(idx)){
     const rango = rangoEpico(idx) % EPICOS.length;
     const entry = EPICOS[ORDEN_EPICOS[rango]];
     return {tipo:'epico', entry};
