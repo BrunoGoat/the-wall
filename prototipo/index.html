@@ -220,6 +220,28 @@ body{
 }
 .globo .t{font-size:13.5px; margin-top:4px; line-height:1.35; color:var(--tinta)}
 
+/* ---------- Cartel de hito épico ---------- */
+.toast-epico{
+  position:absolute; left:50%; top:26px; z-index:6;
+  width:min(380px, calc(100% - 64px)); text-align:center;
+  padding:16px 22px; border-radius:3px;
+  background:color-mix(in srgb, var(--hueco) 92%, transparent);
+  border:1px solid var(--ambar); box-shadow:var(--sombra);
+  backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  opacity:0; transform:translate(-50%,-14px); pointer-events:none;
+  transition:opacity .5s, transform .5s;
+}
+.toast-epico.ver{opacity:1; transform:translate(-50%,0)}
+.te-eyebrow{
+  font-family:"IBM Plex Mono", monospace; font-size:10px; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--ambar);
+}
+.te-nombre{
+  font-family:Cinzel, Georgia, serif; font-weight:600; font-size:18px;
+  margin-top:7px; color:var(--tinta); text-wrap:balance;
+}
+.te-frase{font-size:12px; color:var(--tinta-2); margin-top:6px; font-style:italic}
+
 /* ---------- Estadísticas ---------- */
 .tarjeta.ancha{width:min(540px, calc(100% - 48px)); padding:24px 26px 26px}
 .stats-cab{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px}
@@ -340,6 +362,12 @@ input[type=range]{
       <h1>La Muralla</h1>
       <div class="regla"></div>
       <div class="cuenta"><b id="contador">0</b><span>ladrillos</span></div>
+    </div>
+
+    <div class="toast-epico" id="toastEpico">
+      <div class="te-eyebrow">Hito épico descubierto</div>
+      <div class="te-nombre" id="teNombre"></div>
+      <div class="te-frase" id="teFrase"></div>
     </div>
 
     <div class="esquina-d">
@@ -478,6 +506,7 @@ input[type=range]{
         <li><b>Alejate a «Muralla» y arrastrá.</b> El trazado ya no es una línea recta: gira en cada hito, sube lomas y a veces pasa por detrás de un tramo anterior. Cada giro y cada subida son deterministas pero variados: no hay dos recorridos iguales.</li>
         <li><b>Mirá qué aparece en cada giro.</b> Torres chicas, grandes, esbeltas con techo cónico, bastiones anchos, faros con brasero, torres reloj, puertas de castillo y hasta puentes levadizos — nunca el mismo hito dos veces seguidas.</li>
         <li><b>Probá los chips de cantidad.</b> Con 5000 hay decenas de hitos: quedate un rato buscando algo especial. Es raro — puede tardar en aparecer.</li>
+        <li><b>Hay cien hitos épicos distintos</b> — dragones, bestias, figuras, cascadas, objetos flotantes, auras — y ninguno se repite en toda la muralla. Cuando el ladrillo que colocás completa uno, aparece un cartel arriba anunciando cuál encontraste.</li>
         <li><b>Arrastrá hacia arriba o abajo, o usá el slider «Ángulo de cámara».</b> Gira la cámara para admirar la piedra desde otro ángulo: revela la cara de arriba o rodeá hacia el otro lado para ver el canto.</li>
         <li><b>Acercate a «Ladrillo».</b> Cada piedra tiene un tamaño propio (algunas notablemente más chicas o más grandes) y volumen real: cara superior, lateral y mortero visible entre juntas.</li>
         <li><b>Llevá el slider a 24 días.</b> Musgo, grietas, niebla y la sección más nueva caída en escombros al pie. El núcleo antiguo nunca se derrumba. Colocar un ladrillo dispara la restauración.</li>
@@ -1174,8 +1203,8 @@ function dibujarMuro(decay, ahora){
 function dibujarColumna(c, info, total, decay, ahora, escSet){
   const filas = Math.min(AL, total - c*AL);
   const t = hitoEnColumna(c);
-  const tipo = t ? elegirHito(c) : null;
-  const esVano = tipo === 'puerta' || tipo === 'puente';
+  const elegido = t ? elegirHito(c) : null;
+  const esVano = elegido && (elegido.tipo === 'puerta' || elegido.tipo === 'puente');
 
   if(!esVano){
     ctx.fillStyle = P.suelo;
@@ -1188,7 +1217,7 @@ function dibujarColumna(c, info, total, decay, ahora, escSet){
 
   if(t){
     const p = filas/AL;
-    if(p > 0) dibujarHito(tipo, c, info, p, decay, ahora);
+    if(p > 0) dibujarHito(elegido, c, info, p, decay, ahora);
   }
 
   if(esVano) return;
@@ -1239,23 +1268,43 @@ function hitoEnColumna(c){
   const t = tramoPara(c);
   return (t.colIni === c && t !== tramos[0]) ? t : null;
 }
+// El índice del tramo (dentro de la caché tramos[]) cuyo borde es la
+// columna c. Sirve para contar, en orden, cuántos hitos épicos hubo
+// antes de éste — y así repartir el elenco de 100 sin repetir ninguno.
+function indiceTramoDeColumna(c){
+  asegurarTramosHasta(c);
+  for(let i=tramos.length-1; i>=1; i--) if(tramos[i].colIni === c) return i;
+  return -1;
+}
+function esUmbralEpico(colIni){ return colIni > 25 && h(colIni*97.7) >= 0.965; }
+function rangoEpico(idxTramo){
+  let rango = 0;
+  for(let j=1; j<idxTramo; j++){ if(esUmbralEpico(tramos[j].colIni)) rango++; }
+  return rango;
+}
 // Determinista por columna: la misma muralla siempre saca los mismos
-// hitos en los mismos lugares. Los épicos son deliberadamente raros y
-// no aparecen antes de cierto punto del recorrido.
+// hitos en los mismos lugares. Los épicos son deliberadamente raros, no
+// aparecen antes de cierto punto del recorrido, y cada uno de los 100
+// del elenco sale como máximo una vez en todo el recorrido.
 function elegirHito(c){
   const rq = h(c*97.7);
-  if(rq >= 0.965 && c > 25) return h(c*98.3) < 0.5 ? 'rapunzel' : 'dragon';
-  if(rq >= 0.94) return 'puente';
-  if(rq >= 0.80) return h(c*61.3) < 0.5 ? 'faro' : 'reloj';
-  if(rq >= 0.55) return h(c*71.1) < 0.5 ? 'bastion' : 'puerta';
+  if(esUmbralEpico(c)){
+    const idx = indiceTramoDeColumna(c);
+    const rango = rangoEpico(idx) % EPICOS.length;
+    const entry = EPICOS[ORDEN_EPICOS[rango]];
+    return {tipo:'epico', entry};
+  }
+  if(rq >= 0.94) return {tipo:'puente'};
+  if(rq >= 0.80) return {tipo: h(c*61.3) < 0.5 ? 'faro' : 'reloj'};
+  if(rq >= 0.55) return {tipo: h(c*71.1) < 0.5 ? 'bastion' : 'puerta'};
   const v = h(c*83.3);
-  if(v < 0.30) return 'torre-chica';
-  if(v < 0.65) return 'torre-mediana';
-  if(v < 0.88) return 'torre-grande';
-  return 'torre-esbelta';
+  if(v < 0.30) return {tipo:'torre-chica'};
+  if(v < 0.65) return {tipo:'torre-mediana'};
+  if(v < 0.88) return {tipo:'torre-grande'};
+  return {tipo:'torre-esbelta'};
 }
-function dibujarHito(tipo, c, info, p, decay, ahora){
-  switch(tipo){
+function dibujarHito(elegido, c, info, p, decay, ahora){
+  switch(elegido.tipo){
     case 'torre-chica':   return dibujarTorreGenerica(c, info, p, decay, ahora, {anchoMul:0.8, altoMul:0.75});
     case 'torre-mediana': return dibujarTorreGenerica(c, info, p, decay, ahora, {anchoMul:1.0, altoMul:1.0});
     case 'torre-grande':  return dibujarTorreGenerica(c, info, p, decay, ahora, {anchoMul:1.35, altoMul:1.5});
@@ -1265,8 +1314,7 @@ function dibujarHito(tipo, c, info, p, decay, ahora){
     case 'reloj':         return dibujarTorreGenerica(c, info, p, decay, ahora, {anchoMul:1.1, altoMul:1.15, techo:'reloj'});
     case 'puerta':        return dibujarPuerta(c, info, p, decay, ahora, {});
     case 'puente':        return dibujarPuerta(c, info, p, decay, ahora, {puente:true});
-    case 'rapunzel':      return dibujarRapunzel(c, info, p, decay, ahora);
-    case 'dragon':        return dibujarDragon(c, info, p, decay, ahora);
+    case 'epico':         return dibujarEpico(c, info, p, decay, ahora, elegido.entry);
   }
 }
 
@@ -1459,46 +1507,184 @@ function dibujarPuerta(c, info, p, decay, ahora, opts){
   }
 }
 
-// Fácil de encontrar, poco frecuente: una torre esbelta con una melena
-// dorada que cae desde la ventana hasta el suelo.
-function dibujarRapunzel(c, info, p, decay, ahora){
-  dibujarTorreGenerica(c, info, p, decay, ahora, {anchoMul:0.8, altoMul:1.6, techo:'cono', tinte:6});
-  if(p < 0.85) return;
-  const e = cam.escala;
-  const cursosT = Math.round((AL+3.5)*1.6), anchoT = LA*(1.7*0.8+1.0), altoT = cursosT*PY;
-  const baseY = sueloCol(c), wx0 = info.wx-(anchoT-LA)/2, wz0 = info.wz;
-  const [vx,vy] = aPantalla(wx0+anchoT*0.5, baseY-altoT*0.68, wz0);
-  const [sx,sy] = aPantalla(wx0+anchoT*0.5, baseY, wz0);
-  const op = clamp((p-0.85)/0.15, 0, 1), osc = Math.sin(ahora*0.0011)*10*e;
-  ctx.save(); ctx.globalAlpha = op; ctx.lineCap = "round";
-  ctx.strokeStyle = "#E6B84A"; ctx.lineWidth = Math.max(2, 3.2*e);
-  ctx.beginPath(); ctx.moveTo(vx,vy);
-  ctx.bezierCurveTo(vx+osc, lerp(vy,sy,0.35), vx-osc*0.6, lerp(vy,sy,0.7), sx, sy);
-  ctx.stroke();
-  ctx.strokeStyle = "rgba(255,240,190,0.6)"; ctx.lineWidth = Math.max(1, 1*e);
-  ctx.beginPath(); ctx.moveTo(vx,vy);
-  ctx.bezierCurveTo(vx+osc, lerp(vy,sy,0.35), vx-osc*0.6, lerp(vy,sy,0.7), sx, sy);
-  ctx.stroke();
-  ctx.restore();
+/* ============================================================
+   6c. Los cien épicos — un elenco fijo, cada uno sale como máximo
+   una vez en toda la muralla (ver rangoEpico más arriba), en un orden
+   determinista pero imposible de anticipar. Seis familias de puesta en
+   escena reutilizables, cada entrada les pone nombre, frase y colores.
+   ============================================================ */
+function rgba(hex, a){
+  const n = parseInt(hex.slice(1), 16);
+  return "rgba(" + ((n>>16)&255) + "," + ((n>>8)&255) + "," + (n&255) + "," + a.toFixed(2) + ")";
+}
+function sombrear(hex, factor){
+  const n = parseInt(hex.slice(1), 16);
+  const mezcla = v => clamp(Math.round(v + (factor>0 ? (255-v)*factor : v*factor)), 0, 255);
+  return "rgb(" + mezcla((n>>16)&255) + "," + mezcla((n>>8)&255) + "," + mezcla(n&255) + ")";
+}
+// Misma fórmula que usa dibujarTorreGenerica para su cuerpo: así el
+// adorno de cada épico se alinea exacto con la torre que lo sostiene.
+function geometriaTorre(c, info, altoMul, anchoMul){
+  const cursosT = Math.max(3, Math.round((AL+3.5) * (altoMul||1)));
+  const anchoT = LA*(1.7*(anchoMul||1) + 1.0), altoT = cursosT*PY;
+  const baseY = sueloCol(c);
+  return {anchoT, altoT, baseY, wx0: info.wx-(anchoT-LA)/2, wz0: info.wz};
 }
 
-// Igual de raro: una torre coronada por un dragón enroscado, con un
-// rescoldo que le titila en las fauces.
-function dibujarDragon(c, info, p, decay, ahora){
-  dibujarTorreGenerica(c, info, p, decay, ahora, {anchoMul:1.3, altoMul:1.4, tinte:-4});
+const EPICOS = [
+// --- Criaturas aladas (20): sobre el remate de la torre ---
+{id:'dragon-ascuas',nombre:'El Dragón de las Ascuas',frase:'Duerme con un ojo abierto, vigilando el horizonte.',familia:'alada',color:'#2B2320',ascua:'#FF8232'},
+{id:'fenix-carmesi',nombre:'El Fénix Carmesí',frase:'Cada atardecer se consume en llamas y vuelve a nacer con el alba.',familia:'alada',color:'#7A1F1F',ascua:'#FF6A3D'},
+{id:'grifo-plateado',nombre:'El Grifo de Plata',frase:'Guardián silencioso de las alturas: no baja por nadie.',familia:'alada',color:'#8A8F99',ascua:'#CFE0F5'},
+{id:'viborago-esmeralda',nombre:'El Viborago Esmeralda',frase:'Dicen que susurra en un idioma que sólo entienden las piedras viejas.',familia:'alada',color:'#1F5C3C',ascua:'#7CFFB0'},
+{id:'wyvern-obsidiana',nombre:'La Wyvern de Obsidiana',frase:'Su sombra cruza la muralla antes que su vuelo.',familia:'alada',color:'#151515',ascua:'#9B5CFF'},
+{id:'dragon-tormenta',nombre:'El Dragón de Tormenta',frase:'Llega siempre con el cielo encapotado, nunca con sol.',familia:'alada',color:'#2E3A52',ascua:'#8FD0FF'},
+{id:'quimera-alada',nombre:'La Quimera Alada',frase:'Tres naturalezas en un solo vuelo: nadie sabe cuál manda.',familia:'alada',color:'#5C3A24',ascua:'#FFB25C'},
+{id:'fenix-nocturno',nombre:'El Fénix Nocturno',frase:'En vez de fuego, deja una estela de cenizas frías y estrellas.',familia:'alada',color:'#1B1F33',ascua:'#B7C4FF'},
+{id:'dragon-coral',nombre:'El Dragón de Coral',frase:'Nadie sabe si vino del mar o de una cantera olvidada.',familia:'alada',color:'#B14B3E',ascua:'#FF9C85'},
+{id:'basilisco-alado',nombre:'El Basilisco Alado',frase:'Mejor no cruzar su mirada al pasar.',familia:'alada',color:'#3E4A2E',ascua:'#C7FF6E'},
+{id:'dragon-brumas',nombre:'El Dragón de las Brumas',frase:'Aparece y desaparece con la niebla del amanecer.',familia:'alada',color:'#4A5560',ascua:'#DCE8EE'},
+{id:'wyrm-ambar',nombre:'El Wyrm de Ámbar',frase:'Tan viejo que su piel parece resina fosilizada.',familia:'alada',color:'#8A5A1E',ascua:'#FFD27A'},
+{id:'grifo-dorado',nombre:'El Grifo Dorado',frase:'Corona no oficial de la muralla más antigua.',familia:'alada',color:'#8A6A1E',ascua:'#FFE79A'},
+{id:'dragon-glaciar',nombre:'El Dragón de Glaciar',frase:'Su aliento no quema: congela el aire a su paso.',familia:'alada',color:'#3A5C6E',ascua:'#B9F1FF'},
+{id:'cuervo-gigante',nombre:'El Cuervo Gigante',frase:'Trae noticias que nadie pidió escuchar.',familia:'alada',color:'#161616',ascua:'#E8E8E8'},
+{id:'dragon-ceniza',nombre:'El Dragón de Ceniza',frase:'Lo que queda cuando un incendio se vuelve leyenda.',familia:'alada',color:'#4A4440',ascua:'#FF9556'},
+{id:'serpiente-alada',nombre:'La Serpiente Alada de Poniente',frase:'Vuela bajo, como si buscara algo entre las piedras.',familia:'alada',color:'#324A2E',ascua:'#B2FF8C'},
+{id:'dragon-medianoche',nombre:'El Dragón de Medianoche',frase:'Sólo se lo ve en las noches sin luna.',familia:'alada',color:'#12121C',ascua:'#7A6CFF'},
+{id:'grifo-tormenta',nombre:'El Grifo de Tormenta',frase:'Cazador de rayos, o eso cuentan los centinelas.',familia:'alada',color:'#414A5C',ascua:'#FFE45C'},
+{id:'fenix-jade',nombre:'El Fénix de Jade',frase:'No arde: florece.',familia:'alada',color:'#1F5C4E',ascua:'#8CFFE0'},
+// --- Bestias terrestres (18): al pie de la torre ---
+{id:'lobo-centinela',nombre:'El Lobo Centinela',frase:'Duerme con las orejas paradas, siempre.',familia:'bestia',color:'#3A3A3E',acento:'#D8D8D8'},
+{id:'unicornio-blanco',nombre:'El Unicornio de la Muralla',frase:'Nadie lo vio llegar. Un día, simplemente, estaba ahí.',familia:'bestia',color:'#EDEDED',acento:'#E6C75C'},
+{id:'oso-piedra',nombre:'El Oso de Piedra',frase:'Tan quieto que algunos juran que es una escultura. No lo es.',familia:'bestia',color:'#5C4A3A',acento:'#7A6552'},
+{id:'leon-guardian',nombre:'El León Guardián',frase:'Custodia el tramo más viejo del recorrido.',familia:'bestia',color:'#B8843C',acento:'#8A6228'},
+{id:'jabali-negro',nombre:'El Jabalí Negro',frase:'Embistió esta piedra una vez. La piedra ganó.',familia:'bestia',color:'#1E1E20',acento:'#6E6E70'},
+{id:'ciervo-astado',nombre:'El Ciervo de Cuernos de Plata',frase:'Sólo aparece al amanecer, y sólo un instante.',familia:'bestia',color:'#6E5439',acento:'#D6DCE0'},
+{id:'pantera-sombria',nombre:'La Pantera Sombría',frase:'Se confunde con la noche misma.',familia:'bestia',color:'#141416',acento:'#3A3A40'},
+{id:'cabra-montes',nombre:'La Cabra de las Alturas',frase:'Sube donde nadie más se anima.',familia:'bestia',color:'#8A8272',acento:'#5C5648'},
+{id:'zorro-plateado',nombre:'El Zorro de Nueve Colas',frase:'Trae suerte a quien lo encuentra sin buscarlo.',familia:'bestia',color:'#D6D6D6',acento:'#B84A2E'},
+{id:'lince-nevado',nombre:'El Lince Nevado',frase:'Su pelaje cambia con las estaciones de la muralla.',familia:'bestia',color:'#DCE4E8',acento:'#3A4A56'},
+{id:'toro-bronce',nombre:'El Toro de Bronce',frase:'Tumbó una sección entera una vez. Se reconstruyó más fuerte.',familia:'bestia',color:'#8A5A2E',acento:'#5C3A1E'},
+{id:'lobezno-guardian',nombre:'El Lobezno del Umbral',frase:'Todavía chico, pero ya vigila como un veterano.',familia:'bestia',color:'#4A4238',acento:'#D8D2C4'},
+{id:'aguila-terrestre',nombre:'El Águila que Camina',frase:'Prefiere patrullar los muros a volar sobre ellos.',familia:'bestia',color:'#3A3226',acento:'#C89A4A'},
+{id:'serpiente-piedra',nombre:'La Serpiente de Piedra',frase:'Se enrosca en la base y no se mueve — o eso parece.',familia:'bestia',color:'#3E4A3A',acento:'#9CB88C'},
+{id:'caballo-fantasma',nombre:'El Caballo Fantasma',frase:'Sus cascos no hacen ruido sobre la piedra.',familia:'bestia',color:'#C4CCD4',acento:'#8896A4'},
+{id:'tejon-viejo',nombre:'El Tejón más Viejo del Reino',frase:'Cavó su madriguera antes de que existiera la primera piedra.',familia:'bestia',color:'#2A2A2C',acento:'#E8E8E8'},
+{id:'grifo-pequeno',nombre:'El Grifo Pequeño',frase:'Demasiado joven para volar, así que camina la muralla.',familia:'bestia',color:'#9A7A4A',acento:'#6C5230'},
+{id:'lobo-blanco',nombre:'El Lobo Blanco del Norte',frase:'Sólo se deja ver cuando la muralla lleva mucho sin visitas.',familia:'bestia',color:'#EAEAEA',acento:'#3A4A5C'},
+// --- Figuras paradas (20): sobre una plataforma junto al remate ---
+{id:'mago-errante',nombre:'El Mago Errante',frase:'Llegó un día caminando y nunca se fue.',familia:'figura',color:'#3A3560',acento:'#E6C75C'},
+{id:'caballero-piedra',nombre:'El Caballero de Piedra',frase:'Nadie recuerda su nombre. Todos recuerdan su guardia.',familia:'figura',color:'#5C5A5E',acento:'#8A9098'},
+{id:'fantasma-torre',nombre:'El Fantasma de la Torre',frase:'No asusta a nadie. Sólo mira el horizonte.',familia:'figura',color:'#C8D4DC',acento:'#E8EEF2'},
+{id:'gigante-durmiente',nombre:'El Gigante Durmiente',frase:'Se sienta contra la muralla desde hace generaciones.',familia:'figura',color:'#4A4238',acento:'#8A7A5C'},
+{id:'ermitano-viejo',nombre:'El Ermitaño de la Muralla',frase:'Sabe historias que nadie más recuerda.',familia:'figura',color:'#5A4E3A',acento:'#B89A5C'},
+{id:'reina-olvidada',nombre:'La Reina Olvidada',frase:'Su corona ya no brilla, pero nadie se atreve a bajarla.',familia:'figura',color:'#4A2E3C',acento:'#D6A8C4'},
+{id:'centinela-nocturno',nombre:'El Centinela sin Rostro',frase:'Nunca duerme. Nadie sabe si respira.',familia:'figura',color:'#232323',acento:'#5C5C5C'},
+{id:'bruja-buena',nombre:'La Bruja de la Torre Vieja',frase:'Sus hechizos son, en general, sobre buen clima.',familia:'figura',color:'#2E4A3A',acento:'#8CFFB0'},
+{id:'herrero-fantasma',nombre:'El Herrero Fantasma',frase:'Todavía se escucha el yunque, algunas noches.',familia:'figura',color:'#3A3230',acento:'#FF9556'},
+{id:'monje-silencioso',nombre:'El Monje del Silencio',frase:'Lleva cien años sin decir una palabra. O eso cuentan.',familia:'figura',color:'#4A4238',acento:'#D6C8A8'},
+{id:'arquero-inmovil',nombre:'El Arquero que Nunca Dispara',frase:'Apunta al horizonte desde siempre. Nunca suelta la flecha.',familia:'figura',color:'#3A4A2E',acento:'#8A9C6C'},
+{id:'dama-blanca',nombre:'La Dama Blanca',frase:'Camina el borde de la muralla al anochecer.',familia:'figura',color:'#E8E8EC',acento:'#B8C4D4'},
+{id:'gigante-amable',nombre:'El Gigante Amable del Sur',frase:'Ayudó a levantar más piedra de la que nadie admite.',familia:'figura',color:'#5C4A3A',acento:'#8A6E4A'},
+{id:'principe-perdido',nombre:'El Príncipe sin Reino',frase:'Encontró en la muralla lo que su castillo nunca le dio.',familia:'figura',color:'#2E3A5C',acento:'#C4A84A'},
+{id:'druida-anciano',nombre:'El Druida de Raíces Largas',frase:'Sus manos son casi tan viejas como la piedra misma.',familia:'figura',color:'#2E4A2E',acento:'#8CFF8C'},
+{id:'espectro-guardian',nombre:'El Espectro Guardián',frase:'Custodia un tramo que ya nadie recuerda por qué importaba.',familia:'figura',color:'#2A2A3C',acento:'#7A7AB8'},
+{id:'juglar-viajero',nombre:'El Juglar que Nunca Termina la Canción',frase:'Cada vez que alguien pasa, la melodía cambia un poco.',familia:'figura',color:'#5C2E4A',acento:'#E6A8C4'},
+{id:'vigia-eterno',nombre:'El Vigía Eterno',frase:'Relevo que nunca llegó a relevarlo.',familia:'figura',color:'#3A3A42',acento:'#C4C4D0'},
+{id:'alquimista-torre',nombre:'El Alquimista de la Torre Este',frase:'Sus experimentos, dicen, tiñeron el cielo una vez.',familia:'figura',color:'#4A3A5C',acento:'#B26EFF'},
+{id:'narrador-piedra',nombre:'El Narrador de Piedra',frase:'Cuenta la historia de cada ladrillo, si uno se queda a escuchar.',familia:'figura',color:'#4A4238',acento:'#D6C8A8'},
+// --- Cascadas (12): desde una ventana hasta el suelo ---
+{id:'trenza-dorada',nombre:'La Trenza Dorada',frase:'Cae desde la ventana más alta hasta perderse en la piedra.',familia:'cascada',color:'#E6B84A',brillo:'#FFF0C6'},
+{id:'cascada-plata',nombre:'La Cascada de Plata',frase:'Agua que nunca llega al suelo, o eso parece.',familia:'cascada',color:'#C8D8E0',brillo:'#F0F8FF'},
+{id:'enredadera-luz',nombre:'La Enredadera de Luz',frase:'Florece de noche y se cierra con el sol.',familia:'cascada',color:'#6EFFB0',brillo:'#C6FFE0'},
+{id:'cinta-carmesi',nombre:'La Cinta Carmesí',frase:'Ondea aunque no sopla el viento.',familia:'cascada',color:'#B8304A',brillo:'#FF8CA0'},
+{id:'melena-nocturna',nombre:'La Melena Nocturna',frase:'Tan oscura que parece un corte en la piedra.',familia:'cascada',color:'#1A1A24',brillo:'#4A4A6E'},
+{id:'rio-suspendido',nombre:'El Río Suspendido',frase:'Cae en cámara lenta desde hace generaciones.',familia:'cascada',color:'#4A9CC8',brillo:'#B0E0FF'},
+{id:'seda-imperial',nombre:'La Seda Imperial',frase:'Nadie sabe qué torre la reclama, pero cuelga con orgullo.',familia:'cascada',color:'#7A2E5C',brillo:'#E0A8CC'},
+{id:'musgo-dorado',nombre:'El Musgo Dorado',frase:'Crece siempre hacia abajo, nunca hacia arriba.',familia:'cascada',color:'#8A9C3A',brillo:'#D6E68C'},
+{id:'lagrimas-luna',nombre:'Las Lágrimas de la Luna',frase:'Cuentan que caen sólo en luna llena.',familia:'cascada',color:'#C4CCE0',brillo:'#EEF0FF'},
+{id:'cabellera-fuego',nombre:'La Cabellera de Fuego',frase:'No quema — sólo brilla como si lo hiciera.',familia:'cascada',color:'#D65A2E',brillo:'#FFAE7A'},
+{id:'hiedra-plateada',nombre:'La Hiedra Plateada',frase:'Se aferra a la torre más vieja como si la sostuviera.',familia:'cascada',color:'#AAB4BC',brillo:'#EAF0F4'},
+{id:'liston-jade',nombre:'El Listón de Jade',frase:'Un regalo de alguien que nunca dijo su nombre.',familia:'cascada',color:'#2E8A6E',brillo:'#9CFFE0'},
+// --- Objetos flotantes (16): en el aire, sobre el remate ---
+{id:'orbe-tormenta',nombre:'El Orbe de Tormenta',frase:'Gira despacio, como pensando.',familia:'objeto',color:'#4A5C8A',glow:'#8FCCFF',forma:'orbe'},
+{id:'cristal-eterno',nombre:'El Cristal Eterno',frase:'No se sabe qué guarda adentro.',familia:'objeto',color:'#7A4AB8',glow:'#C6A8FF',forma:'cristal'},
+{id:'libro-abierto',nombre:'El Libro que Nunca se Cierra',frase:'Sus páginas cambian según quién lo mira.',familia:'objeto',color:'#6E4A2E',glow:'#E6C88C',forma:'libro'},
+{id:'espada-clavada',nombre:'La Espada del Juramento',frase:'Nadie la reclamó todavía.',familia:'objeto',color:'#8A8F99',glow:'#DCE8F0',forma:'espada'},
+{id:'corona-suspendida',nombre:'La Corona sin Dueño',frase:'Flota justo fuera del alcance de cualquiera.',familia:'objeto',color:'#C89A2E',glow:'#FFE68C',forma:'corona'},
+{id:'farol-eterno',nombre:'El Farol que Nunca se Apaga',frase:'Ni la lluvia ni el viento lo tocan.',familia:'objeto',color:'#D67A2E',glow:'#FFC88C',forma:'orbe'},
+{id:'gema-carmesi',nombre:'La Gema Carmesí',frase:'Cuentan que late, muy despacio.',familia:'objeto',color:'#8A2E3A',glow:'#FF8CA0',forma:'cristal'},
+{id:'reloj-arena',nombre:'El Reloj de Arena que Nunca Termina',frase:'La arena cae, pero nunca se acaba.',familia:'objeto',color:'#8A6E4A',glow:'#F0D8A8',forma:'libro'},
+{id:'campana-silenciosa',nombre:'La Campana Silenciosa',frase:'Suena, pero nadie la escucha nunca.',familia:'objeto',color:'#7A7A82',glow:'#D0D0DC',forma:'orbe'},
+{id:'mapa-flotante',nombre:'El Mapa que se Redibuja Solo',frase:'Cambia cada vez que la muralla crece.',familia:'objeto',color:'#5C4A2E',glow:'#E6C88C',forma:'libro'},
+{id:'daga-luz',nombre:'La Daga de Luz',frase:'Más un símbolo que un arma.',familia:'objeto',color:'#AAB4C4',glow:'#EAF4FF',forma:'espada'},
+{id:'anillo-gigante',nombre:'El Anillo del Gigante',frase:'Demasiado grande para cualquier mano conocida.',familia:'objeto',color:'#B8862E',glow:'#FFE0A0',forma:'corona'},
+{id:'esfera-nocturna',nombre:'La Esfera Nocturna',frase:'Contiene, dicen, un pedazo de cielo sin estrellas.',familia:'objeto',color:'#1E1E3A',glow:'#6E6EC8',forma:'orbe'},
+{id:'prisma-solar',nombre:'El Prisma Solar',frase:'Parte la luz del amanecer en siete colores, siempre.',familia:'objeto',color:'#C89A2E',glow:'#FFE68C',forma:'cristal'},
+{id:'yelmo-vacio',nombre:'El Yelmo Vacío',frase:'Nadie sabe quién lo dejó, ni por qué.',familia:'objeto',color:'#5C5A5E',glow:'#B8BCC4',forma:'corona'},
+{id:'lampara-genio',nombre:'La Lámpara sin Genio',frase:'Alguien ya pidió los tres deseos.',familia:'objeto',color:'#8A5A1E',glow:'#FFC85C',forma:'orbe'},
+// --- Auras (14): un efecto puro, sin figura ---
+{id:'aurora-boreal',nombre:'La Aurora de la Muralla',frase:'Aparece sin aviso, se va sin despedida.',familia:'aura',color1:'#4AFFC8',color2:'#8F6EFF',forma:'halo'},
+{id:'rayo-quieto',nombre:'El Rayo que se Quedó Quieto',frase:'Partió el cielo una vez y decidió no irse.',familia:'aura',color1:'#FFE45C',color2:'#FFF0A0',forma:'rayo'},
+{id:'arcoiris-nocturno',nombre:'El Arco Nocturno',frase:'Un arco iris que sólo se ve de noche. Nadie explica cómo.',familia:'aura',color1:'#FF6E9C',color2:'#6EA8FF',forma:'arco'},
+{id:'fuego-fatuo',nombre:'El Fuego Fatuo del Camino',frase:'Guía a quien se pierde. O eso dicen.',familia:'aura',color1:'#8FFF9C',color2:'#C8FFD0',forma:'chispas'},
+{id:'eclipse-eterno',nombre:'El Eclipse que No Termina',frase:'Un anillo de luz alrededor de la sombra.',familia:'aura',color1:'#1A1A2E',color2:'#FFD98F',forma:'halo'},
+{id:'viento-cantor',nombre:'El Viento que Canta',frase:'Se escucha una melodía cuando sopla por ahí.',familia:'aura',color1:'#CDE8FF',color2:'#FFFFFF',forma:'chispas'},
+{id:'columna-luz',nombre:'La Columna de Luz del Solsticio',frase:'Aparece un solo día al año, o eso aseguran.',familia:'aura',color1:'#FFF0C6',color2:'#FFE68C',forma:'rayo'},
+{id:'niebla-dorada',nombre:'La Niebla Dorada',frase:'Envuelve la torre y no moja nada.',familia:'aura',color1:'#E6C75C',color2:'#FFF0C6',forma:'halo'},
+{id:'lluvia-estrellas',nombre:'La Lluvia de Estrellas Detenida',frase:'Cada chispa quedó suspendida a mitad de caída.',familia:'aura',color1:'#FFFFFF',color2:'#8FCCFF',forma:'chispas'},
+{id:'espiral-mistica',nombre:'La Espiral Mística',frase:'Gira despacio, en un sentido que nadie logra seguir.',familia:'aura',color1:'#B26EFF',color2:'#6EFFE0',forma:'halo'},
+{id:'sombra-viviente',nombre:'La Sombra que Camina Sola',frase:'No pertenece a nadie, y aun así se mueve.',familia:'aura',color1:'#0A0A12',color2:'#3A3A50',forma:'arco'},
+{id:'brisa-encendida',nombre:'La Brisa Encendida',frase:'Chispas que no queman, sólo bailan.',familia:'aura',color1:'#FF9556',color2:'#FFD9A8',forma:'chispas'},
+{id:'halo-plateado',nombre:'El Halo Plateado',frase:'Corona de luz fría que nadie enciende ni apaga.',familia:'aura',color1:'#D6E0EA',color2:'#FFFFFF',forma:'halo'},
+{id:'ultimo-suspiro',nombre:'El Último Suspiro del Constructor',frase:'Cuentan que es el aliento de quien empezó esta muralla.',familia:'aura',color1:'#FFD98F',color2:'#FF9556',forma:'rayo'}
+];
+
+// El orden de aparición de los 100 no sigue el orden de la lista (si no,
+// los primeros hitos épicos del recorrido serían siempre "alada", los
+// siguientes siempre "bestia", etc. — nada aleatorio). Se baraja una
+// sola vez, con la misma semilla determinista de siempre.
+function construirPermutacion(n, semilla){
+  const arr = Array.from({length:n}, (_,i) => i);
+  for(let i=n-1; i>0; i--){
+    const j = Math.floor(h(semilla + i*37.13) * (i+1));
+    const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+  }
+  return arr;
+}
+const ORDEN_EPICOS = construirPermutacion(EPICOS.length, 911.7);
+
+function dibujarEpico(c, info, p, decay, ahora, entry){
+  const familia = entry.familia;
+  const altoMul = familia==='alada' ? 1.4 : familia==='cascada' ? 1.6 : familia==='figura' ? 1.15 : 1.25;
+  const anchoMul = familia==='alada' ? 1.25 : familia==='cascada' ? 0.8 : familia==='bestia' ? 1.0 : 1.0;
+  dibujarTorreGenerica(c, info, p, decay, ahora, {anchoMul, altoMul, techo: familia==='cascada'?'cono':'plano', tinte: familia==='alada'?-4:familia==='cascada'?6:0});
   if(p < 0.85) return;
+  const op = clamp((p-0.85)/0.15, 0, 1);
+  const g = geometriaTorre(c, info, altoMul, anchoMul);
+  switch(familia){
+    case 'alada':  return dibujarCriaturaAlada(c, info, g, entry, ahora, op);
+    case 'bestia': return dibujarBestiaTerrestre(c, info, g, entry, ahora, op);
+    case 'figura': return dibujarFiguraParada(c, info, g, entry, ahora, op);
+    case 'cascada':return dibujarCascada(c, info, g, entry, ahora, op);
+    case 'objeto': return dibujarObjetoFlotante(c, info, g, entry, ahora, op);
+    case 'aura':   return dibujarAuraEpica(c, info, g, entry, ahora, op);
+  }
+}
+
+// Criatura alada: enroscada sobre el remate, con un rescoldo que le titila.
+function dibujarCriaturaAlada(c, info, g, entry, ahora, op){
   const e = cam.escala;
-  const cursosT = Math.round((AL+3.5)*1.4), anchoT = LA*(1.7*1.3+1.0), altoT = cursosT*PY;
-  const baseY = sueloCol(c), wx0 = info.wx-(anchoT-LA)/2, wz0 = info.wz;
-  const [cx0,cy0] = aPantalla(wx0+anchoT*0.5, baseY-altoT-PY*1.4, wz0);
-  const op = clamp((p-0.85)/0.15, 0, 1), s = anchoT*e*0.9;
+  const [cx0,cy0] = aPantalla(g.wx0+g.anchoT*0.5, g.baseY-g.altoT-PY*1.4, g.wz0);
+  const s = g.anchoT*e*0.9;
   ctx.save(); ctx.globalAlpha = op;
-  ctx.fillStyle = "#2B2320";
+  ctx.fillStyle = sombrear(entry.color, -0.18);
   ctx.beginPath();
   ctx.moveTo(cx0-s*0.5, cy0+s*0.12);
   ctx.quadraticCurveTo(cx0-s*0.1, cy0-s*0.32, cx0+s*0.35, cy0-s*0.1);
   ctx.quadraticCurveTo(cx0+s*0.15, cy0+s*0.05, cx0-s*0.5, cy0+s*0.12);
   ctx.fill();
+  ctx.fillStyle = entry.color;
   ctx.beginPath();
   ctx.moveTo(cx0+s*0.2, cy0-s*0.05);
   ctx.quadraticCurveTo(cx0+s*0.55, cy0-s*0.5, cx0+s*0.78, cy0-s*0.68);
@@ -1511,10 +1697,135 @@ function dibujarDragon(c, info, p, decay, ahora){
   ctx.quadraticCurveTo(cx0+s*0.02, cy0-s*0.42, cx0-s*0.02, cy0-s*0.02);
   ctx.closePath(); ctx.fill();
   const fl = 0.7+0.3*Math.sin(ahora*0.008), gx = cx0+s*0.86, gy = cy0-s*0.63;
-  const g = ctx.createRadialGradient(gx,gy,0,gx,gy,10*e*fl);
-  g.addColorStop(0, "rgba(255,130,50,"+(0.8*fl).toFixed(2)+")");
-  g.addColorStop(1, "rgba(255,130,50,0)");
-  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(gx,gy,10*e*fl,0,Math.PI*2); ctx.fill();
+  const grad = ctx.createRadialGradient(gx,gy,0,gx,gy,10*e*fl);
+  grad.addColorStop(0, rgba(entry.ascua, 0.8*fl)); grad.addColorStop(1, rgba(entry.ascua, 0));
+  ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(gx,gy,10*e*fl,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+// Bestia terrestre: agazapada junto a la base, no arriba de la torre.
+function dibujarBestiaTerrestre(c, info, g, entry, ahora, op){
+  const e = cam.escala;
+  const [bx0,by0] = aPantalla(g.wx0 - g.anchoT*0.55, g.baseY, g.wz0);
+  const s = g.anchoT*e*0.6;
+  ctx.save(); ctx.globalAlpha = op;
+  ctx.fillStyle = entry.color;
+  ctx.beginPath();
+  ctx.moveTo(bx0-s*0.5, by0);
+  ctx.quadraticCurveTo(bx0-s*0.55, by0-s*0.34, bx0-s*0.1, by0-s*0.36);
+  ctx.quadraticCurveTo(bx0+s*0.32, by0-s*0.4, bx0+s*0.48, by0-s*0.18);
+  ctx.quadraticCurveTo(bx0+s*0.5, by0-s*0.02, bx0+s*0.4, by0);
+  ctx.closePath(); ctx.fill();
+  // orejas/cuernos/detalle: un pequeño triángulo con el color de acento
+  ctx.fillStyle = entry.acento;
+  ctx.beginPath();
+  ctx.moveTo(bx0+s*0.22, by0-s*0.38); ctx.lineTo(bx0+s*0.3, by0-s*0.58); ctx.lineTo(bx0+s*0.38, by0-s*0.4);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.arc(bx0+s*0.42, by0-s*0.24, s*0.028, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+// Figura parada: sobre una pequeña plataforma junto al remate.
+function dibujarFiguraParada(c, info, g, entry, ahora, op){
+  const e = cam.escala;
+  const [fx,fy] = aPantalla(g.wx0+g.anchoT*0.78, g.baseY-g.altoT+PY*0.3, g.wz0);
+  const s = g.anchoT*e*0.62;
+  ctx.save(); ctx.globalAlpha = op;
+  // manto/cuerpo: un trapecio
+  ctx.fillStyle = entry.color;
+  ctx.beginPath();
+  ctx.moveTo(fx-s*0.16, fy); ctx.lineTo(fx-s*0.26, fy-s*0.5); ctx.lineTo(fx+s*0.26, fy-s*0.5); ctx.lineTo(fx+s*0.16, fy);
+  ctx.closePath(); ctx.fill();
+  // cabeza
+  ctx.beginPath(); ctx.arc(fx, fy-s*0.62, s*0.14, 0, Math.PI*2); ctx.fill();
+  // acento: un detalle (cetro/corona/brillo) sobre la cabeza
+  ctx.fillStyle = entry.acento;
+  ctx.beginPath(); ctx.arc(fx, fy-s*0.8, s*0.06, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+// Cascada: desde una ventana alta hasta perderse en la piedra.
+function dibujarCascada(c, info, g, entry, ahora, op){
+  const e = cam.escala;
+  const [vx,vy] = aPantalla(g.wx0+g.anchoT*0.5, g.baseY-g.altoT*0.68, g.wz0);
+  const [sx,sy] = aPantalla(g.wx0+g.anchoT*0.5, g.baseY, g.wz0);
+  const osc = Math.sin(ahora*0.0011)*10*e;
+  ctx.save(); ctx.globalAlpha = op; ctx.lineCap = "round";
+  ctx.strokeStyle = entry.color; ctx.lineWidth = Math.max(2, 3.2*e);
+  ctx.beginPath(); ctx.moveTo(vx,vy);
+  ctx.bezierCurveTo(vx+osc, lerp(vy,sy,0.35), vx-osc*0.6, lerp(vy,sy,0.7), sx, sy);
+  ctx.stroke();
+  ctx.strokeStyle = rgba(entry.brillo, 0.6); ctx.lineWidth = Math.max(1, 1*e);
+  ctx.beginPath(); ctx.moveTo(vx,vy);
+  ctx.bezierCurveTo(vx+osc, lerp(vy,sy,0.35), vx-osc*0.6, lerp(vy,sy,0.7), sx, sy);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Objeto flotante: hamacándose despacio sobre el remate.
+function dibujarObjetoFlotante(c, info, g, entry, ahora, op){
+  const e = cam.escala;
+  const bob = Math.sin(ahora*0.0016)*6*e;
+  const [ox,oy] = aPantalla(g.wx0+g.anchoT*0.5, g.baseY-g.altoT-PY*2.1, g.wz0);
+  const cy = oy + bob, cx = ox, r = g.anchoT*e*0.22;
+  ctx.save(); ctx.globalAlpha = op;
+  const grad = ctx.createRadialGradient(cx,cy,0,cx,cy,r*2.6);
+  grad.addColorStop(0, rgba(entry.glow, 0.5)); grad.addColorStop(1, rgba(entry.glow, 0));
+  ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(cx,cy,r*2.6,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle = entry.color;
+  if(entry.forma === 'cristal'){
+    ctx.beginPath(); ctx.moveTo(cx,cy-r); ctx.lineTo(cx+r*0.7,cy); ctx.lineTo(cx,cy+r); ctx.lineTo(cx-r*0.7,cy); ctx.closePath(); ctx.fill();
+  }else if(entry.forma === 'libro'){
+    ctx.save(); ctx.translate(cx,cy); ctx.rotate(0.15);
+    ctx.fillRect(-r*0.8,-r*0.55,r*1.6,r*1.1);
+    ctx.strokeStyle = rgba(entry.glow,0.8); ctx.lineWidth = Math.max(1,e*0.6);
+    ctx.beginPath(); ctx.moveTo(0,-r*0.55); ctx.lineTo(0,r*0.55); ctx.stroke();
+    ctx.restore();
+  }else if(entry.forma === 'espada'){
+    ctx.save(); ctx.translate(cx,cy); ctx.rotate(-0.5);
+    ctx.fillRect(-r*0.12,-r*1.1,r*0.24,r*1.5);
+    ctx.fillRect(-r*0.4,r*0.28,r*0.8,r*0.16);
+    ctx.restore();
+  }else if(entry.forma === 'corona'){
+    ctx.beginPath();
+    ctx.moveTo(cx-r*0.7,cy+r*0.3); ctx.lineTo(cx-r*0.7,cy-r*0.1); ctx.lineTo(cx-r*0.35,cy-r*0.5);
+    ctx.lineTo(cx,cy-r*0.1); ctx.lineTo(cx+r*0.35,cy-r*0.5); ctx.lineTo(cx+r*0.7,cy-r*0.1);
+    ctx.lineTo(cx+r*0.7,cy+r*0.3); ctx.closePath(); ctx.fill();
+  }else{
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle = rgba(entry.glow,0.7); ctx.lineWidth = Math.max(1,e*0.6); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// Aura pura: sin figura, sólo luz sobre el remate.
+function dibujarAuraEpica(c, info, g, entry, ahora, op){
+  const e = cam.escala;
+  const [ax,ay] = aPantalla(g.wx0+g.anchoT*0.5, g.baseY-g.altoT-PY*1.2, g.wz0);
+  ctx.save(); ctx.globalAlpha = op;
+  const t = ahora*0.0009;
+  if(entry.forma === 'rayo'){
+    const grad = ctx.createLinearGradient(ax,ay-70*e,ax,ay+10*e);
+    grad.addColorStop(0, rgba(entry.color2,0)); grad.addColorStop(0.5, rgba(entry.color1,0.55)); grad.addColorStop(1, rgba(entry.color2,0));
+    ctx.fillStyle = grad; ctx.fillRect(ax-4*e, ay-70*e, 8*e, 80*e);
+  }else if(entry.forma === 'arco'){
+    ctx.strokeStyle = rgba(entry.color1, 0.6); ctx.lineWidth = Math.max(2,3*e);
+    ctx.beginPath(); ctx.arc(ax, ay+18*e, 34*e, Math.PI*1.08, Math.PI*1.92); ctx.stroke();
+    ctx.strokeStyle = rgba(entry.color2, 0.4); ctx.lineWidth = Math.max(1,1.6*e);
+    ctx.beginPath(); ctx.arc(ax, ay+18*e, 40*e, Math.PI*1.1, Math.PI*1.9); ctx.stroke();
+  }else if(entry.forma === 'chispas'){
+    for(let k=0;k<7;k++){
+      const ang = t*1.3 + k*0.9, rr = 18*e + (k%3)*7*e;
+      const px = ax + Math.cos(ang)*rr, py = ay + Math.sin(ang*1.4)*rr*0.5 - 14*e;
+      ctx.fillStyle = rgba(k%2 ? entry.color1 : entry.color2, 0.6+0.3*Math.sin(t*2+k));
+      ctx.beginPath(); ctx.arc(px,py, (1.4+ (k%2))*e, 0, Math.PI*2); ctx.fill();
+    }
+  }else{
+    const rad = 40*e*(0.9+0.1*Math.sin(t*2));
+    const grad = ctx.createRadialGradient(ax,ay,rad*0.3,ax,ay,rad);
+    grad.addColorStop(0, rgba(entry.color1,0.4)); grad.addColorStop(1, rgba(entry.color2,0));
+    ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(ax,ay,rad,0,Math.PI*2); ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -1689,6 +2000,17 @@ const velo = document.getElementById("velo");
 const inputNota = document.getElementById("nota");
 const btnVolver = document.getElementById("btnVolver");
 const globo = document.getElementById("globo");
+const toastEpico = document.getElementById("toastEpico");
+const teNombre = document.getElementById("teNombre");
+const teFrase = document.getElementById("teFrase");
+let toastEpicoTimer = null;
+function anunciarEpico(entry){
+  teNombre.textContent = entry.nombre;
+  teFrase.textContent = entry.frase;
+  toastEpico.classList.add("ver");
+  clearTimeout(toastEpicoTimer);
+  toastEpicoTimer = setTimeout(() => toastEpico.classList.remove("ver"), 4200);
+}
 
 function empezarCarga(ev){
   if(boton.disabled || carga || velo.classList.contains("ver")) return;
@@ -1738,6 +2060,15 @@ function colocar(){
   contador.textContent = ladrillos.length;
   contador.classList.add("pulso");
   setTimeout(() => contador.classList.remove("pulso"), 200);
+
+  // Si este ladrillo completó la columna de un hito épico, anunciarlo.
+  if(filaDe(i) === AL-1){
+    const cCompletada = colDe(i);
+    if(hitoEnColumna(cCompletada)){
+      const elegido = elegirHito(cCompletada);
+      if(elegido.tipo === 'epico') anunciarEpico(elegido.entry);
+    }
+  }
 
   // Restauración: volver rinde más que empezar.
   if(decayPrevio > 0.30){
