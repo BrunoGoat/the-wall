@@ -435,6 +435,10 @@ input[type=range]{
       </div>
     </div>
     <div class="campo">
+      <div class="rot">Ángulo de cámara</div>
+      <input type="range" id="sliderOrbit" min="-115" max="115" step="1" value="85" aria-label="Ángulo de cámara">
+    </div>
+    <div class="campo">
       <div class="rot">Historial</div>
       <div class="seg">
         <button id="reset" aria-pressed="false">Reiniciar muralla</button>
@@ -470,15 +474,15 @@ input[type=range]{
       <h3>Qué probar</h3>
       <ul>
         <li><b>Mantené el botón 800 ms.</b> La resistencia es el diseño: la espera carga la anticipación, el impacto la descarga y la cámara pega un envión de zoom hacia el ladrillo nuevo. Soltá antes de tiempo y no pasa nada, sin regaño.</li>
-        <li><b>Arrastrá hacia arriba o abajo sobre la muralla.</b> Gira la cámara para admirarla desde otro ángulo: revela la cara de arriba de la piedra o rodeá hacia el otro lado para ver el canto. Arrastrar de costado sigue recorriendo la muralla, es el mismo gesto con dos ejes.</li>
         <li><b>Colocá todos los que quieras.</b> El tope diario está apagado por defecto (panel de abajo) para que puedas probar sin esperar veinticuatro horas entre ladrillo y ladrillo.</li>
-        <li><b>Probá los chips de cantidad.</b> Regeneran la muralla con 0, 50, 500, 5000 ladrillos, lo que elijas, para ver cómo se comporta a cada escala.</li>
-        <li><b>Llevá el slider a 24 días.</b> Musgo, grietas, niebla y la sección más nueva caída en escombros al pie. El núcleo antiguo nunca se derrumba.</li>
-        <li><b>Ahora colocá un ladrillo.</b> Eso dispara la restauración: los escombros vuelven, el musgo se retira, la luz regresa. Volver tiene que sentirse mejor que empezar.</li>
-        <li><b>Alejate a «Muralla».</b> Arrastrá para recorrerla. Las torres aparecen cada 64 ladrillos, sin anunciarse.</li>
-        <li><b>Acercate a «Ladrillo».</b> Cada piedra tiene cara superior y lateral: es volumen, no un rectángulo pintado. Tocá una con nota guardada para ver qué lograste ese día.</li>
+        <li><b>Alejate a «Muralla» y arrastrá.</b> El trazado ya no es una línea recta: gira en cada hito, sube lomas y a veces pasa por detrás de un tramo anterior. Cada giro y cada subida son deterministas pero variados: no hay dos recorridos iguales.</li>
+        <li><b>Mirá qué aparece en cada giro.</b> Torres chicas, grandes, esbeltas con techo cónico, bastiones anchos, faros con brasero, torres reloj, puertas de castillo y hasta puentes levadizos — nunca el mismo hito dos veces seguidas.</li>
+        <li><b>Probá los chips de cantidad.</b> Con 5000 hay decenas de hitos: quedate un rato buscando algo especial. Es raro — puede tardar en aparecer.</li>
+        <li><b>Arrastrá hacia arriba o abajo, o usá el slider «Ángulo de cámara».</b> Gira la cámara para admirar la piedra desde otro ángulo: revela la cara de arriba o rodeá hacia el otro lado para ver el canto.</li>
+        <li><b>Acercate a «Ladrillo».</b> Cada piedra tiene un tamaño propio (algunas notablemente más chicas o más grandes) y volumen real: cara superior, lateral y mortero visible entre juntas.</li>
+        <li><b>Llevá el slider a 24 días.</b> Musgo, grietas, niebla y la sección más nueva caída en escombros al pie. El núcleo antiguo nunca se derrumba. Colocar un ladrillo dispara la restauración.</li>
         <li><b>Abrí el ícono de barras, arriba a la derecha.</b> Es el panel de estadísticas: a qué hora y qué día solés construir, calculado sobre tus propios ladrillos.</li>
-        <li><b>Cambiá el tema de tu navegador.</b> Claro es mediodía, oscuro es el anochecer con las antorchas encendidas. En la app real lo decide la hora del teléfono.</li>
+        <li><b>Cambiá el tema de tu navegador.</b> Claro es mediodía, oscuro es el anochecer con las antorchas encendidas.</li>
       </ul>
     </div>
     <div>
@@ -487,7 +491,8 @@ input[type=range]{
         <li><b>La háptica.</b> En el navegador no existe. Es la mitad del golpe: pulsos que se aceleran durante la carga y un impacto pesado al asentar. Recién se juzga con el APK en el celular.</li>
         <li><b>El sonido.</b> Acá está sintetizado en el momento. En Flutter va una grabación real de piedra contra piedra, con cola grave y variación mínima de tono por ladrillo.</li>
         <li><b>Los 120 fps.</b> Canvas 2D en una PC de oficina no es <span class="k">CustomPainter</span> con los chunks ya rasterizados. El objetivo en Flutter es 120 fps firmes durante la colocación.</li>
-        <li><b>La textura fina.</b> Cada ladrillo se dibuja acá con una semilla determinista derivada de su índice: misma idea que va a usar Flutter, con mucho más detalle por piedra.</li>
+        <li><b>La vuelta completa.</b> Acá cada ladrillo es una "caja" que se inclina en el lugar para insinuar volumen; la muralla en sí no se reproyecta en 3D real (con miles de ladrillos a lo largo del trazado sería una distorsión). En Flutter, con un motor de verdad, la vuelta puede ser libre y sin ese límite.</li>
+        <li><b>Los hitos épicos.</b> Rapunzel y el dragón están hechos con formas de canvas (curvas de Bézier), no con arte dibujado a mano. En Flutter la idea es la misma pero con ilustración real.</li>
       </ul>
     </div>
   </div>
@@ -506,7 +511,6 @@ const MJ = 3;            // junta de mortero
 const PX = LA + MJ;      // paso horizontal
 const PY = LH + MJ;      // paso vertical
 const PROF = 7;          // profundidad de la extrusión 3D (mundo)
-const TORRE_CADA = 8;    // una torre cada 8 columnas (= 64 ladrillos)
 const DIA_MS = 86400000;
 const TOPE_DIARIO = 5;
 const CARGA_MS = 800;
@@ -518,24 +522,85 @@ function lerp(a,b,t){ return a + (b-a)*t; }
 function clamp(v,a,b){ return v<a?a:v>b?b:v; }
 const easeOut = t => 1 - Math.pow(1-t, 3);
 
-// Relieve del terreno, cuantizado a cursos enteros para que la mampostería calce.
-function sueloCrudo(c){
-  return Math.sin(c*0.031)*3.1*PY + Math.sin(c*0.0113+1.7)*4.6*PY + Math.sin(c*0.087+0.4)*0.8*PY;
-}
-function sueloCol(c){ return Math.round(sueloCrudo(c) / PY) * PY; }
-// El suelo dibujado interpola entre bases de columna: así la tierra toca
-// exactamente el cimiento de cada columna, sin ladrillos flotando ni hundidos.
-function sueloX(x){
-  const c = x / PX, f = Math.floor(c);
-  return lerp(sueloCol(f), sueloCol(f+1), c - f);
-}
+/* ============================================================
+   1b. El trazado — la muralla ya no es una línea recta: es una
+   sucesión de tramos rectos que giran en cada hito. Un solo escalar
+   (distancia recorrida, en las mismas unidades de siempre) se traduce
+   a una posición real del plano recorriendo esos tramos, así que todo
+   lo que ya usaba una coordenada X lineal (la cámara, el borde vivo,
+   el paneo) sigue funcionando igual: sólo cambia CÓMO esa distancia
+   se convierte en un lugar del mundo.
+   ============================================================ */
+const DIRS = [ {x:1,z:0}, {x:0,z:1}, {x:-1,z:0}, {x:0,z:-1} ]; // E, S, O, N
 
 function colDe(i){ return Math.floor(i / AL); }
 function filaDe(i){ return i % AL; }
-function ladrilloX(i){ return colDe(i)*PX + (filaDe(i)%2 ? PX*0.5 : 0); }
-function ladrilloY(i){ return sueloCol(colDe(i)) - filaDe(i)*PY - LH; }
-function columnaLlena(c, total){ return total >= (c+1)*AL; }
+
+let tramos = [];
+function largoTramo(k){ return 8 + Math.floor(h(k*13.7)*9); }        // 8..16 columnas
+function primerTramo(){
+  return {colIni:0, dir:0, wx0:0, wz0:0, elev0:0, rise:0, largo: largoTramo(0)};
+}
+function siguienteTramo(t, k){
+  // Gira hacia un lado u otro; a veces sigue derecho para que no sea
+  // siempre esquina. Ocasionalmente el tramo trepa una loma (crece hacia
+  // arriba en vez de sólo doblar).
+  const r = h(k*29.3);
+  const dir = r < 0.14 ? t.dir : (t.dir + (r < 0.57 ? 1 : 3)) % 4;
+  const d = DIRS[t.dir];
+  const rise = h(k*41.1) < 0.24 ? (9 + h(k*47.7)*16) : 0;
+  return {
+    colIni: t.colIni + t.largo, dir,
+    wx0: t.wx0 + d.x*t.largo*PX, wz0: t.wz0 + d.z*t.largo*PX,
+    elev0: t.elev0 + t.rise*t.largo, rise,
+    largo: largoTramo(k)
+  };
+}
+function asegurarTramosHasta(col){
+  if(tramos.length === 0) tramos.push(primerTramo());
+  let guarda = 0;
+  while(tramos[tramos.length-1].colIni + tramos[tramos.length-1].largo <= col && guarda++ < 20000){
+    tramos.push(siguienteTramo(tramos[tramos.length-1], tramos.length));
+  }
+}
+function tramoPara(colFrac){
+  asegurarTramosHasta(Math.max(0, Math.floor(colFrac)));
+  for(let i=tramos.length-1; i>=0; i--) if(colFrac >= tramos[i].colIni) return tramos[i];
+  return tramos[0];
+}
+// Posición real (wx,wz en el plano, elev de altura) de una columna, o de
+// cualquier punto FRACCIONARIO entre columnas — la misma función sirve
+// para ubicar un ladrillo exacto y para mover la cámara con suavidad.
+function posEnColumna(colFrac){
+  const t = tramoPara(colFrac);
+  const d = DIRS[t.dir];
+  const n = colFrac - t.colIni;
+  return { wx: t.wx0 + d.x*n*PX, wz: t.wz0 + d.z*n*PX, dir: t.dir, elev: t.elev0 + t.rise*n };
+}
+// Altura de mundo (wy) del suelo en cualquier punto del trazado (columna
+// entera o fraccionaria): la elevación acumulada del tramo, más una
+// textura orgánica leve.
+function alturaSuelo(colFrac){
+  const p = posEnColumna(colFrac);
+  const jitter = (h(Math.floor(colFrac)*0.9 + 2.3) - 0.5) * 0.7 * PY;
+  return -p.elev + jitter;
+}
+// Nivel del suelo por columna, cuantizado a cursos enteros para que la
+// mampostería calce exacta.
+function sueloCol(c){ return Math.round(alturaSuelo(c) / PY) * PY; }
 function cimaCol(c){ return sueloCol(c) - AL*PY; }
+function columnaLlena(c, total){ return total >= (c+1)*AL; }
+
+// Posición completa (mundo) de un ladrillo: su columna ya trae wx/wz/dir;
+// el aparejo trabado (hiladas alternadas) se desplaza a lo largo de la
+// dirección del tramo, no siempre en +X como cuando la muralla era recta.
+function ladrilloPos(i){
+  const c = colDe(i), f = filaDe(i);
+  const p = posEnColumna(c);
+  const d = DIRS[p.dir];
+  const st = (f % 2) ? PX*0.5 : 0;
+  return { wx: p.wx + d.x*st, wz: p.wz + d.z*st, wy: sueloCol(c) - f*PY - LH, dir: p.dir };
+}
 
 /* ============================================================
    2. Deterioro — función pura de (días). En Flutter es idéntica,
@@ -619,7 +684,11 @@ const NOTAS_EJEMPLO = [
 
 let ladrillos = [];   // {t: timestamp, nota: string|null}
 let simDias = 0;      // sólo prototipo: reemplaza al cálculo por fecha
-const cam = {x:0, y:0, tx:0, escala:1, escalaBase:1, tescala:1, libre:false, ultimoToque:0};
+// cam.x es la distancia recorrida a lo largo del trazado (misma semántica
+// de siempre: paneo, seguimiento del borde vivo). cam.ax/cam.ay/cam.z son
+// su traducción a un punto real del plano (wx,wy,wz), recalculada cada
+// frame — es lo que la proyección oblicua necesita para dibujar.
+const cam = {x:0, y:0, tx:0, ax:0, ay:0, z:0, escala:1, escalaBase:1, tescala:1, libre:false, ultimoToque:0};
 let sacudida = 0, particulas = [], destello = 0;
 let carga = null;         // {t0}
 let punch = null;         // {t0} — el envión de zoom al asentar un ladrillo
@@ -849,14 +918,21 @@ medir();
 const HOR = 0.66;   // el horizonte, en fracción de alto
 const ANCLA = 0.40; // el borde vivo se ancla acá, no al centro: deja el botón libre
                     // y deja tierra por delante para que la muralla avance hacia algo.
-function aPantalla(wx, wy){
-  return [ (wx - cam.x)*cam.escala + W*ANCLA, (wy - cam.y)*cam.escala + H*HOR ];
+// Proyección caballera: la profundidad del trazado (wz, "hacia el fondo")
+// empuja cada punto a la derecha y hacia arriba en pantalla. Es lo que
+// permite que un tramo que dobló y volvió pase, con toda razón, detrás
+// del tramo anterior en vez de superponerse encima.
+const SESGO_X = 0.62, SESGO_Y = 0.46;
+function aPantalla(wx, wy, wz){
+  wz = wz || 0;
+  const ax = wx + wz*SESGO_X, ay = wy - wz*SESGO_Y;
+  return [ (ax - cam.ax)*cam.escala + W*ANCLA, (ay - cam.ay)*cam.escala + H*HOR ];
 }
-function aMundo(sx, sy){
-  return [ (sx - W*ANCLA)/cam.escala + cam.x, (sy - H*HOR)/cam.escala + cam.y ];
+// Distancia lineal (misma unidad de siempre) hasta la punta viva de la muralla.
+function bordeX(){
+  const c = colDe(ladrillos.length), f = filaDe(ladrillos.length);
+  return c*PX + (f>0 ? PX*0.5 : 0) + LA/2;
 }
-
-function bordeX(){ return ladrilloX(ladrillos.length) + LA/2; }
 
 /* ---------- Fondo ---------- */
 function dibujarCielo(decay){
@@ -900,20 +976,23 @@ function dibujarNiebla(decay){
   g.addColorStop(1, "transparent");
   ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = g; ctx.fillRect(0, y, W, alto); ctx.restore();
 }
+// Telón de fondo genérico: con el trazado girando y doblando sobre sí
+// mismo ya no hay un único X de mundo por columna de pantalla, así que
+// el terreno exacto bajo la muralla lo resuelve el cimiento de cada
+// columna (dibujarColumna); esto es sólo la extensión de tierra detrás,
+// con un vaivén leve ligado al movimiento de la cámara.
 function dibujarSuelo(){
+  const desp = (cam.ax*0.5 + cam.ay*0.3);
   ctx.beginPath();
   ctx.moveTo(-2, H+2);
-  let techo = H;
-  for(let x=-2; x<=W+2; x+=5){
-    const [wx] = aMundo(x, 0);
-    const [, sy] = aPantalla(0, sueloX(wx));
-    if(sy < techo) techo = sy;
-    ctx.lineTo(x, sy);
+  const yb = H*HOR + 40;
+  for(let x=-2; x<=W+2; x+=8){
+    const u = (x + desp*cam.escala) * 0.0026;
+    const y = yb - (Math.sin(u)*0.5 + Math.sin(u*2.1+1.3)*0.3)*22;
+    ctx.lineTo(x, y);
   }
   ctx.lineTo(W+2, H+2); ctx.closePath();
-  // Degradado: la tierra se hunde hacia el frente en vez de leerse como una losa plana.
-  if(techo > H - 2) techo = H - 2;   // un degradado de altura cero no pinta nada
-  const g = ctx.createLinearGradient(0, techo, 0, H);
+  const g = ctx.createLinearGradient(0, yb-30, 0, H);
   g.addColorStop(0, P.sueloBorde);
   g.addColorStop(0.22, P.suelo);
   g.addColorStop(1, P.sueloHondo);
@@ -921,14 +1000,28 @@ function dibujarSuelo(){
 }
 
 /* ---------- Ladrillos ---------- */
-function dibujarLadrillo(i, decay, ahora, ox, oy, rot, alfa){
+// Variación de tamaño: la mayoría de las piedras ocupan casi toda su
+// celda, pero algunas son notablemente más chicas o más grandes — como
+// en un muro de piedra real tallada a mano, no un molde repetido. La
+// grilla (PX,PY) no cambia, sólo el tamaño dibujado dentro de su celda.
+function tallaLadrillo(i){
+  const s = h(i*3.9 + 5.5);
+  if(s > 0.93) return 1.0;          // sillar grande, ocupa la celda entera
+  if(s < 0.10) return 0.68;         // piedra chica
+  return 0.86 + (s-0.10)*0.16;      // variación suave del resto
+}
+function dibujarLadrillo(i, decay, ahora, ox, oy, oz, rot, alfa){
   const b = ladrillos[i];
   const s1 = h(i*1.7+3.1), s2 = h(i*2.9+0.6), s3 = h(i*6.1+9.2);
-  const x = (ox !== undefined ? ox : ladrilloX(i));
-  const y = (oy !== undefined ? oy : ladrilloY(i));
-  const [px, py] = aPantalla(x, y);
+  let x, y, z;
+  if(ox !== undefined){ x = ox; y = oy; z = oz; }
+  else{ const p = ladrilloPos(i); x = p.wx; y = p.wy; z = p.wz; }
+  const talla = tallaLadrillo(i);
+  const [px0, py0] = aPantalla(x, y, z);
   const e = cam.escala;
-  const w = LA*e, hh = LH*e;
+  const w = LA*talla*e, hh = LH*talla*e;
+  // Una piedra más chica se centra en su celda; queda mortero visible alrededor.
+  const px = px0 + (LA*e - w)/2, py = py0 + (LH*e - hh);
   if(px + w < -20 || px - w > W+20) return;
 
   const edad = ahora - (b.puesto || 0);
@@ -1005,17 +1098,35 @@ function dibujarLadrillo(i, decay, ahora, ox, oy, rot, alfa){
 
 function posEscombro(i){
   const c = colDe(i), s1 = h(i*17.3), s2 = h(i*23.9);
+  const p = posEnColumna(c), d = DIRS[p.dir];
+  const perp = {x: d.z, z: -d.x};   // perpendicular al tramo: "hacia el frente"
+  const along = (s1-0.5)*PX*5.5 - PX*0.5;
+  const adelante = 6 + s2*10;
   // Se desparraman por delante y a los costados del pie, no en un montón.
-  const x = c*PX + (s1-0.5)*PX*5.5 - PX*0.5;
-  const y = sueloCol(c) - LH*0.5 + s2*5;
-  return {x, y, rot: (s1-0.5)*2.2};
+  return {
+    x: p.wx + d.x*along + perp.x*adelante,
+    z: p.wz + d.z*along + perp.z*adelante,
+    y: sueloCol(c) - LH*0.5 + s2*5,
+    rot: (s1-0.5)*2.2
+  };
+}
+
+// Rango de columnas visibles. Ya no se puede invertir la pantalla a un
+// único X de mundo (la profundidad Z también empuja la pantalla), así que
+// en vez de eso se usa una ventana generosa de columnas alrededor de la
+// posición actual de la cámara a lo largo del trazado.
+function columnasVisibles(){
+  const total = ladrillos.length;
+  const margen = Math.ceil((W/Math.max(0.05,cam.escala)) / (PX*0.42)) + 12;
+  const colCam = cam.x / PX;
+  const cMin = Math.max(0, Math.floor(colCam - margen));
+  const cMax = Math.min(colDe(Math.max(0,total-1)) + 1, Math.ceil(colCam + margen));
+  return {cMin, cMax};
 }
 
 function dibujarMuro(decay, ahora){
   const total = ladrillos.length;
-  const izq = (W*ANCLA)/cam.escala, der = (W*(1-ANCLA))/cam.escala;
-  const cMin = Math.max(0, Math.floor((cam.x - izq)/PX) - 2);
-  const cMax = Math.min(colDe(total-1)+1, Math.ceil((cam.x + der)/PX) + 2);
+  const {cMin, cMax} = columnasVisibles();
 
   const nEsc = escombrosDe(simDias);
   const escSet = new Set();
@@ -1023,64 +1134,70 @@ function dibujarMuro(decay, ahora){
     for(let k=0;k<nEsc;k++){ const idx = total-1-k; if(idx>=0) escSet.add(idx); }
   }
 
-  // Zanja de cimiento: cierra cualquier resquicio que deje el terreno en
-  // pendiente bajo una columna, con el mismo tono de la tierra cercana
-  // para que no se lea como un agujero.
-  ctx.fillStyle = P.suelo;
+  // El trazado gira y puede volver sobre sí mismo, así que ya no alcanza
+  // con dibujar las columnas de izquierda a derecha: hay que ordenarlas
+  // por profundidad (de más lejos a más cerca) para que un tramo que
+  // dobló y volvió pase, con toda razón, por detrás del tramo anterior.
+  const cols = [];
   for(let c=cMin; c<=cMax; c++){
     if(c*AL >= total) continue;
-    const [px, py] = aPantalla(c*PX - 1, sueloCol(c));
-    ctx.fillRect(px, py, (LA+2)*cam.escala, PY*0.7*cam.escala);
+    const info = posEnColumna(c);
+    cols.push({c, info});
   }
+  cols.sort((a,b) => b.info.wz - a.info.wz || a.info.wx - b.info.wx);
+  for(const {c, info} of cols) dibujarColumna(c, info, total, decay, ahora, escSet);
 
-  // Cama de mortero: sin esto, la junta entre ladrillos es un hueco al
-  // vacío que la extrusión 3D solo tapaba por casualidad en un ángulo fijo.
-  // Ahora que el ángulo varía, la junta necesita su propio color de fondo.
-  ctx.fillStyle = P.mortero;
-  for(let c=cMin; c<=cMax; c++){
-    if(c*AL >= total) continue;
-    const filas = Math.min(AL, total - c*AL);
-    const [px, py] = aPantalla(c*PX - MJ, sueloCol(c) - filas*PY);
-    ctx.fillRect(px, py, (LA + PX*0.5 + MJ*2)*cam.escala, filas*PY*cam.escala);
-  }
-
-  // Torres primero: van detrás del muro.
-  for(let c=cMin; c<=cMax; c++){
-    if(c === 0 || c % TORRE_CADA !== 0) continue;
-    if(!columnaLlena(c, total)) continue;
-    dibujarTorre(c, decay);
-  }
-
-  // Ladrillos.
-  const iMin = cMin*AL, iMax = Math.min(total, (cMax+1)*AL);
-  for(let i=iMin; i<iMax; i++){
-    if(escSet.has(i)) continue;
-    dibujarLadrillo(i, decay, ahora);
-  }
-
-  // Escombros al pie: lo caído sigue ahí, recuperable.
+  // Escombros y restauración: casi siempre en el borde vivo, se dibujan al final.
   ctx.save();
   escSet.forEach(i => {
     const p = posEscombro(i);
-    dibujarLadrillo(i, Math.min(1, decay+0.15), ahora, p.x, p.y, p.rot, 0.92);
+    dibujarLadrillo(i, Math.min(1, decay+0.15), ahora, p.x, p.y, p.z, p.rot, 0.92);
   });
   ctx.restore();
 
-  // Los que vuelven durante la restauración.
   if(restauracion){
     const pr = easeOut(clamp((ahora - restauracion.t0)/1600, 0, 1));
     restauracion.escombros.forEach(e => {
-      const p = posEscombro(e.i);
-      const x = lerp(p.x, ladrilloX(e.i), pr);
-      const y = lerp(p.y, ladrilloY(e.i), pr) - Math.sin(pr*Math.PI)*26;
-      dibujarLadrillo(e.i, decay, ahora, x, y, lerp(p.rot, 0, pr));
+      const p = posEscombro(e.i), dest = ladrilloPos(e.i);
+      const x = lerp(p.x, dest.wx, pr);
+      const y = lerp(p.y, dest.wy, pr) - Math.sin(pr*Math.PI)*26;
+      const z = lerp(p.z, dest.wz, pr);
+      dibujarLadrillo(e.i, decay, ahora, x, y, z, lerp(p.rot, 0, pr));
     });
   }
+}
 
-  // Almenas sobre las columnas terminadas.
-  for(let c=cMin; c<=cMax; c++){
-    if(!columnaLlena(c, total) || c % 2 !== 0) continue;
-    const [px, py] = aPantalla(c*PX, cimaCol(c) - PY*1.7);
+// Todo lo que ocupa una columna: cimiento, mortero, el hito si arranca acá,
+// los ladrillos, las almenas y el pasto. Un hito de "puerta" reemplaza el
+// tramo de muro de su columna (queda el vano abierto); el resto de los
+// hitos se apoyan sobre el muro normal, que sigue dibujándose debajo.
+function dibujarColumna(c, info, total, decay, ahora, escSet){
+  const filas = Math.min(AL, total - c*AL);
+  const t = hitoEnColumna(c);
+  const tipo = t ? elegirHito(c) : null;
+  const esVano = tipo === 'puerta' || tipo === 'puente';
+
+  if(!esVano){
+    ctx.fillStyle = P.suelo;
+    { const [px,py] = aPantalla(info.wx - 1, sueloCol(c), info.wz);
+      ctx.fillRect(px, py, (LA+2)*cam.escala, PY*0.7*cam.escala); }
+    ctx.fillStyle = P.mortero;
+    { const [px,py] = aPantalla(info.wx - MJ, sueloCol(c) - filas*PY, info.wz);
+      ctx.fillRect(px, py, (LA + PX*0.5 + MJ*2)*cam.escala, filas*PY*cam.escala); }
+  }
+
+  if(t){
+    const p = filas/AL;
+    if(p > 0) dibujarHito(tipo, c, info, p, decay, ahora);
+  }
+
+  if(esVano) return;
+
+  const iMin = c*AL, iMax = iMin + filas;
+  for(let i=iMin; i<iMax; i++){ if(!escSet.has(i)) dibujarLadrillo(i, decay, ahora); }
+
+  if(columnaLlena(c, total) && c % 2 === 0){
+    const [px, py] = aPantalla(info.wx, cimaCol(c) - PY*1.7, info.wz);
     const e = cam.escala, aw = LA*e, ah = PY*1.7*e;
     if(e > 0.22){
       const ddx = PROF*e*ddxUnit, ddy = PROF*e*ORBIT_PITCH;
@@ -1096,47 +1213,144 @@ function dibujarMuro(decay, ahora){
     }
   }
 
-  // Pasto al pie cuando nadie cuida el muro.
-  if(decay > 0.30){
+  if(decay > 0.30 && columnaLlena(c, total)){
     ctx.save();
     ctx.strokeStyle = P.musgo;
     ctx.globalAlpha = clamp((decay-0.30)*1.7, 0, 0.65);
     ctx.lineWidth = Math.max(0.6, 1.1*cam.escala);
-    for(let c=cMin; c<=cMax; c++){
-      if(!columnaLlena(c, total)) continue;
-      for(let k=0;k<4;k++){
-        const sk = h(c*9.1 + k*2.3);
-        const [px, py] = aPantalla(c*PX + sk*PX, sueloCol(c));
-        const alt = (4 + sk*7 + decay*6) * cam.escala;
-        ctx.beginPath();
-        ctx.moveTo(px, py);
-        ctx.quadraticCurveTo(px + (sk-0.5)*4*cam.escala, py-alt*0.6, px + (sk-0.5)*9*cam.escala, py-alt);
-        ctx.stroke();
-      }
+    for(let k=0;k<4;k++){
+      const sk = h(c*9.1 + k*2.3);
+      const [px, py] = aPantalla(info.wx + sk*PX, sueloCol(c), info.wz);
+      const alt = (4 + sk*7 + decay*6) * cam.escala;
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.quadraticCurveTo(px + (sk-0.5)*4*cam.escala, py-alt*0.6, px + (sk-0.5)*9*cam.escala, py-alt);
+      ctx.stroke();
     }
     ctx.restore();
   }
 }
 
-function dibujarTorre(c, decay){
+/* ============================================================
+   6b. Hitos — cada tramo del trazado termina en uno, variado y
+   construido con los ladrillos reales del tramo (no aparece de golpe).
+   ============================================================ */
+function hitoEnColumna(c){
+  const t = tramoPara(c);
+  return (t.colIni === c && t !== tramos[0]) ? t : null;
+}
+// Determinista por columna: la misma muralla siempre saca los mismos
+// hitos en los mismos lugares. Los épicos son deliberadamente raros y
+// no aparecen antes de cierto punto del recorrido.
+function elegirHito(c){
+  const rq = h(c*97.7);
+  if(rq >= 0.965 && c > 25) return h(c*98.3) < 0.5 ? 'rapunzel' : 'dragon';
+  if(rq >= 0.94) return 'puente';
+  if(rq >= 0.80) return h(c*61.3) < 0.5 ? 'faro' : 'reloj';
+  if(rq >= 0.55) return h(c*71.1) < 0.5 ? 'bastion' : 'puerta';
+  const v = h(c*83.3);
+  if(v < 0.30) return 'torre-chica';
+  if(v < 0.65) return 'torre-mediana';
+  if(v < 0.88) return 'torre-grande';
+  return 'torre-esbelta';
+}
+function dibujarHito(tipo, c, info, p, decay, ahora){
+  switch(tipo){
+    case 'torre-chica':   return dibujarTorreGenerica(c, info, p, decay, ahora, {anchoMul:0.8, altoMul:0.75});
+    case 'torre-mediana': return dibujarTorreGenerica(c, info, p, decay, ahora, {anchoMul:1.0, altoMul:1.0});
+    case 'torre-grande':  return dibujarTorreGenerica(c, info, p, decay, ahora, {anchoMul:1.35, altoMul:1.5});
+    case 'torre-esbelta': return dibujarTorreGenerica(c, info, p, decay, ahora, {anchoMul:0.62, altoMul:1.9, techo:'cono'});
+    case 'bastion':       return dibujarTorreGenerica(c, info, p, decay, ahora, {anchoMul:1.9, altoMul:0.62});
+    case 'faro':          return dibujarTorreGenerica(c, info, p, decay, ahora, {anchoMul:0.85, altoMul:1.35, techo:'faro'});
+    case 'reloj':         return dibujarTorreGenerica(c, info, p, decay, ahora, {anchoMul:1.1, altoMul:1.15, techo:'reloj'});
+    case 'puerta':        return dibujarPuerta(c, info, p, decay, ahora, {});
+    case 'puente':        return dibujarPuerta(c, info, p, decay, ahora, {puente:true});
+    case 'rapunzel':      return dibujarRapunzel(c, info, p, decay, ahora);
+    case 'dragon':        return dibujarDragon(c, info, p, decay, ahora);
+  }
+}
+
+// Recorta el dibujo a la franja que ya "creció" desde el suelo: así el
+// hito se construye con los ladrillos reales en vez de aparecer de golpe.
+function clipDesdeElSuelo(wx0, wz0, baseY, alturaVisible, anchoMundo, margen){
+  margen = margen || 12;
+  const [x0, y0] = aPantalla(wx0 - margen, baseY, wz0);
+  const [x1, y1] = aPantalla(wx0 + anchoMundo + margen, baseY - alturaVisible, wz0);
+  ctx.beginPath();
+  ctx.rect(Math.min(x0,x1), Math.min(y0,y1), Math.abs(x1-x0)+1, Math.abs(y1-y0)+1);
+  ctx.clip();
+}
+// Andamio: la señal de "todavía en obra" mientras el hito no llegó al 100%.
+function andamio(wx0, wz0, baseY, alturaVisible, anchoMundo){
+  const [x0, y0] = aPantalla(wx0, baseY - alturaVisible, wz0);
+  const [x1] = aPantalla(wx0 + anchoMundo, baseY - alturaVisible, wz0);
+  if(x1 <= x0) return;
+  ctx.save();
+  ctx.strokeStyle = "rgba(150,120,80,0.55)";
+  ctx.lineWidth = Math.max(1, 1.2*cam.escala);
+  ctx.beginPath();
+  for(let x=x0; x<x1; x += 9*cam.escala){
+    ctx.moveTo(x, y0); ctx.lineTo(Math.min(x1, x+7*cam.escala), y0 - 8*cam.escala);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function dibujarTechoCono(px, py, w, e, c, decay, tinte){
+  const altoCono = w*1.1;
+  ctx.fillStyle = colorPiedra(h(c*6.6), decay, -3 + tinte - 6);
+  ctx.beginPath();
+  ctx.moveTo(px - 4*e, py + 2*e);
+  ctx.lineTo(px + w/2, py - altoCono);
+  ctx.lineTo(px + w + 4*e, py + 2*e);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = "rgba(255,248,235,0.14)";
+  ctx.beginPath();
+  ctx.moveTo(px + w/2, py - altoCono); ctx.lineTo(px + w/2, py + 2*e); ctx.lineTo(px + w + 4*e, py + 2*e);
+  ctx.closePath(); ctx.fill();
+}
+function dibujarReloj(cx, cy, w, e){
+  const r = w*0.22;
+  ctx.save();
+  ctx.fillStyle = "rgba(245,238,220,0.94)";
+  ctx.beginPath(); ctx.arc(cx, cy - r*0.1, r, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = "rgba(40,30,20,0.7)"; ctx.lineWidth = Math.max(1, 1.2*e);
+  ctx.stroke();
+  const t = performance.now()*0.00003;
+  ctx.beginPath(); ctx.moveTo(cx, cy-r*0.1); ctx.lineTo(cx+Math.cos(t)*r*0.55, cy-r*0.1+Math.sin(t)*r*0.55); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, cy-r*0.1); ctx.lineTo(cx+Math.cos(t*12)*r*0.35, cy-r*0.1+Math.sin(t*12)*r*0.35); ctx.stroke();
+  ctx.restore();
+}
+
+// La torre-base: cuerpo, hiladas y coronamiento, parametrizada para dar
+// vigías chicas o grandes, esbeltas o bastiones anchos, con distintos
+// remates. Reutilizada por casi todos los tipos de hito.
+function dibujarTorreGenerica(c, info, p, decay, ahora, opts){
+  opts = opts || {};
   const e = cam.escala;
-  const cursosT = AL + 3.5;
-  const anchoT = LA*2.7, altoT = cursosT*PY;
+  const cursosT = Math.max(3, Math.round((AL+3.5) * (opts.altoMul||1)));
+  const anchoT = LA*(1.7*(opts.anchoMul||1) + 1.0);
+  const altoT = cursosT*PY;
   const baseY = sueloCol(c);
-  const [px, py] = aPantalla(c*PX - (anchoT-LA)/2, baseY - altoT);
+  const wx0 = info.wx - (anchoT-LA)/2, wz0 = info.wz;
+  const alturaVisible = clamp(altoT*p, 0, altoT);
+  if(alturaVisible <= 0) return;
+  const tinte = opts.tinte || 0;
+
+  ctx.save();
+  clipDesdeElSuelo(wx0, wz0, baseY, alturaVisible + PY*3, anchoT);
+  const [px, py] = aPantalla(wx0, baseY - altoT, wz0);
   const w = anchoT*e, hh = altoT*e;
 
-  // Más oscura que el muro: la torre es masa, no adorno.
   if(e > 0.22){
     const ddx = PROF*e*ddxUnit*1.4, ddy = PROF*e*ORBIT_PITCH*1.4;
     ctx.save(); ctx.translate(px, py);
-    dibujarVolumen(w, hh, ddx, ddy, colorPiedra(h(c*2.2), decay, -7 + 12), colorPiedra(h(c*2.2), decay, -7 - 14));
+    dibujarVolumen(w, hh, ddx, ddy, colorPiedra(h(c*2.2), decay, -7+tinte+12), colorPiedra(h(c*2.2), decay, -7+tinte-14));
     ctx.restore();
   }
-  ctx.fillStyle = colorPiedra(h(c*2.2), decay, -7);
+  ctx.fillStyle = colorPiedra(h(c*2.2), decay, -7+tinte);
   ctx.fillRect(px, py, w, hh);
 
-  // Hiladas insinuadas.
   if(e > 0.35){
     ctx.strokeStyle = "rgba(0,0,0,0.15)"; ctx.lineWidth = Math.max(0.5, 0.8*e);
     for(let r=1; r<cursosT; r++){
@@ -1144,24 +1358,30 @@ function dibujarTorre(c, decay){
       ctx.beginPath(); ctx.moveTo(px, yy); ctx.lineTo(px+w, yy); ctx.stroke();
     }
   }
-  // Coronamiento que vuela sobre el cuerpo.
-  const vol = 7*e, cy0 = py - PY*1.4*e, cw = w + vol*2, ch = PY*1.4*e;
-  if(e > 0.22){
-    const ddx = PROF*e*ddxUnit*1.7, ddy = PROF*e*ORBIT_PITCH*1.7;
-    ctx.save(); ctx.translate(px-vol, cy0);
-    dibujarVolumen(cw, ch, ddx, ddy, colorPiedra(h(c*2.2+1), decay, -3 + 13), colorPiedra(h(c*2.2+1), decay, -3 - 15));
-    ctx.restore();
-  }
-  ctx.fillStyle = colorPiedra(h(c*2.2+1), decay, -3);
-  ctx.fillRect(px - vol, cy0, cw, ch);
-  ctx.fillStyle = "rgba(0,0,0,0.22)";
-  ctx.fillRect(px - vol, py, cw, Math.max(1, 1.6*e));
 
-  // Antorcha: sólo de noche, y se apaga con el abandono.
-  if(P.estrellas && decay < 0.8){
+  if(opts.techo === 'cono'){
+    dibujarTechoCono(px, py, w, e, c, decay, tinte);
+  }else{
+    const vol = 7*e, cy0 = py - PY*1.4*e, cw = w + vol*2, ch = PY*1.4*e;
+    if(e > 0.22){
+      const ddx = PROF*e*ddxUnit*1.7, ddy = PROF*e*ORBIT_PITCH*1.7;
+      ctx.save(); ctx.translate(px-vol, cy0);
+      dibujarVolumen(cw, ch, ddx, ddy, colorPiedra(h(c*2.2+1), decay, -3+tinte+13), colorPiedra(h(c*2.2+1), decay, -3+tinte-15));
+      ctx.restore();
+    }
+    ctx.fillStyle = colorPiedra(h(c*2.2+1), decay, -3+tinte);
+    ctx.fillRect(px-vol, cy0, cw, ch);
+    ctx.fillStyle = "rgba(0,0,0,0.22)";
+    ctx.fillRect(px-vol, py, cw, Math.max(1, 1.6*e));
+    if(opts.techo === 'reloj') dibujarReloj(px+w/2, cy0, w, e);
+  }
+
+  if(P.estrellas && decay < 0.8 && p >= 0.98){
+    const grande = opts.techo === 'faro';
+    const mul = grande ? 2.1 : 1;
     const fl = 0.72 + 0.28*Math.sin(performance.now()*0.006 + c);
-    const cx = px + w/2, cy = py - PY*1.4*e - 2*e;
-    const rad = 46*e*fl*(1-decay*0.6);
+    const cx = px+w/2, cy = py - PY*1.4*e - 2*e;
+    const rad = 46*e*fl*(1-decay*0.6)*mul;
     if(rad > 1){
       const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
       g.addColorStop(0, "rgba(255,190,110," + (0.55*(1-decay)).toFixed(2) + ")");
@@ -1170,17 +1390,141 @@ function dibujarTorre(c, decay){
       ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI*2); ctx.fill();
     }
     ctx.fillStyle = "rgba(255,214,150," + (0.9*(1-decay)).toFixed(2) + ")";
-    ctx.fillRect(cx - 1.4*e, cy - 4*e*fl, 2.8*e, 4.5*e*fl);
+    ctx.fillRect(cx - 1.4*e*mul, cy - 4*e*fl*mul, 2.8*e*mul, 4.5*e*fl*mul);
+  }
+  ctx.restore();
+  if(p < 1) andamio(wx0, wz0, baseY, alturaVisible, anchoT);
+}
+
+// Puerta de castillo: dos torres flanqueando un vano. Con puente=true,
+// además un puente levadizo de madera baja hacia el frente.
+function dibujarPuerta(c, info, p, decay, ahora, opts){
+  const e = cam.escala;
+  const anchoTorre = LA*0.95, anchoVano = PX*0.95;
+  const anchoTotal = anchoTorre*2 + anchoVano;
+  const altoTorre = (AL+2)*PY;
+  const baseY = sueloCol(c);
+  const wx0 = info.wx - anchoTotal/2, wz0 = info.wz;
+  const alturaVisible = clamp(altoTorre * Math.min(1, p*1.3), 0, altoTorre);
+  if(alturaVisible <= 0) return;
+
+  ctx.save();
+  clipDesdeElSuelo(wx0, wz0, baseY, alturaVisible + PY*2, anchoTotal);
+  [0,1].forEach(lado => {
+    const tx = wx0 + lado*(anchoTorre+anchoVano);
+    const [px, py] = aPantalla(tx, baseY-altoTorre, wz0);
+    const w = anchoTorre*e, hh = altoTorre*e;
+    if(e > 0.22){
+      const ddx = PROF*e*ddxUnit*1.3, ddy = PROF*e*ORBIT_PITCH*1.3;
+      ctx.save(); ctx.translate(px, py);
+      dibujarVolumen(w, hh, ddx, ddy, colorPiedra(h(c*4.4+lado), decay, -5+11), colorPiedra(h(c*4.4+lado), decay, -5-15));
+      ctx.restore();
+    }
+    ctx.fillStyle = colorPiedra(h(c*4.4+lado), decay, -5);
+    ctx.fillRect(px, py, w, hh);
+    ctx.fillStyle = colorPiedra(h(c*4.4+lado+1), decay, -1);
+    ctx.fillRect(px-3*e, py-PY*1.1*e, w+6*e, PY*1.1*e);
+  });
+  const [pxA, pyA] = aPantalla(wx0+anchoTorre, baseY-altoTorre*0.62, wz0);
+  ctx.fillStyle = colorPiedra(h(c*4.4+9), decay, -5);
+  ctx.fillRect(pxA, pyA, anchoVano*e, altoTorre*0.2*e);
+  ctx.restore();
+  if(p < 1) andamio(wx0, wz0, baseY, alturaVisible, anchoTotal);
+
+  if(opts.puente && p > 0.55){
+    const d = DIRS[info.dir], perp = {x: d.z, z: -d.x};
+    const largo = PX*1.15, semiAncho = anchoVano*0.34;
+    const [ax,ay] = aPantalla(info.wx-semiAncho, baseY-altoTorre*0.42, info.wz);
+    const [dx,dy] = aPantalla(info.wx+semiAncho, baseY-altoTorre*0.42, info.wz);
+    const x1 = info.wx+perp.x*largo, z1 = info.wz+perp.z*largo;
+    const [bx,by] = aPantalla(x1-semiAncho, baseY, z1);
+    const [cx2,cy2] = aPantalla(x1+semiAncho, baseY, z1);
+    ctx.fillStyle = "#7A5A3A";
+    ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.lineTo(cx2,cy2); ctx.lineTo(dx,dy); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,0.32)"; ctx.lineWidth = Math.max(1, e*0.9);
+    for(let k=1;k<5;k++){
+      const f = k/5;
+      ctx.beginPath();
+      ctx.moveTo(lerp(ax,dx,f), lerp(ay,dy,f));
+      ctx.lineTo(lerp(bx,cx2,f), lerp(by,cy2,f));
+      ctx.stroke();
+    }
+    ctx.strokeStyle = "rgba(30,30,30,0.55)"; ctx.lineWidth = Math.max(1, 0.9*e);
+    [0.1,0.9].forEach(f => {
+      ctx.beginPath();
+      ctx.moveTo(lerp(ax,dx,f), ay-5*e);
+      ctx.lineTo(lerp(bx,cx2,f), by);
+      ctx.stroke();
+    });
   }
 }
 
+// Fácil de encontrar, poco frecuente: una torre esbelta con una melena
+// dorada que cae desde la ventana hasta el suelo.
+function dibujarRapunzel(c, info, p, decay, ahora){
+  dibujarTorreGenerica(c, info, p, decay, ahora, {anchoMul:0.8, altoMul:1.6, techo:'cono', tinte:6});
+  if(p < 0.85) return;
+  const e = cam.escala;
+  const cursosT = Math.round((AL+3.5)*1.6), anchoT = LA*(1.7*0.8+1.0), altoT = cursosT*PY;
+  const baseY = sueloCol(c), wx0 = info.wx-(anchoT-LA)/2, wz0 = info.wz;
+  const [vx,vy] = aPantalla(wx0+anchoT*0.5, baseY-altoT*0.68, wz0);
+  const [sx,sy] = aPantalla(wx0+anchoT*0.5, baseY, wz0);
+  const op = clamp((p-0.85)/0.15, 0, 1), osc = Math.sin(ahora*0.0011)*10*e;
+  ctx.save(); ctx.globalAlpha = op; ctx.lineCap = "round";
+  ctx.strokeStyle = "#E6B84A"; ctx.lineWidth = Math.max(2, 3.2*e);
+  ctx.beginPath(); ctx.moveTo(vx,vy);
+  ctx.bezierCurveTo(vx+osc, lerp(vy,sy,0.35), vx-osc*0.6, lerp(vy,sy,0.7), sx, sy);
+  ctx.stroke();
+  ctx.strokeStyle = "rgba(255,240,190,0.6)"; ctx.lineWidth = Math.max(1, 1*e);
+  ctx.beginPath(); ctx.moveTo(vx,vy);
+  ctx.bezierCurveTo(vx+osc, lerp(vy,sy,0.35), vx-osc*0.6, lerp(vy,sy,0.7), sx, sy);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Igual de raro: una torre coronada por un dragón enroscado, con un
+// rescoldo que le titila en las fauces.
+function dibujarDragon(c, info, p, decay, ahora){
+  dibujarTorreGenerica(c, info, p, decay, ahora, {anchoMul:1.3, altoMul:1.4, tinte:-4});
+  if(p < 0.85) return;
+  const e = cam.escala;
+  const cursosT = Math.round((AL+3.5)*1.4), anchoT = LA*(1.7*1.3+1.0), altoT = cursosT*PY;
+  const baseY = sueloCol(c), wx0 = info.wx-(anchoT-LA)/2, wz0 = info.wz;
+  const [cx0,cy0] = aPantalla(wx0+anchoT*0.5, baseY-altoT-PY*1.4, wz0);
+  const op = clamp((p-0.85)/0.15, 0, 1), s = anchoT*e*0.9;
+  ctx.save(); ctx.globalAlpha = op;
+  ctx.fillStyle = "#2B2320";
+  ctx.beginPath();
+  ctx.moveTo(cx0-s*0.5, cy0+s*0.12);
+  ctx.quadraticCurveTo(cx0-s*0.1, cy0-s*0.32, cx0+s*0.35, cy0-s*0.1);
+  ctx.quadraticCurveTo(cx0+s*0.15, cy0+s*0.05, cx0-s*0.5, cy0+s*0.12);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx0+s*0.2, cy0-s*0.05);
+  ctx.quadraticCurveTo(cx0+s*0.55, cy0-s*0.5, cx0+s*0.78, cy0-s*0.68);
+  ctx.lineTo(cx0+s*0.95, cy0-s*0.6);
+  ctx.quadraticCurveTo(cx0+s*0.7, cy0-s*0.42, cx0+s*0.45, cy0-s*0.02);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx0-s*0.05, cy0-s*0.1);
+  ctx.quadraticCurveTo(cx0-s*0.15, cy0-s*0.62, cx0+s*0.28, cy0-s*0.5);
+  ctx.quadraticCurveTo(cx0+s*0.02, cy0-s*0.42, cx0-s*0.02, cy0-s*0.02);
+  ctx.closePath(); ctx.fill();
+  const fl = 0.7+0.3*Math.sin(ahora*0.008), gx = cx0+s*0.86, gy = cy0-s*0.63;
+  const g = ctx.createRadialGradient(gx,gy,0,gx,gy,10*e*fl);
+  g.addColorStop(0, "rgba(255,130,50,"+(0.8*fl).toFixed(2)+")");
+  g.addColorStop(1, "rgba(255,130,50,0)");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(gx,gy,10*e*fl,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
 /* ---------- Partículas ---------- */
-function polvo(x, y, n){
+function polvo(x, y, z, n){
   if(reduce) n = Math.min(n, 6);
   for(let k=0;k<n;k++){
     const a = Math.random()*Math.PI*2, v = Math.random()*1.5 + 0.3;
     particulas.push({
-      x, y,
+      x, y, z,
       vx: Math.cos(a)*v*1.9,
       vy: -Math.abs(Math.sin(a))*v*0.9 - 0.3,
       vida: 1, r: 0.7 + Math.random()*2.1
@@ -1195,7 +1539,7 @@ function dibujarParticulas(dt){
     p.x += p.vx*dt*0.06; p.y += p.vy*dt*0.06; p.vy += 0.012*dt*0.06;
     p.vida -= dt*0.0011;
     if(p.vida <= 0){ particulas.splice(k,1); continue; }
-    const [sx, sy] = aPantalla(p.x, p.y);
+    const [sx, sy] = aPantalla(p.x, p.y, p.z);
     ctx.globalAlpha = p.vida*0.55;
     ctx.beginPath(); ctx.arc(sx, sy, p.r*cam.escala, 0, Math.PI*2); ctx.fill();
   }
@@ -1207,16 +1551,16 @@ function dibujarCarga(ahora, decay){
   if(!carga) return;
   const t = clamp((ahora - carga.t0)/CARGA_MS, 0, 1);
   const i = ladrillos.length;
-  const destinoX = ladrilloX(i), destinoY = ladrilloY(i);
-  const alturaY = destinoY - 150;
-  const y = lerp(alturaY, destinoY - 22, easeOut(t));
+  const dest = ladrilloPos(i);
+  const alturaY = dest.wy - 150;
+  const y = lerp(alturaY, dest.wy - 22, easeOut(t));
   const balanceo = Math.sin(ahora*0.004) * (1-t) * 3.5;
 
-  const [px, py] = aPantalla(destinoX + balanceo, y);
+  const [px, py] = aPantalla(dest.wx + balanceo, y, dest.wz);
   const e = cam.escala, w = LA*e, hh = LH*e;
 
   // Sombra proyectada sobre el destino: dice exactamente dónde va a caer.
-  const [sx, sy] = aPantalla(destinoX, destinoY + LH*0.6);
+  const [sx, sy] = aPantalla(dest.wx, dest.wy + LH*0.6, dest.wz);
   ctx.save();
   ctx.globalAlpha = 0.14 + t*0.2;
   ctx.fillStyle = "#000";
@@ -1275,7 +1619,10 @@ function frame(ahora){
     else multPunch = 1 + curvaPunch(clamp(tp,0,1)) * PUNCH_MAX;
   }
   cam.escala = cam.escalaBase * multPunch;
-  cam.y = sueloX(cam.x) - 52;
+  const colCam = cam.x / PX, posCam = posEnColumna(colCam);
+  cam.z = posCam.wz;
+  cam.ax = posCam.wx + posCam.wz*SESGO_X;
+  cam.ay = (alturaSuelo(colCam) - 52) - posCam.wz*SESGO_Y;
   orbit = lerp(orbit, orbitObjetivo, 1 - Math.pow(0.0022, dt/1000));
   actualizarFacetas();
 
@@ -1304,7 +1651,8 @@ function frame(ahora){
     destello = Math.max(0, destello - dt/420);
     const i = ladrillos.length-1;
     if(i >= 0){
-      const [px, py] = aPantalla(ladrilloX(i)+LA/2, ladrilloY(i)+LH/2);
+      const dp = ladrilloPos(i);
+      const [px, py] = aPantalla(dp.wx+LA/2, dp.wy+LH/2, dp.wz);
       const r = 150*cam.escala*(1.15-destello);
       if(r > 1){
         const g = ctx.createRadialGradient(px, py, 0, px, py, r);
@@ -1380,7 +1728,8 @@ function colocar(){
 
   // Efecto del impacto
   const i = ladrillos.length-1;
-  polvo(ladrilloX(i)+LA/2, ladrilloY(i)+LH, 26);
+  const posNuevo = ladrilloPos(i);
+  polvo(posNuevo.wx+LA/2, posNuevo.wy+LH, posNuevo.wz, 26);
   sacudida = 1; destello = 1;
   punch = {t0: performance.now()};
   vibrar(reduce ? 10 : 30);
@@ -1484,6 +1833,7 @@ escena.addEventListener("pointermove", e => {
   cam.x = cam.tx;
   // Horizontal recorre la muralla; vertical la gira. Un solo gesto, dos ejes.
   orbitObjetivo = clamp(arrastre.orbitBase + dy*ORBIT_SENSIB, -ORBIT_MAX, ORBIT_MAX);
+  sliderOrbit.value = String(Math.round(orbitObjetivo*100));
 });
 function soltar(e){
   if(arrastre && arrastre.movido < 5) tocarLadrillo(e.clientX, e.clientY);
@@ -1514,18 +1864,25 @@ document.querySelectorAll("#zoom button").forEach(b => {
 });
 btnVolver.addEventListener("click", () => { cam.libre = false; });
 
+// Con el trazado girando, invertir pantalla→mundo es ambiguo (una misma
+// columna de píxeles puede caer sobre puntos a distinta profundidad). Así
+// que en vez de invertir, se proyectan al revés los ladrillos visibles y
+// se compara contra el punto tocado en espacio de pantalla — más robusto.
 function tocarLadrillo(cx, cy){
   const r = cv.getBoundingClientRect();
-  const [wx, wy] = aMundo(cx - r.left, cy - r.top);
+  const sx = cx - r.left, sy = cy - r.top;
   const total = ladrillos.length;
-  let hallado = -1;
-  const c = Math.round(wx/PX);
-  for(let cc=Math.max(0,c-1); cc<=c+1; cc++){
-    for(let f=0; f<AL; f++){
-      const i = cc*AL + f;
-      if(i >= total) continue;
-      const bx = ladrilloX(i), by = ladrilloY(i);
-      if(wx >= bx && wx <= bx+LA && wy >= by && wy <= by+LH){ hallado = i; }
+  const {cMin, cMax} = columnasVisibles();
+  let hallado = -1, mejorD = 26*cam.escala;
+  for(let c=cMin; c<=cMax; c++){
+    if(c*AL >= total) continue;
+    const filas = Math.min(AL, total - c*AL);
+    for(let f=0; f<filas; f++){
+      const i = c*AL+f;
+      const p = ladrilloPos(i);
+      const [px, py] = aPantalla(p.wx+LA/2, p.wy+LH/2, p.wz);
+      const d = Math.hypot(px-sx, py-sy);
+      if(d < mejorD){ mejorD = d; hallado = i; }
     }
   }
   if(hallado >= 0 && ladrillos[hallado].nota){
@@ -1539,7 +1896,8 @@ function tocarLadrillo(cx, cy){
 }
 function posicionarGlobo(){
   if(globoIdx < 0) return;
-  const [px, py] = aPantalla(ladrilloX(globoIdx)+LA/2, ladrilloY(globoIdx));
+  const p = ladrilloPos(globoIdx);
+  const [px, py] = aPantalla(p.wx+LA/2, p.wy, p.wz);
   if(px < -60 || px > W+60){ globo.classList.remove("ver"); globoIdx = -1; return; }
   globo.style.left = px + "px";
   globo.style.top = py + "px";
@@ -1663,6 +2021,17 @@ document.querySelectorAll("#tope button").forEach(b => {
     else if(limiteActivo && colocadosHoy() >= TOPE_DIARIO) cerrarPorHoy();
   });
 });
+
+// Control explícito del ángulo — el arrastre vertical sobre la escena hace
+// lo mismo, pero un slider siempre funciona sin importar mouse, trackpad
+// o navegador, así que queda acá como respaldo garantizado.
+const sliderOrbit = document.getElementById("sliderOrbit");
+sliderOrbit.addEventListener("input", () => {
+  orbitObjetivo = clamp((+sliderOrbit.value)/100, -ORBIT_MAX, ORBIT_MAX);
+});
+(function sincronizarSliderOrbit(){
+  sliderOrbit.value = String(Math.round(orbitObjetivo*100));
+})();
 
 const btnSonido = document.getElementById("btnSonido");
 btnSonido.addEventListener("click", () => {
