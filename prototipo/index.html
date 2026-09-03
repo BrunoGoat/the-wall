@@ -220,6 +220,44 @@ body{
 }
 .globo .t{font-size:13.5px; margin-top:4px; line-height:1.35; color:var(--tinta)}
 
+/* ---------- Estadísticas ---------- */
+.tarjeta.ancha{width:min(540px, calc(100% - 48px)); padding:24px 26px 26px}
+.stats-cab{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px}
+.stats-cab h2{margin:0}
+.stats-cab .icono{width:30px; height:30px; border-color:transparent; background:transparent; backdrop-filter:none}
+.stats-resumen{margin:0 0 26px; font-size:12.5px; color:var(--tinta-2); line-height:1.6}
+.stats-resumen b{color:var(--tinta); font-weight:500}
+.stats-bloque + .stats-bloque{margin-top:26px}
+.grafico-horas{
+  display:flex; align-items:flex-end; gap:2px; height:78px; margin-top:12px;
+  border-bottom:1px solid var(--linea);
+}
+.grafico-horas .barra{
+  flex:1; min-width:2px; height:2%; background:var(--linea);
+  border-radius:1px 1px 0 0; transition:height .35s cubic-bezier(.2,.8,.3,1);
+}
+.grafico-horas .barra.pico{background:var(--ambar)}
+.eje-horas{
+  display:flex; justify-content:space-between; margin-top:6px;
+  font-family:"IBM Plex Mono", monospace; font-size:10px;
+  font-variant-numeric:tabular-nums; color:var(--tinta-3);
+}
+.grafico-dias{display:flex; gap:10px; margin-top:12px}
+.grafico-dias .col{flex:1; display:flex; flex-direction:column; align-items:center; gap:7px; min-width:0}
+.grafico-dias .pista{
+  width:100%; height:78px; display:flex; align-items:flex-end;
+  border-bottom:1px solid var(--linea);
+}
+.grafico-dias .barra{
+  width:100%; height:2%; background:var(--linea);
+  border-radius:2px 2px 0 0; transition:height .35s cubic-bezier(.2,.8,.3,1);
+}
+.grafico-dias .barra.pico{background:var(--ambar)}
+.grafico-dias .etq{
+  font-family:"IBM Plex Mono", monospace; font-size:10.5px;
+  letter-spacing:.04em; text-transform:uppercase; color:var(--tinta-3);
+}
+
 /* ---------- Panel de prueba ---------- */
 .panel{
   border-bottom:1px solid var(--linea); background:var(--papel-2);
@@ -301,6 +339,11 @@ input[type=range]{
         <span class="nom" id="estadoNom">Recién asentado</span>
         <span class="sub" id="estadoSub">hoy</span>
       </div>
+      <button class="icono" id="btnEstadisticas" title="Estadísticas" aria-label="Ver estadísticas">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 20V10"/><path d="M12 20V4"/><path d="M20 20v-7"/>
+        </svg>
+      </button>
       <button class="icono" id="btnSonido" title="Sonido" aria-label="Silenciar sonido">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
           <path d="M11 5 6 9H3v6h3l5 4V5z"/><path id="onda1" d="M15.5 8.5a5 5 0 0 1 0 7"/><path id="onda2" d="M18.5 5.5a9 9 0 0 1 0 13"/>
@@ -334,6 +377,29 @@ input[type=range]{
     </div>
 
     <div class="globo" id="globo"><div class="f"></div><div class="t"></div></div>
+
+    <div class="velo" id="veloStats">
+      <div class="tarjeta ancha">
+        <div class="stats-cab">
+          <h2>Estadísticas</h2>
+          <button class="icono" id="cerrarStats" aria-label="Cerrar estadísticas">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+        <p class="stats-resumen" id="statsResumen"></p>
+
+        <div class="stats-bloque">
+          <div class="rot">Por hora del día</div>
+          <div class="grafico-horas" id="graficoHoras"></div>
+          <div class="eje-horas"><span>00h</span><span>06h</span><span>12h</span><span>18h</span><span>23h</span></div>
+        </div>
+
+        <div class="stats-bloque">
+          <div class="rot">Por día de la semana</div>
+          <div class="grafico-dias" id="graficoDias"></div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -353,6 +419,13 @@ input[type=range]{
       </div>
     </div>
     <div class="campo">
+      <div class="rot">Tope diario</div>
+      <div class="seg" id="tope">
+        <button data-t="0" aria-pressed="true">Ilimitado</button>
+        <button data-t="1" aria-pressed="false">5 por día</button>
+      </div>
+    </div>
+    <div class="campo">
       <div class="rot">Historial</div>
       <div class="seg">
         <button id="reset" aria-pressed="false">Reiniciar muralla</button>
@@ -360,8 +433,10 @@ input[type=range]{
     </div>
     <p class="aviso">
       <b>Panel de prueba.</b> Nada de esto existe en la app real: ahí el deterioro se calcula solo,
-      a partir de la fecha del último ladrillo. Está acá para que veas los cuatro estados sin esperar tres semanas.
-      La muralla arranca con <b>137 ladrillos de ejemplo</b> repartidos en las últimas nueve semanas.
+      a partir de la fecha del último ladrillo, y el tope diario siempre está activo.
+      Acá está desactivado por defecto para que puedas colocar todos los ladrillos que quieras y probar
+      la restauración y las estadísticas sin esperar. La muralla arranca con <b>137 ladrillos de ejemplo</b>
+      repartidos en las últimas nueve semanas, con un patrón de horarios realista.
     </p>
   </div>
 </div>
@@ -371,11 +446,13 @@ input[type=range]{
     <div>
       <h3>Qué probar</h3>
       <ul>
-        <li><b>Mantené el botón 800 ms.</b> La resistencia es el diseño: la espera carga la anticipación y el impacto la descarga. Soltá antes de tiempo y no pasa nada, sin regaño.</li>
+        <li><b>Mantené el botón 800 ms.</b> La resistencia es el diseño: la espera carga la anticipación, el impacto la descarga y la cámara pega un envión de zoom hacia el ladrillo nuevo. Soltá antes de tiempo y no pasa nada, sin regaño.</li>
+        <li><b>Colocá todos los que quieras.</b> El tope diario está apagado por defecto (panel de abajo) para que puedas probar sin esperar veinticuatro horas entre ladrillo y ladrillo.</li>
         <li><b>Llevá el slider a 24 días.</b> Musgo, grietas, niebla y la sección más nueva caída en escombros al pie. El núcleo antiguo nunca se derrumba.</li>
         <li><b>Ahora colocá un ladrillo.</b> Eso dispara la restauración: los escombros vuelven, el musgo se retira, la luz regresa. Volver tiene que sentirse mejor que empezar.</li>
         <li><b>Alejate a «Muralla».</b> Arrastrá para recorrerla. Las torres aparecen cada 64 ladrillos, sin anunciarse.</li>
-        <li><b>Acercate a «Ladrillo» y tocá uno.</b> Los que tienen nota guardada te devuelven qué lograste ese día.</li>
+        <li><b>Acercate a «Ladrillo».</b> Cada piedra tiene cara superior y lateral: es volumen, no un rectángulo pintado. Tocá una con nota guardada para ver qué lograste ese día.</li>
+        <li><b>Abrí el ícono de barras, arriba a la derecha.</b> Es el panel de estadísticas: a qué hora y qué día solés construir, calculado sobre tus propios ladrillos.</li>
         <li><b>Cambiá el tema de tu navegador.</b> Claro es mediodía, oscuro es el anochecer con las antorchas encendidas. En la app real lo decide la hora del teléfono.</li>
       </ul>
     </div>
@@ -399,14 +476,16 @@ input[type=range]{
    1. Mundo: constantes y geometría
    ============================================================ */
 const AL = 8;            // cursos de alto por columna
-const LA = 30, LH = 13;  // ancho y alto del ladrillo
-const MJ = 2.6;          // junta de mortero
+const LA = 36, LH = 16;  // ancho y alto del ladrillo
+const MJ = 3;            // junta de mortero
 const PX = LA + MJ;      // paso horizontal
 const PY = LH + MJ;      // paso vertical
+const PROF = 7;          // profundidad de la extrusión 3D (mundo)
 const TORRE_CADA = 8;    // una torre cada 8 columnas (= 64 ladrillos)
 const DIA_MS = 86400000;
 const TOPE_DIARIO = 5;
 const CARGA_MS = 800;
+let limiteActivo = false;  // panel de prueba: tope diario apagado para poder testear sin esperar
 
 // Ruido determinista: mismo índice, mismo ladrillo, siempre.
 function h(n){ const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); }
@@ -515,26 +594,51 @@ const NOTAS_EJEMPLO = [
 
 let ladrillos = [];   // {t: timestamp, nota: string|null}
 let simDias = 0;      // sólo prototipo: reemplaza al cálculo por fecha
-const cam = {x:0, y:0, tx:0, escala:1, tescala:1, libre:false, ultimoToque:0};
+const cam = {x:0, y:0, tx:0, escala:1, escalaBase:1, tescala:1, libre:false, ultimoToque:0};
 let sacudida = 0, particulas = [], destello = 0;
 let carga = null;         // {t0}
+let punch = null;         // {t0} — el envión de zoom al asentar un ladrillo
 let restauracion = null;  // {t0, desde, escombros:[{i,x,y,rot}]}
 let sonidoOn = true;
 let globoIdx = -1;
 
-const ESCALAS = [3.0, 1.0, 0.30];
+const ESCALAS = [3.4, 1.15, 0.30];
 let nivelZoom = 1;
+const PUNCH_MS = 1050, PUNCH_MAX = 0.85;   // "mucho más zoom" al asentar
+function curvaPunch(t){
+  return t < 0.16 ? easeOut(t/0.16) : 1 - easeOut((t-0.16)/0.84);
+}
 
+// Hora y día con dos hábitos superpuestos (mañana temprano, noche fuerte),
+// para que el panel de estadísticas muestre un patrón real, no ruido.
+function horaSemilla(i){
+  const pico = h(i*31.7) < 0.62 ? 21 : 8.5;
+  const hora = Math.round(pico + (h(i*41.3)-0.5)*5 + (h(i*44.9)-0.5)*2);
+  return ((hora % 24) + 24) % 24;
+}
+function diaSemanaSemilla(i){
+  // 0=Lun..6=Dom. Más actividad entre semana que el fin de semana.
+  const pick = h(i*53.1);
+  return pick < 0.78 ? Math.floor(h(i*59.7)*5) : 5 + Math.floor(h(i*67.3)*2);
+}
 function sembrar(){
   const ahora = Date.now();
   ladrillos = [];
   for(let i=0; i<137; i++){
     // Repartidos hacia atrás en el tiempo, con densidad irregular como la vida real.
     const frac = i/137;
-    const diasAtras = Math.round((1-frac) * 63 + (h(i*3.3)-0.5)*2.5);
-    const t = ahora - Math.max(0, diasAtras)*DIA_MS - Math.floor(h(i*7.7)*DIA_MS*0.6);
+    const aprox = Math.max(1, Math.round((1-frac) * 63 + (h(i*3.3)-0.5)*2.5));
+    const objetivoDow = diaSemanaSemilla(i);
+    let diasAtras = aprox;
+    for(let k=0;k<7;k++){
+      const dow = (new Date(ahora - diasAtras*DIA_MS).getDay()+6)%7;
+      if(dow === objetivoDow) break;
+      diasAtras++;
+    }
+    const fechaBrick = new Date(ahora - diasAtras*DIA_MS);
+    fechaBrick.setHours(horaSemilla(i), Math.floor(h(i*71.1)*60), 0, 0);
     const nota = h(i*5.1) < 0.30 ? NOTAS_EJEMPLO[Math.floor(h(i*11.3)*NOTAS_EJEMPLO.length)] : null;
-    ladrillos.push({t, nota});
+    ladrillos.push({t: fechaBrick.getTime(), nota});
   }
 }
 function guardar(){
@@ -775,7 +879,22 @@ function dibujarLadrillo(i, decay, ahora, ox, oy, rot, alfa){
   ctx.translate(px, py);
   ctx.rotate((rot !== undefined ? rot : (s1-0.5)*0.020));
 
-  // Cuerpo
+  // Volumen real: una cara superior (luz de lleno) y una lateral (en sombra)
+  // que asoman en la junta de mortero del vecino. La piedra deja de ser
+  // un rectángulo pintado y pasa a ocupar espacio.
+  if(e > 0.22){
+    const ddx = PROF*e*0.9, ddy = -PROF*e*0.52;
+    ctx.fillStyle = colorPiedra(s2, decay, fresco*5 - 16);
+    ctx.beginPath();
+    ctx.moveTo(w, 0); ctx.lineTo(w, hh); ctx.lineTo(w+ddx, hh+ddy); ctx.lineTo(w+ddx, ddy);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = colorPiedra(s2, decay, fresco*5 + 11);
+    ctx.beginPath();
+    ctx.moveTo(0, 0); ctx.lineTo(w, 0); ctx.lineTo(w+ddx, ddy); ctx.lineTo(ddx, ddy);
+    ctx.closePath(); ctx.fill();
+  }
+
+  // Cuerpo (cara frontal)
   ctx.fillStyle = colorPiedra(s2, decay, fresco*5);
   ctx.fillRect(0, 0, w, hh);
 
@@ -851,13 +970,14 @@ function dibujarMuro(decay, ahora){
     for(let k=0;k<nEsc;k++){ const idx = total-1-k; if(idx>=0) escSet.add(idx); }
   }
 
-  // Zanja de cimiento: cierra el triángulo que deja el terreno en pendiente
-  // bajo una columna escalonada, y asienta el muro en la tierra.
-  ctx.fillStyle = P.sueloHondo;
+  // Zanja de cimiento: cierra cualquier resquicio que deje el terreno en
+  // pendiente bajo una columna, con el mismo tono de la tierra cercana
+  // para que no se lea como un agujero.
+  ctx.fillStyle = P.suelo;
   for(let c=cMin; c<=cMax; c++){
     if(c*AL >= total) continue;
-    const [px, py] = aPantalla(c*PX - 1, sueloCol(c) - 1);
-    ctx.fillRect(px, py, (LA+2)*cam.escala, PY*1.2*cam.escala);
+    const [px, py] = aPantalla(c*PX - 1, sueloCol(c));
+    ctx.fillRect(px, py, (LA+2)*cam.escala, PY*0.7*cam.escala);
   }
 
   // Torres primero: van detrás del muro.
@@ -897,12 +1017,23 @@ function dibujarMuro(decay, ahora){
   for(let c=cMin; c<=cMax; c++){
     if(!columnaLlena(c, total) || c % 2 !== 0) continue;
     const [px, py] = aPantalla(c*PX, cimaCol(c) - PY*1.7);
-    const e = cam.escala;
+    const e = cam.escala, aw = LA*e, ah = PY*1.7*e;
+    if(e > 0.22){
+      const ddx = PROF*e*0.9, ddy = -PROF*e*0.52;
+      ctx.fillStyle = colorPiedra(h(c*3.7), decay, -2 - 16);
+      ctx.beginPath();
+      ctx.moveTo(px+aw, py); ctx.lineTo(px+aw, py+ah); ctx.lineTo(px+aw+ddx, py+ah+ddy); ctx.lineTo(px+aw+ddx, py+ddy);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = colorPiedra(h(c*3.7), decay, -2 + 11);
+      ctx.beginPath();
+      ctx.moveTo(px, py); ctx.lineTo(px+aw, py); ctx.lineTo(px+aw+ddx, py+ddy); ctx.lineTo(px+ddx, py+ddy);
+      ctx.closePath(); ctx.fill();
+    }
     ctx.fillStyle = colorPiedra(h(c*3.7), decay, -2);
-    ctx.fillRect(px, py, LA*e, PY*1.7*e);
+    ctx.fillRect(px, py, aw, ah);
     if(e > 0.45){
       ctx.fillStyle = "rgba(255,248,235,0.14)";
-      ctx.fillRect(px, py, LA*e, Math.max(1, 1.2*e));
+      ctx.fillRect(px, py, aw, Math.max(1, 1.2*e));
     }
   }
 
@@ -951,11 +1082,18 @@ function dibujarTorre(c, decay){
     ctx.fillRect(px + w - 5*e, py, 5*e, hh);   // costado en sombra: le da cuerpo
   }
   // Coronamiento que vuela sobre el cuerpo.
-  const vol = 7*e;
+  const vol = 7*e, cy0 = py - PY*1.4*e, cw = w + vol*2, ch = PY*1.4*e;
+  if(e > 0.22){
+    const ddx = PROF*e*1.3, ddy = -PROF*e*0.75;
+    ctx.fillStyle = colorPiedra(h(c*2.2+1), decay, -3 + 13);
+    ctx.beginPath();
+    ctx.moveTo(px-vol, cy0); ctx.lineTo(px-vol+cw, cy0); ctx.lineTo(px-vol+cw+ddx, cy0+ddy); ctx.lineTo(px-vol+ddx, cy0+ddy);
+    ctx.closePath(); ctx.fill();
+  }
   ctx.fillStyle = colorPiedra(h(c*2.2+1), decay, -3);
-  ctx.fillRect(px - vol, py - PY*1.4*e, w + vol*2, PY*1.4*e);
+  ctx.fillRect(px - vol, cy0, cw, ch);
   ctx.fillStyle = "rgba(0,0,0,0.22)";
-  ctx.fillRect(px - vol, py, w + vol*2, Math.max(1, 1.6*e));
+  ctx.fillRect(px - vol, py, cw, Math.max(1, 1.6*e));
 
   // Antorcha: sólo de noche, y se apaga con el abandono.
   if(P.estrellas && decay < 0.8){
@@ -1028,6 +1166,17 @@ function dibujarCarga(ahora, decay){
   ctx.save();
   ctx.translate(px, py);
   ctx.rotate((1-t) * 0.07 * Math.sin(ahora*0.003));
+  if(e > 0.22){
+    const ddx = PROF*e*0.9, ddy = -PROF*e*0.52;
+    ctx.fillStyle = colorPiedra(0.5, decay, 4 - 16);
+    ctx.beginPath();
+    ctx.moveTo(w, 0); ctx.lineTo(w, hh); ctx.lineTo(w+ddx, hh+ddy); ctx.lineTo(w+ddx, ddy);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = colorPiedra(0.5, decay, 4 + 11);
+    ctx.beginPath();
+    ctx.moveTo(0, 0); ctx.lineTo(w, 0); ctx.lineTo(w+ddx, ddy); ctx.lineTo(ddx, ddy);
+    ctx.closePath(); ctx.fill();
+  }
   ctx.fillStyle = colorPiedra(0.5, decay, 4);
   ctx.fillRect(0, 0, w, hh);
   ctx.fillStyle = "rgba(255,248,235,0.2)"; ctx.fillRect(0, 0, w, Math.max(1,1.2*e));
@@ -1063,7 +1212,14 @@ function frame(ahora){
   if(!cam.libre) cam.tx = bordeX();
   const k = 1 - Math.pow(0.0016, dt/1000);
   cam.x = lerp(cam.x, cam.tx, k);
-  cam.escala = lerp(cam.escala, cam.tescala, 1 - Math.pow(0.004, dt/1000));
+  cam.escalaBase = lerp(cam.escalaBase, cam.tescala, 1 - Math.pow(0.004, dt/1000));
+  let multPunch = 1;
+  if(punch){
+    const tp = (ahora - punch.t0)/PUNCH_MS;
+    if(tp >= 1) punch = null;
+    else multPunch = 1 + curvaPunch(clamp(tp,0,1)) * PUNCH_MAX;
+  }
+  cam.escala = cam.escalaBase * multPunch;
   cam.y = sueloX(cam.x) - 52;
 
   let sx = 0, sy = 0;
@@ -1152,6 +1308,7 @@ function completarCarga(){
   carga = null;
   boton.classList.remove("cargando");
   arco.style.strokeDashoffset = "257.6";
+  pie.textContent = "Mantené presionado";
   cortarCarga(); pararHaptica();
   colocar();
 }
@@ -1168,6 +1325,7 @@ function colocar(){
   const i = ladrillos.length-1;
   polvo(ladrilloX(i)+LA/2, ladrilloY(i)+LH, 26);
   sacudida = 1; destello = 1;
+  punch = {t0: performance.now()};
   vibrar(reduce ? 10 : 30);
   sonarImpacto(1);
 
@@ -1196,7 +1354,7 @@ function colocar(){
     abrirNota();
   }, 480);
 
-  if(colocadosHoy() >= TOPE_DIARIO) cerrarPorHoy();
+  if(limiteActivo && colocadosHoy() >= TOPE_DIARIO) cerrarPorHoy();
 }
 
 function abrirNota(){
@@ -1367,6 +1525,80 @@ document.getElementById("reset").addEventListener("click", () => {
   guardar(); actualizarEstado();
 });
 
+/* ============================================================
+   10b. Estadísticas — cuándo y qué día construís de verdad
+   ============================================================ */
+const NOMBRES_DIA = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+const veloStats = document.getElementById("veloStats");
+const graficoHoras = document.getElementById("graficoHoras");
+const graficoDias = document.getElementById("graficoDias");
+const statsResumen = document.getElementById("statsResumen");
+
+function calcularEstadisticas(){
+  const porHora = new Array(24).fill(0);
+  const porDia = new Array(7).fill(0);   // 0=Lun..6=Dom
+  ladrillos.forEach(b => {
+    const d = new Date(b.t);
+    porHora[d.getHours()]++;
+    porDia[(d.getDay()+6)%7]++;
+  });
+  return {porHora, porDia};
+}
+
+function renderEstadisticas(){
+  const {porHora, porDia} = calcularEstadisticas();
+  const maxHora = Math.max(1, ...porHora);
+  const picoHora = porHora.indexOf(Math.max(...porHora));
+
+  graficoHoras.innerHTML = "";
+  porHora.forEach((v, hr) => {
+    const b = document.createElement("div");
+    b.className = "barra" + (v > 0 && hr === picoHora ? " pico" : "");
+    b.style.height = Math.max(2, (v/maxHora)*100) + "%";
+    b.title = String(hr).padStart(2,"0") + ":00 — " + v + (v===1 ? " ladrillo" : " ladrillos");
+    graficoHoras.appendChild(b);
+  });
+
+  const maxDia = Math.max(1, ...porDia);
+  const picoDia = porDia.indexOf(Math.max(...porDia));
+  graficoDias.innerHTML = "";
+  porDia.forEach((v, i) => {
+    const col = document.createElement("div"); col.className = "col";
+    const pista = document.createElement("div"); pista.className = "pista";
+    const barra = document.createElement("div");
+    barra.className = "barra" + (v > 0 && i === picoDia ? " pico" : "");
+    barra.style.height = Math.max(2, (v/maxDia)*100) + "%";
+    barra.title = NOMBRES_DIA[i] + " — " + v + (v===1 ? " ladrillo" : " ladrillos");
+    pista.appendChild(barra);
+    const etq = document.createElement("div"); etq.className = "etq"; etq.textContent = NOMBRES_DIA[i];
+    col.appendChild(pista); col.appendChild(etq);
+    graficoDias.appendChild(col);
+  });
+
+  const diasActivos = new Set(ladrillos.map(b => new Date(b.t).toDateString())).size;
+  statsResumen.innerHTML = ladrillos.length
+    ? "<b>" + ladrillos.length + "</b> ladrillos, repartidos en <b>" + diasActivos + "</b> días distintos. " +
+      "Sueles construir más los <b>" + NOMBRES_DIA[picoDia] + "</b>, cerca de las <b>" +
+      String(picoHora).padStart(2,"0") + ":00</b>."
+    : "Todavía no hay ladrillos para medir un patrón.";
+}
+
+document.getElementById("btnEstadisticas").addEventListener("click", () => {
+  renderEstadisticas();
+  veloStats.classList.add("ver");
+});
+document.getElementById("cerrarStats").addEventListener("click", () => veloStats.classList.remove("ver"));
+veloStats.addEventListener("click", e => { if(e.target === veloStats) veloStats.classList.remove("ver"); });
+
+document.querySelectorAll("#tope button").forEach(b => {
+  b.addEventListener("click", () => {
+    limiteActivo = b.dataset.t === "1";
+    document.querySelectorAll("#tope button").forEach(x => x.setAttribute("aria-pressed", String(x===b)));
+    if(!limiteActivo && boton.disabled){ boton.disabled = false; pie.textContent = "Mantené presionado"; }
+    else if(limiteActivo && colocadosHoy() >= TOPE_DIARIO) cerrarPorHoy();
+  });
+});
+
 const btnSonido = document.getElementById("btnSonido");
 btnSonido.addEventListener("click", () => {
   sonidoOn = !sonidoOn;
@@ -1379,8 +1611,8 @@ btnSonido.addEventListener("click", () => {
    11. Arranque
    ============================================================ */
 cam.x = cam.tx = bordeX();
-cam.escala = cam.tescala = ESCALAS[1];
-if(colocadosHoy() >= TOPE_DIARIO) cerrarPorHoy();
+cam.escala = cam.escalaBase = cam.tescala = ESCALAS[1];
+if(limiteActivo && colocadosHoy() >= TOPE_DIARIO) cerrarPorHoy();
 actualizarEstado();
 requestAnimationFrame(t => { ultimo = t; frame(t); });
 
