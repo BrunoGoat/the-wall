@@ -706,7 +706,7 @@ const PALETAS = {
     montLejos:"#B7C1C8", montCerca:"#94A0A8",
     niebla:"#E4E8E9",
     suelo:"#7C8073", sueloBorde:"#8D9082", sueloHondo:"#5D6155",
-    piedra:[36,17,64], mortero:"#8B8271",
+    piedra:[36,17,64], mortero:"#7C7365", morteroClaro:"#948C7C",
     musgo:"#6C7A4C", polvo:"#B7AE9C",
     ambar:"#B9741F", estrellas:0
   },
@@ -715,7 +715,7 @@ const PALETAS = {
     montLejos:"#232B39", montCerca:"#161C26",
     niebla:"#2E3746",
     suelo:"#141A22", sueloBorde:"#1F2731", sueloHondo:"#0B0E13",
-    piedra:[36,14,58], mortero:"#332F28",
+    piedra:[36,14,58], mortero:"#3E392E", morteroClaro:"#544C3C",
     musgo:"#4E5B39", polvo:"#8A8271",
     ambar:"#F0B15C", estrellas:1
   }
@@ -1307,12 +1307,37 @@ function dibujarColumna(c, info, total, decay, ahora, escSet){
   const esVano = elegido && (elegido.tipo === 'puerta' || elegido.tipo === 'puente');
 
   if(!esVano){
-    ctx.fillStyle = P.suelo;
-    { const [px,py] = aPantalla(info.wx - 1, sueloCol(c), info.wz);
-      ctx.fillRect(px, py, (LA+2)*cam.escala, PY*0.7*cam.escala); }
-    ctx.fillStyle = P.mortero;
-    { const [px,py] = aPantalla(info.wx - MJ, sueloCol(c) - filas*PY, info.wz);
-      ctx.fillRect(px, py, (LA + PX*0.5 + MJ*2)*cam.escala, filas*PY*cam.escala); }
+    // Pedestal: con el terreno subiendo fuerte en los lazos, dos columnas
+    // vecinas pueden tener bases a alturas muy distintas. Si el cimiento
+    // sólo cubriera la propia columna, quedaría un vacío entre una y otra
+    // — la muralla se leería flotando sobre la nada. Por eso baja hasta
+    // tapar al vecino más profundo (antes o después), con la misma
+    // ladera de tierra que el fondo, no un bloque de mortero aparte.
+    const alturaAqui = sueloCol(c);
+    const bajada = Math.max(PY*0.9,
+      sueloCol(c-1) - alturaAqui,
+      sueloCol(c+1) - alturaAqui
+    );
+    {
+      const [px, py0] = aPantalla(info.wx - 1, alturaAqui, info.wz);
+      const [, py1] = aPantalla(info.wx - 1, alturaAqui + bajada, info.wz);
+      const g = ctx.createLinearGradient(0, py0, 0, Math.max(py0+1, py1));
+      g.addColorStop(0, P.sueloBorde);
+      g.addColorStop(1, P.sueloHondo);
+      ctx.fillStyle = g;
+      ctx.fillRect(px, py0, (LA+2)*cam.escala, Math.max(1, py1-py0));
+    }
+    // Mortero: una veta apenas más clara arriba, más oscura abajo, en vez
+    // de un bloque plano — así no compite con los ladrillos que van encima.
+    {
+      const [px, py0] = aPantalla(info.wx - MJ, sueloCol(c) - filas*PY, info.wz);
+      const [, py1] = aPantalla(info.wx - MJ, sueloCol(c), info.wz);
+      const g = ctx.createLinearGradient(0, py0, 0, Math.max(py0+1, py1));
+      g.addColorStop(0, P.morteroClaro);
+      g.addColorStop(1, P.mortero);
+      ctx.fillStyle = g;
+      ctx.fillRect(px, py0, (LA + PX*0.5 + MJ*2)*cam.escala, Math.max(1, py1-py0));
+    }
   }
 
   if(t){
