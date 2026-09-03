@@ -463,10 +463,6 @@ input[type=range]{
       </div>
     </div>
     <div class="campo">
-      <div class="rot">Ángulo de cámara</div>
-      <input type="range" id="sliderOrbit" min="-115" max="115" step="1" value="85" aria-label="Ángulo de cámara">
-    </div>
-    <div class="campo">
       <div class="rot">Historial</div>
       <div class="seg">
         <button id="reset" aria-pressed="false">Reiniciar muralla</button>
@@ -503,11 +499,10 @@ input[type=range]{
       <ul>
         <li><b>Mantené el botón 800 ms.</b> La resistencia es el diseño: la espera carga la anticipación, el impacto la descarga y la cámara pega un envión de zoom hacia el ladrillo nuevo. Soltá antes de tiempo y no pasa nada, sin regaño.</li>
         <li><b>Colocá todos los que quieras.</b> El tope diario está apagado por defecto (panel de abajo) para que puedas probar sin esperar veinticuatro horas entre ladrillo y ladrillo.</li>
-        <li><b>Alejate a «Muralla» y arrastrá.</b> El trazado ya no es una línea recta: gira en cada hito, sube lomas y a veces pasa por detrás de un tramo anterior. Cada giro y cada subida son deterministas pero variados: no hay dos recorridos iguales.</li>
-        <li><b>Mirá qué aparece en cada giro.</b> Torres chicas, grandes, esbeltas con techo cónico, bastiones anchos, faros con brasero, torres reloj, puertas de castillo y hasta puentes levadizos — nunca el mismo hito dos veces seguidas.</li>
-        <li><b>Probá los chips de cantidad.</b> Con 5000 hay decenas de hitos: quedate un rato buscando algo especial. Es raro — puede tardar en aparecer.</li>
+        <li><b>Alejate a «Muralla» y arrastrá.</b> El trazado es recto, apoyado sobre lomas suaves del terreno — ahí está la variación de altura, no en ladrillos apilados de más. Con una muralla larga, alejate y vas a ver, perdiéndose hacia atrás, la silueta brumosa del tramo ya construido: es la muralla real, muestreada a lo lejos, no un fondo decorativo.</li>
+        <li><b>Mirá qué aparece cada ocho a dieciséis columnas.</b> Torres chicas, grandes, esbeltas con techo cónico, bastiones anchos, faros con brasero, torres reloj, puertas de castillo y hasta puentes levadizos — nunca el mismo hito dos veces seguidas.</li>
+        <li><b>Probá los chips de cantidad.</b> Con 5000 hay decenas de hitos y la silueta lejana se hace bien larga: quedate un rato buscando algo especial. Es raro — puede tardar en aparecer.</li>
         <li><b>Hay cien hitos épicos distintos</b> — dragones, bestias, figuras, cascadas, objetos flotantes, auras — y ninguno se repite en toda la muralla. Cuando el ladrillo que colocás completa uno, aparece un cartel arriba anunciando cuál encontraste.</li>
-        <li><b>Arrastrá hacia arriba o abajo, o usá el slider «Ángulo de cámara».</b> Gira la cámara para admirar la piedra desde otro ángulo: revela la cara de arriba o rodeá hacia el otro lado para ver el canto.</li>
         <li><b>Acercate a «Ladrillo».</b> Cada piedra tiene un tamaño propio (algunas notablemente más chicas o más grandes) y volumen real: cara superior, lateral y mortero visible entre juntas.</li>
         <li><b>Llevá el slider a 24 días.</b> Musgo, grietas, niebla y la sección más nueva caída en escombros al pie. El núcleo antiguo nunca se derrumba. Colocar un ladrillo dispara la restauración.</li>
         <li><b>Abrí el ícono de barras, arriba a la derecha.</b> Es el panel de estadísticas: a qué hora y qué día solés construir, calculado sobre tus propios ladrillos.</li>
@@ -520,7 +515,7 @@ input[type=range]{
         <li><b>La háptica.</b> En el navegador no existe. Es la mitad del golpe: pulsos que se aceleran durante la carga y un impacto pesado al asentar. Recién se juzga con el APK en el celular.</li>
         <li><b>El sonido.</b> Acá está sintetizado en el momento. En Flutter va una grabación real de piedra contra piedra, con cola grave y variación mínima de tono por ladrillo.</li>
         <li><b>Los 120 fps.</b> Canvas 2D en una PC de oficina no es <span class="k">CustomPainter</span> con los chunks ya rasterizados. El objetivo en Flutter es 120 fps firmes durante la colocación.</li>
-        <li><b>La vuelta completa.</b> Acá cada ladrillo es una "caja" que se inclina en el lugar para insinuar volumen; la muralla en sí no se reproyecta en 3D real (con miles de ladrillos a lo largo del trazado sería una distorsión). En Flutter, con un motor de verdad, la vuelta puede ser libre y sin ese límite.</li>
+        <li><b>La vuelta completa.</b> Acá cada ladrillo es una "caja" que se inclina en el lugar para insinuar volumen; la muralla en sí no se reproyecta en 3D real (con miles de ladrillos a lo largo del trazado sería una distorsión). En Flutter, con un motor de verdad, se puede sumar curvas y desnivel reales sin ese límite.</li>
         <li><b>Los hitos épicos.</b> Rapunzel y el dragón están hechos con formas de canvas (curvas de Bézier), no con arte dibujado a mano. En Flutter la idea es la misma pero con ilustración real.</li>
       </ul>
     </div>
@@ -552,127 +547,41 @@ function clamp(v,a,b){ return v<a?a:v>b?b:v; }
 const easeOut = t => 1 - Math.pow(1-t, 3);
 
 /* ============================================================
-   1b. El trazado — no es una línea recta ni tampoco esquinas en
-   ángulo recto: es una ruta que va derecho la mayor parte del tiempo
-   y, de tanto en tanto, se dobla en un lazo suave tipo switchback de
-   camino de montaña — se aparta de la recta, pasa por detrás de sí
-   misma, y vuelve a la recta. La altura no sale de apilar más cursos
-   de ladrillo (siempre son AL): sale de que el TERRENO trepa más rápido
-   justo dentro de esos lazos, como una ruta que gana altura en las
-   curvas cerradas — el zigzag es lo que da la sensación de altura.
-   Un solo escalar (distancia recorrida) se traduce a una posición real
-   del plano recorriendo esta ruta, así que la cámara y el paneo siguen
-   funcionando igual: sólo cambia cómo esa distancia se convierte en
-   un lugar del mundo.
+   1b. El trazado — de vuelta a la idea base: una línea recta, sin
+   giros ni subidas ni bajadas. wz siempre 0 (la profundidad del plano
+   sólo la usa, más abajo, la extrusión de cada ladrillo y la silueta
+   lejana). El único relieve es una ondulación de terreno suave y NO
+   acumulativa (lomas, no una cuesta que trepa) — la misma idea del
+   primer prototipo.
    ============================================================ */
 function colDe(i){ return Math.floor(i / AL); }
 function filaDe(i){ return i % AL; }
 
-// Los lazos (switchbacks): tramos largos derechos separados por curvas
-// donde el rumbo se aparta de cero, llega a un pico, y vuelve a cero —
-// como una curva en S. Se generan de a uno, bajo demanda.
-let curvas = [];
-function generarSiguienteCurva(kPrev){
-  const finAnterior = kPrev < 0 ? 0 : (curvas[kPrev].inicio + curvas[kPrev].duracion);
-  const k = kPrev + 1;
-  const gap = 45 + Math.floor(h(k*17.3) * 70);              // 45–114 columnas derechas antes del lazo
-  const inicio = finAnterior + gap;
-  const duracion = 22 + Math.floor(h(k*23.9) * 34);         // 22–55 columnas de curva
-  const pico = (95 + h(k*31.1) * 70) * Math.PI/180;         // 95°–165°: un lazo cerrado, casi una vuelta en U
-  const signoPrev = kPrev >= 0 ? curvas[kPrev].signo : (h(7.7) < 0.5 ? 1 : -1);
-  const signo = h(k*41.7 + 7) < 0.72 ? -signoPrev : signoPrev;   // casi siempre alterna de lado
-  const subeSigno = h(k*53.3 + 3) < 0.76 ? 1 : -1;                // casi siempre sube; a veces baja, de alivio
-  return {inicio, duracion, pico, signo, subeSigno};
-}
-function asegurarCurvasHasta(col){
-  let guarda = 0;
-  while((curvas.length === 0 || curvas[curvas.length-1].inicio + curvas[curvas.length-1].duracion < col + 80) && guarda++ < 20000){
-    curvas.push(generarSiguienteCurva(curvas.length - 1));
-  }
-}
-function curvaEnColumna(c){
-  asegurarCurvasHasta(c);
-  for(let i=curvas.length-1; i>=0; i--){
-    const cv = curvas[i];
-    if(cv.inicio <= c) return (c < cv.inicio + cv.duracion) ? {cv, t:(c-cv.inicio)/cv.duracion} : null;
-  }
-  return null;
-}
-// 0 → 1 → 0 suave: el rumbo se aparta de la recta y vuelve, sin saltos.
-function curvaBump(t){ return 0.5*(1 - Math.cos(2*Math.PI*t)); }
-// Deriva muy lenta del rumbo de fondo, como un valle que serpentea de
-// verdad a lo largo de kilómetros — sin esto, cada lazo vuelve exacto
-// al mismo rumbo de siempre y toda la muralla queda, en el fondo, sobre
-// una única línea recta: nada quedaría "lejos" en otra parte del cielo,
-// sólo derecho detrás tuyo, fuera de cámara. Con la deriva, tramos
-// construidos hace rato pueden reaparecer, lejos, en otra cresta.
-function rumboBase(c){
-  return Math.sin(c*0.0022 + 2.1)*1.1 + Math.sin(c*0.0007 + 0.4)*0.55;
-}
-function calcularRumbo(c){
-  const hit = curvaEnColumna(c);
-  const oscilacion = hit ? hit.cv.signo * hit.cv.pico * curvaBump(hit.t) : 0;
-  return rumboBase(c) + oscilacion;
-}
-function calcularSubida(c){
-  const base = 0.15*PY;                                     // subida leve y pareja en los tramos derechos
-  const hit = curvaEnColumna(c);
-  if(!hit) return base;
-  return base + hit.cv.subeSigno * 2.6*PY * curvaBump(hit.t); // fuerte dentro del lazo: ahí se gana la altura
-}
-
-// La posición se integra columna a columna (como una tortuga de Logo):
-// cada paso avanza PX en la dirección del rumbo de esa columna. Se
-// cachea de forma incremental para no recalcular todo cada vez.
-let posCache = [{wx:0, wz:0, elev:0}];
-function asegurarPosHasta(col){
-  let guarda = 0;
-  while(posCache.length <= col && guarda++ < 400000){
-    const i = posCache.length - 1;
-    const prev = posCache[i];
-    const rumbo = calcularRumbo(i);
-    posCache.push({
-      wx: prev.wx + Math.cos(rumbo)*PX,
-      wz: prev.wz + Math.sin(rumbo)*PX,
-      elev: prev.elev + calcularSubida(i)
-    });
-  }
-}
-// Posición real (wx,wz en el plano, elev de altura, dirAngulo del rumbo)
-// de una columna, o de cualquier punto FRACCIONARIO entre columnas — la
-// misma función ubica un ladrillo exacto y mueve la cámara con suavidad.
-function posEnColumna(colFrac){
-  const c0 = Math.max(0, Math.floor(colFrac));
-  asegurarPosHasta(c0 + 1);
-  const a = posCache[c0], b = posCache[Math.min(c0+1, posCache.length-1)];
-  const t = colFrac - c0;
-  return {
-    wx: lerp(a.wx, b.wx, t), wz: lerp(a.wz, b.wz, t),
-    dirAngulo: calcularRumbo(c0), elev: lerp(a.elev, b.elev, t)
-  };
+function sueloCrudo(c){
+  return Math.sin(c*0.031)*3.1*PY + Math.sin(c*0.0113+1.7)*4.6*PY + Math.sin(c*0.087+0.4)*0.8*PY;
 }
 // Altura de mundo (wy) del suelo en cualquier punto del trazado (columna
-// entera o fraccionaria): la elevación acumulada, más una textura
-// orgánica leve.
-function alturaSuelo(colFrac){
-  const p = posEnColumna(colFrac);
-  const jitter = (h(Math.floor(colFrac)*0.9 + 2.3) - 0.5) * 0.7 * PY;
-  return -p.elev + jitter;
-}
+// entera o fraccionaria) — interpola entre columnas para que la tierra
+// del fondo no dé saltos.
+function alturaSuelo(colFrac){ return sueloCrudo(colFrac); }
 // Nivel del suelo por columna, cuantizado a cursos enteros para que la
 // mampostería calce exacta.
-function sueloCol(c){ return Math.round(alturaSuelo(c) / PY) * PY; }
+function sueloCol(c){ return Math.round(sueloCrudo(c) / PY) * PY; }
 function cimaCol(c){ return sueloCol(c) - AL*PY; }
 function columnaLlena(c, total){ return total >= (c+1)*AL; }
 
-// Posición completa (mundo) de un ladrillo: su columna ya trae wx/wz y el
-// rumbo local; el aparejo trabado (hiladas alternadas) se desplaza a lo
-// largo de ese rumbo, no siempre en +X como cuando la muralla era recta.
+// Posición real (wx,wz) de una columna, o de cualquier punto fraccionario
+// entre columnas — la misma función ubica un ladrillo exacto y mueve la
+// cámara con suavidad. Recta: wz siempre 0, rumbo siempre 0 (mirando +X).
+function posEnColumna(colFrac){
+  return { wx: colFrac*PX, wz: 0, dirAngulo: 0 };
+}
+
+// Posición completa (mundo) de un ladrillo.
 function ladrilloPos(i){
   const c = colDe(i), f = filaDe(i);
-  const p = posEnColumna(c);
   const st = (f % 2) ? PX*0.5 : 0;
-  return { wx: p.wx + Math.cos(p.dirAngulo)*st, wz: p.wz + Math.sin(p.dirAngulo)*st, wy: sueloCol(c) - f*PY - LH, dirAngulo: p.dirAngulo };
+  return { wx: c*PX + st, wz: 0, wy: sueloCol(c) - f*PY - LH, dirAngulo: 0 };
 }
 
 /* ============================================================
@@ -704,7 +613,7 @@ const PALETAS = {
   dia:{
     cieloAlto:"#C9D3DA", cieloBajo:"#EFF1F0",
     montLejos:"#B7C1C8", montCerca:"#94A0A8",
-    niebla:"#E4E8E9",
+    niebla:"#E4E8E9", murLejos:"#A8957C",
     suelo:"#7C8073", sueloBorde:"#8D9082", sueloHondo:"#5D6155",
     piedra:[36,17,64], mortero:"#7C7365", morteroClaro:"#948C7C",
     musgo:"#6C7A4C", polvo:"#B7AE9C",
@@ -713,7 +622,7 @@ const PALETAS = {
   noche:{
     cieloAlto:"#0C1017", cieloBajo:"#2C3444",
     montLejos:"#232B39", montCerca:"#161C26",
-    niebla:"#2E3746",
+    niebla:"#2E3746", murLejos:"#6B5A42",
     suelo:"#141A22", sueloBorde:"#1F2731", sueloHondo:"#0B0E13",
     piedra:[36,14,58], mortero:"#3E392E", morteroClaro:"#544C3C",
     musgo:"#4E5B39", polvo:"#8A8271",
@@ -776,16 +685,11 @@ function curvaPunch(t){
   return t < 0.16 ? easeOut(t/0.16) : 1 - easeOut((t-0.16)/0.84);
 }
 
-// Cámara orbitable: cada ladrillo es una caja local (frente + tapa + lateral).
-// Girar no reproyecta la muralla entera en 3D — sería absurdo con miles de
-// ladrillos a lo largo del eje X — sino que gira, en el lugar, la faceta de
-// cada piedra. El resultado: podés inclinarte para ver el remate de arriba
-// o rodear hacia el otro lado para ver el canto, sin romper el resto de la
-// escena. Es una vuelta para admirar la piedra, no un paseo alrededor.
-let orbit = 0.85, orbitObjetivo = 0.85;
-const ORBIT_MAX = 1.15, ORBIT_SENSIB = 0.0045, ORBIT_PITCH = -0.62;
-let ddxUnit = 0;
-function actualizarFacetas(){ ddxUnit = Math.sin(orbit); }
+// Cada ladrillo es una caja local (frente + tapa + lateral) con un ángulo
+// fijo: eso es lo que le da volumen a la piedra, sin depender de ningún
+// control de cámara.
+const ORBIT_PITCH = -0.62;
+const ddxUnit = Math.sin(0.85);
 
 // Dibuja la tapa (luz de lleno) y el canto (en sombra) de una caja local de
 // w×hh, con una profundidad expresada como el desplazamiento (ddx,ddy) de
@@ -1052,43 +956,50 @@ function perfilMontana(amp, base, freq, fase, parallax, color){
 function dibujarMurallaLejana(total){
   const totalCols = colDe(Math.max(0, total-1)) + 1;
   if(totalCols < 40) return;
-  const camCol = cam.x / PX, camInfo = posEnColumna(camCol);
-  const paso = Math.max(1, Math.ceil(totalCols / 240));
-  const UMBRAL = 40*PX;       // más cerca que esto ya se dibuja en detalle: no duplicar
+  // Sólo lo que queda ANTES del rango que ya se dibuja en detalle — así
+  // nunca se solapa con la muralla nítida, y lo que se ve acá es
+  // genuinamente "más allá de lo que estás mirando ahora".
+  const {cMin} = columnasVisibles();
+  if(cMin <= 0) return;
+  const camCol = cam.x / PX;
+  const paso = Math.max(1, Math.ceil(cMin / 240));
   // Escala propia, mucho más comprimida que la de la cámara: una cresta
   // lejana barre un mundo mucho más ancho dentro del mismo cielo — igual
   // que una foto real, donde lo lejano se ve chico aunque sea enorme.
   const escalaLejos = Math.max(0.01, cam.escala * 0.09);
-  // El alto en pantalla es una cresta estilizada, no una continuación
-  // literal de la altura real: sigue la ELEVACIÓN RELATIVA a la cámara
-  // (cuánto más alto o más bajo que el borde vivo), acotada a la franja
-  // del cielo, en vez de la coordenada de mundo cruda — que la llevaría
-  // muy abajo cuando ambos puntos ya trepan mucho.
-  const Y_CRESTA = H*HOR - 55;
-  const BASE_Y = H*HOR + 15;
+  // El alto en pantalla es una cresta estilizada que sigue las mismas
+  // lomas suaves del terreno (relativas a la altura de la cámara), pero
+  // apoyada bien por encima del remate de la muralla nítida — como la
+  // Gran Muralla asomando sobre una cresta lejana, nunca tapada por el
+  // tramo de piedra que tenés justo delante.
+  const Y_CRESTA = H*HOR - (AL*PY*cam.escala*1.15 + 40);
+  const BASE_Y = Y_CRESTA + 16;
+  const alturaCam = alturaSuelo(camCol);
 
   let prev = null;
   ctx.save();
-  for(let c=0; c<totalCols; c += paso){
+  for(let c=0; c<cMin; c += paso){
     const info = posEnColumna(c);
-    const dist = Math.hypot(info.wx-camInfo.wx, info.wz-camInfo.wz);
-    let pt = null;
-    if(dist >= UMBRAL){
-      const ax = info.wx + info.wz*SESGO_X;
-      const sx = (ax - cam.ax)*escalaLejos + W*ANCLA;
-      const elevDiff = info.elev - camInfo.elev;
-      const sy = clamp(Y_CRESTA - elevDiff*escalaLejos*1.6, 15, H*HOR+35);
-      const alfa = clamp(0.30 + Math.min(1, (dist-UMBRAL)/(UMBRAL*3)) * 0.24, 0.28, 0.58);
-      pt = {sx, sy, alfa};
-    }
-    if(prev && pt && Math.abs(pt.sx-prev.sx) < 260){
+    const ax = info.wx + info.wz*SESGO_X;
+    const sx = (ax - cam.ax)*escalaLejos + W*ANCLA;
+    const alturaDiff = alturaCam - alturaSuelo(c);
+    // Un diente de almena cada dos muestras: a esta escala no se leen
+    // ladrillos individuales, pero el vaivén sutil del remate sí lee
+    // como muralla y no como una loma más.
+    const almena = (Math.floor(c/paso) % 2 === 0) ? 0 : 4;
+    const sy = clamp(Y_CRESTA - alturaDiff*escalaLejos*1.6 + almena, 15, Y_CRESTA+16);
+    // Un poco más tenue cerca del corte con la muralla nítida, más
+    // presente cuanto más atrás — como corresponde a la niebla real.
+    const alfa = clamp(0.32 + (1 - c/cMin)*0.3, 0.32, 0.62);
+    const pt = {sx, sy, alfa};
+    if(prev && Math.abs(pt.sx-prev.sx) < 260){
       const a = (prev.alfa + pt.alfa)/2;
-      ctx.fillStyle = rgba(P.montLejos, a*0.55);
+      ctx.fillStyle = rgba(P.murLejos, a*0.6);
       ctx.beginPath();
       ctx.moveTo(prev.sx, prev.sy); ctx.lineTo(pt.sx, pt.sy);
       ctx.lineTo(pt.sx, BASE_Y); ctx.lineTo(prev.sx, BASE_Y);
       ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = rgba(P.montLejos, a); ctx.lineWidth = 1.1;
+      ctx.strokeStyle = rgba(P.murLejos, a); ctx.lineWidth = 1.3;
       ctx.beginPath(); ctx.moveTo(prev.sx, prev.sy); ctx.lineTo(pt.sx, pt.sy); ctx.stroke();
     }
     prev = pt;
@@ -2101,8 +2012,6 @@ function frame(ahora){
   cam.z = posCam.wz;
   cam.ax = posCam.wx + posCam.wz*SESGO_X;
   cam.ay = (alturaSuelo(colCam) - 52) - posCam.wz*SESGO_Y;
-  orbit = lerp(orbit, orbitObjetivo, 1 - Math.pow(0.0022, dt/1000));
-  actualizarFacetas();
 
   let sx = 0, sy = 0;
   if(sacudida > 0 && !reduce){
@@ -2304,7 +2213,7 @@ escena.addEventListener("pointerdown", e => {
   if(e.target.closest(".hud > *:not(.globo)")) return;
   punteros.set(e.pointerId, {x:e.clientX, y:e.clientY});
   if(punteros.size === 1){
-    arrastre = {x: e.clientX, y: e.clientY, camX: cam.x, orbitBase: orbitObjetivo, movido: 0, sx: e.clientX, sy: e.clientY};
+    arrastre = {x: e.clientX, y: e.clientY, camX: cam.x, movido: 0, sx: e.clientX, sy: e.clientY};
     escena.setPointerCapture(e.pointerId);
     escena.classList.add("arrastrando");
   }else if(punteros.size === 2){
@@ -2325,14 +2234,10 @@ escena.addEventListener("pointermove", e => {
   }
   if(!arrastre) return;
   const dx = e.clientX - arrastre.x;
-  const dy = e.clientY - arrastre.y;
   arrastre.movido = Math.max(arrastre.movido, Math.hypot(e.clientX-arrastre.sx, e.clientY-arrastre.sy));
   cam.libre = true;
   cam.tx = arrastre.camX - dx/cam.escala;
   cam.x = cam.tx;
-  // Horizontal recorre la muralla; vertical la gira. Un solo gesto, dos ejes.
-  orbitObjetivo = clamp(arrastre.orbitBase + dy*ORBIT_SENSIB, -ORBIT_MAX, ORBIT_MAX);
-  sliderOrbit.value = String(Math.round(orbitObjetivo*100));
 });
 function soltar(e){
   if(arrastre && arrastre.movido < 5) tocarLadrillo(e.clientX, e.clientY);
@@ -2521,17 +2426,6 @@ document.querySelectorAll("#tope button").forEach(b => {
   });
 });
 
-// Control explícito del ángulo — el arrastre vertical sobre la escena hace
-// lo mismo, pero un slider siempre funciona sin importar mouse, trackpad
-// o navegador, así que queda acá como respaldo garantizado.
-const sliderOrbit = document.getElementById("sliderOrbit");
-sliderOrbit.addEventListener("input", () => {
-  orbitObjetivo = clamp((+sliderOrbit.value)/100, -ORBIT_MAX, ORBIT_MAX);
-});
-(function sincronizarSliderOrbit(){
-  sliderOrbit.value = String(Math.round(orbitObjetivo*100));
-})();
-
 const btnSonido = document.getElementById("btnSonido");
 btnSonido.addEventListener("click", () => {
   sonidoOn = !sonidoOn;
@@ -2545,7 +2439,6 @@ btnSonido.addEventListener("click", () => {
    ============================================================ */
 cam.x = cam.tx = bordeX();
 cam.escala = cam.escalaBase = cam.tescala = ESCALAS[1];
-actualizarFacetas();
 if(limiteActivo && colocadosHoy() >= TOPE_DIARIO) cerrarPorHoy();
 actualizarEstado();
 requestAnimationFrame(t => { ultimo = t; frame(t); });
