@@ -1,0 +1,1388 @@
+<title>La Muralla</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+<style>
+/* ============================================================
+   LA MURALLA — prototipo de sensación
+   Paleta: dos mundos. Tema claro = mediodía. Tema oscuro = anochecer.
+   El tema del visor no cambia el "skin": cambia la hora del día del mundo.
+   ============================================================ */
+:root{
+  color-scheme: light;
+  /* mediodía */
+  --cielo-alto:#DCE2E6;  --cielo-bajo:#F1F3F3;
+  --papel:#E7E9E9;       --papel-2:#DDE0E1;
+  --tinta:#22282E;       --tinta-2:#5C666E;  --tinta-3:#8A939A;
+  --linea:#C6CCCF;
+  --piedra:#B6A98F;
+  --ambar:#A9661A;
+  --musgo:#5E6B45;
+  --hueco:#FFFFFF;
+  --sombra:0 1px 2px rgba(34,40,46,.10), 0 8px 24px rgba(34,40,46,.07);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    /* anochecer */
+    --cielo-alto:#0E121A; --cielo-bajo:#2A3140;
+    --papel:#12161D;      --papel-2:#1A1F28;
+    --tinta:#E4E6E4;      --tinta-2:#9AA2AB;  --tinta-3:#6B747E;
+    --linea:#2B323C;
+    --piedra:#B0A48F;
+    --ambar:#F0B15C;
+    --musgo:#6B7A4D;
+    --hueco:#181D25;
+    --sombra:0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --cielo-alto:#0E121A; --cielo-bajo:#2A3140;
+  --papel:#12161D;      --papel-2:#1A1F28;
+  --tinta:#E4E6E4;      --tinta-2:#9AA2AB;  --tinta-3:#6B747E;
+  --linea:#2B323C;
+  --piedra:#B0A48F;
+  --ambar:#F0B15C;
+  --musgo:#6B7A4D;
+  --hueco:#181D25;
+  --sombra:0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--papel); color:var(--tinta);
+  font-family:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.env{max-width:1180px; margin:0 auto; padding:0 20px 72px}
+
+/* ---------- Escenario ---------- */
+.escenario{
+  position:relative; width:100%;
+  height:clamp(440px, 74vh, 660px);
+  overflow:hidden;
+  border-bottom:1px solid var(--linea);
+  background:var(--cielo-alto);
+  touch-action:none;
+  cursor:grab;
+}
+.escenario.arrastrando{cursor:grabbing}
+#mundo{display:block; width:100%; height:100%}
+
+/* ---------- HUD ---------- */
+.hud{position:absolute; inset:0; pointer-events:none}
+.hud > *{pointer-events:auto}
+
+.marca{position:absolute; top:22px; left:24px}
+.marca h1{
+  margin:0; font-family:Cinzel, Georgia, serif; font-weight:700;
+  font-size:13px; letter-spacing:.26em; text-transform:uppercase;
+  color:var(--tinta); text-shadow:0 1px 3px rgba(0,0,0,.18);
+}
+.marca .regla{width:52px; height:1px; background:var(--tinta-3); margin:9px 0 12px; opacity:.7}
+.cuenta{display:flex; align-items:baseline; gap:7px}
+.cuenta b{
+  font-family:"IBM Plex Mono", ui-monospace, monospace; font-weight:500;
+  font-size:34px; line-height:1; letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums; color:var(--tinta);
+  text-shadow:0 1px 4px rgba(0,0,0,.2);
+  transition:transform .18s cubic-bezier(.2,1.4,.4,1);
+}
+.cuenta b.pulso{transform:scale(1.13)}
+.cuenta span{font-size:12px; color:var(--tinta-2); letter-spacing:.04em}
+
+.esquina-d{position:absolute; top:22px; right:24px; display:flex; align-items:center; gap:10px}
+.estado{
+  display:flex; align-items:center; gap:8px;
+  padding:7px 13px 7px 11px; border-radius:999px;
+  background:color-mix(in srgb, var(--hueco) 74%, transparent);
+  border:1px solid var(--linea);
+  backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+}
+.estado i{width:7px; height:7px; border-radius:50%; background:var(--ambar); flex:none}
+.estado .nom{
+  font-family:Cinzel, Georgia, serif; font-size:11px; font-weight:500;
+  letter-spacing:.13em; text-transform:uppercase; color:var(--tinta);
+}
+.estado .sub{
+  font-family:"IBM Plex Mono", monospace; font-size:11px; color:var(--tinta-3);
+  padding-left:8px; margin-left:2px; border-left:1px solid var(--linea);
+}
+.icono{
+  width:34px; height:34px; flex:none; display:grid; place-items:center;
+  border-radius:50%; border:1px solid var(--linea);
+  background:color-mix(in srgb, var(--hueco) 74%, transparent);
+  backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+  color:var(--tinta-2); cursor:pointer;
+}
+.icono:hover{color:var(--tinta)}
+.icono svg{width:16px; height:16px; display:block}
+
+.volver{
+  position:absolute; bottom:126px; right:24px;
+  padding:8px 14px; border-radius:999px; border:1px solid var(--linea);
+  background:color-mix(in srgb, var(--hueco) 80%, transparent);
+  backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
+  color:var(--tinta); font-size:12px; letter-spacing:.02em; cursor:pointer;
+  opacity:0; transform:translateY(6px); transition:opacity .25s, transform .25s;
+  pointer-events:none;
+}
+.volver.ver{opacity:1; transform:none; pointer-events:auto}
+
+/* ---------- El botón ---------- */
+.control{
+  position:absolute; left:50%; bottom:30px; transform:translateX(-50%);
+  display:flex; flex-direction:column; align-items:center; gap:11px;
+}
+.boton{
+  position:relative; width:86px; height:86px; border:0; padding:0;
+  background:none; cursor:pointer; touch-action:none;
+  -webkit-tap-highlight-color:transparent;
+}
+.boton .anillo{position:absolute; inset:0; width:86px; height:86px; transform:rotate(-90deg)}
+.boton .anillo circle{fill:none; stroke-linecap:round}
+.boton .pista{stroke:var(--linea); stroke-width:2}
+.boton .carga{stroke:var(--ambar); stroke-width:2.5; transition:stroke-opacity .2s}
+.boton .disco{
+  position:absolute; inset:9px; border-radius:50%;
+  background:color-mix(in srgb, var(--hueco) 82%, transparent);
+  border:1px solid var(--linea);
+  backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  display:grid; place-items:center;
+  transition:transform .12s ease, background .2s;
+}
+.boton:active .disco, .boton.cargando .disco{transform:scale(.955)}
+.boton .glifo{
+  width:26px; height:13px; border-radius:1.5px;
+  background:var(--piedra);
+  box-shadow:inset 0 1px 0 color-mix(in srgb, #fff 30%, transparent), inset 0 -1px 0 rgba(0,0,0,.22);
+  transition:transform .2s cubic-bezier(.2,1.3,.4,1);
+}
+.boton.cargando .glifo{transform:translateY(-2px)}
+.boton:focus-visible{outline:none}
+.boton:focus-visible .disco{outline:2px solid var(--ambar); outline-offset:3px}
+.boton[disabled]{cursor:default}
+.boton[disabled] .glifo{background:var(--tinta-3); opacity:.5}
+.pie{
+  font-size:11.5px; letter-spacing:.07em; color:var(--tinta-2);
+  text-transform:uppercase; text-align:center; max-width:280px;
+  text-shadow:0 1px 3px rgba(0,0,0,.2);
+}
+
+/* ---------- Nota tras colocar ---------- */
+.velo{
+  position:absolute; inset:0; display:grid; place-items:center;
+  background:color-mix(in srgb, var(--papel) 55%, transparent);
+  backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+  opacity:0; transition:opacity .35s; pointer-events:none;
+}
+.velo.ver{opacity:1; pointer-events:auto}
+.tarjeta{
+  width:min(420px, calc(100% - 48px));
+  background:var(--hueco); border:1px solid var(--linea);
+  border-radius:3px; padding:26px 24px 20px; box-shadow:var(--sombra);
+  transform:translateY(14px); transition:transform .4s cubic-bezier(.2,.9,.3,1);
+}
+.velo.ver .tarjeta{transform:none}
+.tarjeta h2{
+  margin:0 0 4px; font-family:Cinzel, Georgia, serif; font-weight:500;
+  font-size:19px; letter-spacing:.02em; text-wrap:balance;
+}
+.tarjeta p{margin:0 0 16px; font-size:12.5px; color:var(--tinta-2)}
+.tarjeta input{
+  width:100%; padding:11px 12px; font:inherit; font-size:14px;
+  color:var(--tinta); background:var(--papel-2);
+  border:1px solid var(--linea); border-radius:2px;
+}
+.tarjeta input:focus{outline:2px solid var(--ambar); outline-offset:1px; border-color:transparent}
+.acciones{display:flex; justify-content:flex-end; gap:8px; margin-top:14px}
+.btn{
+  padding:9px 16px; font:inherit; font-size:13px; border-radius:2px;
+  border:1px solid var(--linea); background:transparent; color:var(--tinta-2); cursor:pointer;
+}
+.btn:hover{color:var(--tinta)}
+.btn.primario{background:var(--tinta); color:var(--papel); border-color:var(--tinta)}
+.btn.primario:hover{opacity:.87; color:var(--papel)}
+
+/* ---------- Globo de un ladrillo ---------- */
+.globo{
+  position:absolute; z-index:5; max-width:230px;
+  padding:10px 13px; border-radius:2px;
+  background:var(--hueco); border:1px solid var(--linea); box-shadow:var(--sombra);
+  transform:translate(-50%,-118%); opacity:0; transition:opacity .18s;
+  pointer-events:none;
+}
+.globo.ver{opacity:1}
+.globo .f{
+  font-family:"IBM Plex Mono", monospace; font-size:10px;
+  letter-spacing:.06em; text-transform:uppercase; color:var(--tinta-3);
+}
+.globo .t{font-size:13.5px; margin-top:4px; line-height:1.35; color:var(--tinta)}
+
+/* ---------- Panel de prueba ---------- */
+.panel{
+  border-bottom:1px solid var(--linea); background:var(--papel-2);
+}
+.panel-in{
+  max-width:1180px; margin:0 auto; padding:20px;
+  display:grid; gap:20px 34px;
+  grid-template-columns:repeat(auto-fit, minmax(230px, 1fr));
+  align-items:end;
+}
+.campo{display:flex; flex-direction:column; gap:9px}
+.rot{
+  font-family:"IBM Plex Mono", monospace; font-size:10px;
+  letter-spacing:.15em; text-transform:uppercase; color:var(--tinta-3);
+}
+.dias{display:flex; align-items:baseline; gap:9px}
+.dias b{
+  font-family:"IBM Plex Mono", monospace; font-size:22px; font-weight:500;
+  font-variant-numeric:tabular-nums; color:var(--tinta);
+}
+.dias span{font-size:12px; color:var(--tinta-2)}
+input[type=range]{
+  width:100%; accent-color:var(--ambar); margin:0; height:20px;
+}
+.seg{display:flex; border:1px solid var(--linea); border-radius:2px; overflow:hidden; width:fit-content}
+.seg button{
+  padding:8px 13px; font:inherit; font-size:12px; border:0; cursor:pointer;
+  background:transparent; color:var(--tinta-2); border-right:1px solid var(--linea);
+}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--tinta); color:var(--papel)}
+.aviso{
+  grid-column:1/-1; margin:0; max-width:74ch;
+  padding-top:16px; border-top:1px solid var(--linea);
+  font-size:12px; color:var(--tinta-2); line-height:1.6;
+}
+.aviso b{color:var(--tinta); font-weight:500}
+
+/* ---------- Texto ---------- */
+.lectura{padding-top:52px; display:grid; gap:44px; grid-template-columns:repeat(auto-fit, minmax(280px,1fr))}
+.lectura h3{
+  margin:0 0 14px; font-family:Cinzel, Georgia, serif; font-weight:500;
+  font-size:15px; letter-spacing:.1em; text-transform:uppercase;
+}
+.lectura ul{margin:0; padding:0; list-style:none; display:grid; gap:13px}
+.lectura li{
+  font-size:13.5px; line-height:1.6; color:var(--tinta-2);
+  padding-left:16px; border-left:1px solid var(--linea);
+}
+.lectura li b{color:var(--tinta); font-weight:500}
+.lectura .k{
+  font-family:"IBM Plex Mono", monospace; font-size:12px; color:var(--ambar);
+}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.01ms !important; transition-duration:.01ms !important}
+}
+@media (max-width:640px){
+  .marca{top:16px; left:16px}
+  .esquina-d{top:16px; right:16px}
+  .estado .sub{display:none}
+  .cuenta b{font-size:28px}
+}
+</style>
+
+<div class="escenario" id="escenario">
+  <canvas id="mundo"></canvas>
+
+  <div class="hud">
+    <div class="marca">
+      <h1>La Muralla</h1>
+      <div class="regla"></div>
+      <div class="cuenta"><b id="contador">0</b><span>ladrillos</span></div>
+    </div>
+
+    <div class="esquina-d">
+      <div class="estado">
+        <i id="estadoPunto"></i>
+        <span class="nom" id="estadoNom">Recién asentado</span>
+        <span class="sub" id="estadoSub">hoy</span>
+      </div>
+      <button class="icono" id="btnSonido" title="Sonido" aria-label="Silenciar sonido">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 5 6 9H3v6h3l5 4V5z"/><path id="onda1" d="M15.5 8.5a5 5 0 0 1 0 7"/><path id="onda2" d="M18.5 5.5a9 9 0 0 1 0 13"/>
+        </svg>
+      </button>
+    </div>
+
+    <button class="volver" id="btnVolver">Ir al borde →</button>
+
+    <div class="control">
+      <button class="boton" id="boton" aria-label="Mantené presionado para colocar un ladrillo">
+        <svg class="anillo" viewBox="0 0 86 86" aria-hidden="true">
+          <circle class="pista" cx="43" cy="43" r="41"/>
+          <circle class="carga" id="arco" cx="43" cy="43" r="41" stroke-dasharray="257.6" stroke-dashoffset="257.6"/>
+        </svg>
+        <span class="disco"><span class="glifo"></span></span>
+      </button>
+      <div class="pie" id="pie">Mantené presionado</div>
+    </div>
+
+    <div class="velo" id="velo">
+      <div class="tarjeta">
+        <h2>¿Qué construiste?</h2>
+        <p>Opcional. Este ladrillo va a guardarlo para siempre.</p>
+        <input id="nota" type="text" maxlength="80" placeholder="Terminé el capítulo 3" autocomplete="off">
+        <div class="acciones">
+          <button class="btn" id="omitir">Omitir</button>
+          <button class="btn primario" id="guardar">Guardar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="globo" id="globo"><div class="f"></div><div class="t"></div></div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="panel-in">
+    <div class="campo">
+      <div class="rot">Días sin construir</div>
+      <div class="dias"><b id="diasNum">0</b><span id="diasEt">Recién asentado</span></div>
+      <input type="range" id="slider" min="0" max="30" step="1" value="0" aria-label="Días sin construir">
+    </div>
+    <div class="campo">
+      <div class="rot">Distancia</div>
+      <div class="seg" id="zoom">
+        <button data-z="0" aria-pressed="false">Ladrillo</button>
+        <button data-z="1" aria-pressed="true">Sección</button>
+        <button data-z="2" aria-pressed="false">Muralla</button>
+      </div>
+    </div>
+    <div class="campo">
+      <div class="rot">Historial</div>
+      <div class="seg">
+        <button id="reset" aria-pressed="false">Reiniciar muralla</button>
+      </div>
+    </div>
+    <p class="aviso">
+      <b>Panel de prueba.</b> Nada de esto existe en la app real: ahí el deterioro se calcula solo,
+      a partir de la fecha del último ladrillo. Está acá para que veas los cuatro estados sin esperar tres semanas.
+      La muralla arranca con <b>137 ladrillos de ejemplo</b> repartidos en las últimas nueve semanas.
+    </p>
+  </div>
+</div>
+
+<div class="env">
+  <div class="lectura">
+    <div>
+      <h3>Qué probar</h3>
+      <ul>
+        <li><b>Mantené el botón 800 ms.</b> La resistencia es el diseño: la espera carga la anticipación y el impacto la descarga. Soltá antes de tiempo y no pasa nada, sin regaño.</li>
+        <li><b>Llevá el slider a 24 días.</b> Musgo, grietas, niebla y la sección más nueva caída en escombros al pie. El núcleo antiguo nunca se derrumba.</li>
+        <li><b>Ahora colocá un ladrillo.</b> Eso dispara la restauración: los escombros vuelven, el musgo se retira, la luz regresa. Volver tiene que sentirse mejor que empezar.</li>
+        <li><b>Alejate a «Muralla».</b> Arrastrá para recorrerla. Las torres aparecen cada 64 ladrillos, sin anunciarse.</li>
+        <li><b>Acercate a «Ladrillo» y tocá uno.</b> Los que tienen nota guardada te devuelven qué lograste ese día.</li>
+        <li><b>Cambiá el tema de tu navegador.</b> Claro es mediodía, oscuro es el anochecer con las antorchas encendidas. En la app real lo decide la hora del teléfono.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Lo que no viaja</h3>
+      <ul>
+        <li><b>La háptica.</b> En el navegador no existe. Es la mitad del golpe: pulsos que se aceleran durante la carga y un impacto pesado al asentar. Recién se juzga con el APK en el celular.</li>
+        <li><b>El sonido.</b> Acá está sintetizado en el momento. En Flutter va una grabación real de piedra contra piedra, con cola grave y variación mínima de tono por ladrillo.</li>
+        <li><b>Los 120 fps.</b> Canvas 2D en una PC de oficina no es <span class="k">CustomPainter</span> con los chunks ya rasterizados. El objetivo en Flutter es 120 fps firmes durante la colocación.</li>
+        <li><b>La textura fina.</b> Cada ladrillo se dibuja acá con una semilla determinista derivada de su índice: misma idea que va a usar Flutter, con mucho más detalle por piedra.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+(function(){
+
+/* ============================================================
+   1. Mundo: constantes y geometría
+   ============================================================ */
+const AL = 8;            // cursos de alto por columna
+const LA = 30, LH = 13;  // ancho y alto del ladrillo
+const MJ = 2.6;          // junta de mortero
+const PX = LA + MJ;      // paso horizontal
+const PY = LH + MJ;      // paso vertical
+const TORRE_CADA = 8;    // una torre cada 8 columnas (= 64 ladrillos)
+const DIA_MS = 86400000;
+const TOPE_DIARIO = 5;
+const CARGA_MS = 800;
+
+// Ruido determinista: mismo índice, mismo ladrillo, siempre.
+function h(n){ const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); }
+function lerp(a,b,t){ return a + (b-a)*t; }
+function clamp(v,a,b){ return v<a?a:v>b?b:v; }
+const easeOut = t => 1 - Math.pow(1-t, 3);
+
+// Relieve del terreno, cuantizado a cursos enteros para que la mampostería calce.
+function sueloCrudo(c){
+  return Math.sin(c*0.031)*3.1*PY + Math.sin(c*0.0113+1.7)*4.6*PY + Math.sin(c*0.087+0.4)*0.8*PY;
+}
+function sueloCol(c){ return Math.round(sueloCrudo(c) / PY) * PY; }
+// El suelo dibujado interpola entre bases de columna: así la tierra toca
+// exactamente el cimiento de cada columna, sin ladrillos flotando ni hundidos.
+function sueloX(x){
+  const c = x / PX, f = Math.floor(c);
+  return lerp(sueloCol(f), sueloCol(f+1), c - f);
+}
+
+function colDe(i){ return Math.floor(i / AL); }
+function filaDe(i){ return i % AL; }
+function ladrilloX(i){ return colDe(i)*PX + (filaDe(i)%2 ? PX*0.5 : 0); }
+function ladrilloY(i){ return sueloCol(colDe(i)) - filaDe(i)*PY - LH; }
+function columnaLlena(c, total){ return total >= (c+1)*AL; }
+function cimaCol(c){ return sueloCol(c) - AL*PY; }
+
+/* ============================================================
+   2. Deterioro — función pura de (días). En Flutter es idéntica,
+      alimentada por el timestamp del último ladrillo.
+   ============================================================ */
+const ETAPAS = [
+  {nom:"Recién asentado", max:2},
+  {nom:"Asentándose",     max:7},
+  {nom:"Descuidado",      max:21},
+  {nom:"Ruina parcial",   max:Infinity}
+];
+function deterioro(d){
+  if(d <= 2) return 0;
+  if(d <= 7) return (d-2)/5 * 0.30;
+  if(d <= 21) return 0.30 + (d-7)/14 * 0.45;
+  return 0.75 + Math.min((d-21)/14, 1) * 0.25;
+}
+function etapaDe(d){ return ETAPAS.find(e => d <= e.max); }
+function escombrosDe(d){
+  if(d < 22) return 0;
+  return Math.min(9, Math.floor((d-21)/1.2) + 3);
+}
+
+/* ============================================================
+   3. Paletas — el tema del visor elige la hora del día
+   ============================================================ */
+const PALETAS = {
+  dia:{
+    cieloAlto:"#C9D3DA", cieloBajo:"#EFF1F0",
+    montLejos:"#B7C1C8", montCerca:"#94A0A8",
+    niebla:"#E4E8E9",
+    suelo:"#7C8073", sueloBorde:"#8D9082", sueloHondo:"#5D6155",
+    piedra:[36,17,64], mortero:"#8B8271",
+    musgo:"#6C7A4C", polvo:"#B7AE9C",
+    ambar:"#B9741F", estrellas:0
+  },
+  noche:{
+    cieloAlto:"#0C1017", cieloBajo:"#2C3444",
+    montLejos:"#232B39", montCerca:"#161C26",
+    niebla:"#2E3746",
+    suelo:"#141A22", sueloBorde:"#1F2731", sueloHondo:"#0B0E13",
+    piedra:[36,14,58], mortero:"#332F28",
+    musgo:"#4E5B39", polvo:"#8A8271",
+    ambar:"#F0B15C", estrellas:1
+  }
+};
+function temaOscuro(){
+  const t = document.documentElement.getAttribute("data-theme");
+  if(t === "dark") return true;
+  if(t === "light") return false;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches;
+}
+let P = PALETAS.noche;
+function refrescarPaleta(){ P = temaOscuro() ? PALETAS.noche : PALETAS.dia; }
+refrescarPaleta();
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", refrescarPaleta);
+new MutationObserver(refrescarPaleta).observe(document.documentElement, {attributes:true, attributeFilter:["data-theme"]});
+
+// Color de piedra: base + variación por semilla + lavado por deterioro.
+function colorPiedra(semilla, decay, dl){
+  const [hh, ss, ll] = P.piedra;
+  const s = lerp(ss, 5, decay);
+  const l = ll + (semilla - 0.5) * 9 + (dl||0) - decay*17;
+  return "hsl(" + hh + " " + s.toFixed(1) + "% " + l.toFixed(1) + "%)";
+}
+
+/* ============================================================
+   4. Estado
+   ============================================================ */
+const NOTAS_EJEMPLO = [
+  "Mandé la propuesta", "Corrí 10 km sin parar", "Terminé el capítulo 3",
+  "Dije que no sin dar explicaciones", "Llamé a mamá", "Cerré el trato con Rosa",
+  "Primer día sin fumar", "Entregué el informe a tiempo", "Aprendí a soldar",
+  "Pedí perdón", "Leí 40 páginas", "Cociné en vez de pedir",
+  "Salí a caminar aunque llovía", "Arreglé la canilla yo solo", "Presenté en la reunión",
+  "Terminé el borrador", "Fui al dentista después de dos años", "Guardé plata este mes",
+  "Le enseñé a Tomi a andar en bici", "Dejé el celular afuera del cuarto",
+  "Hablé en la clase de inglés", "Ordené el garage entero", "Volví al gimnasio",
+  "Rechacé un proyecto que no quería", "Terminé el curso de contabilidad"
+];
+
+let ladrillos = [];   // {t: timestamp, nota: string|null}
+let simDias = 0;      // sólo prototipo: reemplaza al cálculo por fecha
+const cam = {x:0, y:0, tx:0, escala:1, tescala:1, libre:false, ultimoToque:0};
+let sacudida = 0, particulas = [], destello = 0;
+let carga = null;         // {t0}
+let restauracion = null;  // {t0, desde, escombros:[{i,x,y,rot}]}
+let sonidoOn = true;
+let globoIdx = -1;
+
+const ESCALAS = [3.0, 1.0, 0.30];
+let nivelZoom = 1;
+
+function sembrar(){
+  const ahora = Date.now();
+  ladrillos = [];
+  for(let i=0; i<137; i++){
+    // Repartidos hacia atrás en el tiempo, con densidad irregular como la vida real.
+    const frac = i/137;
+    const diasAtras = Math.round((1-frac) * 63 + (h(i*3.3)-0.5)*2.5);
+    const t = ahora - Math.max(0, diasAtras)*DIA_MS - Math.floor(h(i*7.7)*DIA_MS*0.6);
+    const nota = h(i*5.1) < 0.30 ? NOTAS_EJEMPLO[Math.floor(h(i*11.3)*NOTAS_EJEMPLO.length)] : null;
+    ladrillos.push({t, nota});
+  }
+}
+function guardar(){
+  try{ localStorage.setItem("muralla_v1", JSON.stringify(ladrillos)); }catch(e){}
+}
+function cargarGuardado(){
+  try{
+    const s = localStorage.getItem("muralla_v1");
+    if(s){ const d = JSON.parse(s); if(Array.isArray(d) && d.length){ ladrillos = d; return true; } }
+  }catch(e){}
+  return false;
+}
+if(!cargarGuardado()) sembrar();
+
+function colocadosHoy(){
+  const ini = new Date(); ini.setHours(0,0,0,0);
+  return ladrillos.filter(b => b.t >= ini.getTime()).length;
+}
+
+/* ============================================================
+   5. Sonido — sintetizado en el momento (sin assets externos)
+   ============================================================ */
+let ac = null, bufRuido = null, cargaNodos = null;
+function audio(){
+  if(!ac){
+    try{ ac = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){ return null; }
+    const n = ac.sampleRate * 1.2;
+    bufRuido = ac.createBuffer(1, n, ac.sampleRate);
+    const d = bufRuido.getChannelData(0);
+    for(let i=0;i<n;i++) d[i] = Math.random()*2 - 1;
+  }
+  if(ac.state === "suspended") ac.resume();
+  return ac;
+}
+function fuenteRuido(){ const s = ac.createBufferSource(); s.buffer = bufRuido; s.loop = true; return s; }
+
+function sonarImpacto(fuerza){
+  if(!sonidoOn) return; const c = audio(); if(!c) return;
+  const t = c.currentTime, v = fuerza===undefined ? 1 : fuerza;
+  const jit = 0.94 + Math.random()*0.12;
+
+  // Cuerpo grave: el peso de la piedra al asentar.
+  const o = c.createOscillator(), g = c.createGain();
+  o.type = "sine";
+  o.frequency.setValueAtTime(94*jit, t);
+  o.frequency.exponentialRampToValueAtTime(46*jit, t+0.30);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(0.5*v, t+0.006);
+  g.gain.exponentialRampToValueAtTime(0.0001, t+0.34);
+  o.connect(g).connect(c.destination); o.start(t); o.stop(t+0.4);
+
+  // Resonancia del muro.
+  const o2 = c.createOscillator(), g2 = c.createGain();
+  o2.type = "triangle";
+  o2.frequency.setValueAtTime(168*jit, t);
+  o2.frequency.exponentialRampToValueAtTime(118*jit, t+0.45);
+  g2.gain.setValueAtTime(0.0001, t);
+  g2.gain.linearRampToValueAtTime(0.16*v, t+0.012);
+  g2.gain.exponentialRampToValueAtTime(0.0001, t+0.5);
+  o2.connect(g2).connect(c.destination); o2.start(t); o2.stop(t+0.55);
+
+  // El chasquido seco del roce entre piedras.
+  const n = fuenteRuido(), f = c.createBiquadFilter(), gn = c.createGain();
+  f.type = "lowpass"; f.frequency.setValueAtTime(1000*jit, t); f.Q.value = 0.9;
+  gn.gain.setValueAtTime(0.0001, t);
+  gn.gain.linearRampToValueAtTime(0.34*v, t+0.004);
+  gn.gain.exponentialRampToValueAtTime(0.0001, t+0.15);
+  n.connect(f).connect(gn).connect(c.destination); n.start(t); n.stop(t+0.2);
+}
+function sonarRestauracion(){
+  if(!sonidoOn) return; const c = audio(); if(!c) return;
+  const t = c.currentTime;
+  [110, 165, 220].forEach((fr, k) => {
+    const o = c.createOscillator(), g = c.createGain();
+    o.type = "sine"; o.frequency.value = fr;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.10, t + 0.10 + k*0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t+1.7);
+  });
+}
+function iniciarCarga(){
+  if(!sonidoOn) return; const c = audio(); if(!c) return;
+  const t = c.currentTime;
+  const n = fuenteRuido(), f = c.createBiquadFilter(), g = c.createGain();
+  f.type = "bandpass"; f.Q.value = 1.4;
+  f.frequency.setValueAtTime(180, t);
+  f.frequency.exponentialRampToValueAtTime(880, t + CARGA_MS/1000);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(0.05, t + CARGA_MS/1000);
+  n.connect(f).connect(g).connect(c.destination); n.start(t);
+
+  const o = c.createOscillator(), go = c.createGain();
+  o.type = "sine"; o.frequency.setValueAtTime(52, t);
+  o.frequency.linearRampToValueAtTime(64, t + CARGA_MS/1000);
+  go.gain.setValueAtTime(0.0001, t);
+  go.gain.linearRampToValueAtTime(0.07, t + CARGA_MS/1000);
+  o.connect(go).connect(c.destination); o.start(t);
+
+  cargaNodos = {n, o, g, go};
+}
+function cortarCarga(){
+  if(!cargaNodos || !ac) return;
+  const t = ac.currentTime;
+  try{
+    cargaNodos.g.gain.cancelScheduledValues(t);
+    cargaNodos.g.gain.setValueAtTime(cargaNodos.g.gain.value, t);
+    cargaNodos.g.gain.exponentialRampToValueAtTime(0.0001, t+0.08);
+    cargaNodos.go.gain.cancelScheduledValues(t);
+    cargaNodos.go.gain.setValueAtTime(cargaNodos.go.gain.value, t);
+    cargaNodos.go.gain.exponentialRampToValueAtTime(0.0001, t+0.08);
+    cargaNodos.n.stop(t+0.12); cargaNodos.o.stop(t+0.12);
+  }catch(e){}
+  cargaNodos = null;
+}
+
+/* Háptica — en el navegador es un pariente pobre de lo que va en Flutter. */
+let pulsos = [];
+function vibrar(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
+function hapticaCarga(){
+  pulsos.forEach(clearTimeout); pulsos = [];
+  let t = 90;
+  while(t < CARGA_MS){
+    pulsos.push(setTimeout(() => vibrar(7), t));
+    t += Math.max(38, 170 * (1 - t/CARGA_MS));   // se aceleran hacia el final
+  }
+}
+function pararHaptica(){ pulsos.forEach(clearTimeout); pulsos = []; try{ if(navigator.vibrate) navigator.vibrate(0); }catch(e){} }
+
+/* ============================================================
+   6. Canvas
+   ============================================================ */
+const cv = document.getElementById("mundo");
+const ctx = cv.getContext("2d");
+let W = 0, H = 0, dpr = 1;
+const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function medir(){
+  const r = cv.parentElement.getBoundingClientRect();
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = Math.round(r.width); H = Math.round(r.height);
+  cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener("resize", medir);
+medir();
+
+const HOR = 0.66;   // el horizonte, en fracción de alto
+const ANCLA = 0.40; // el borde vivo se ancla acá, no al centro: deja el botón libre
+                    // y deja tierra por delante para que la muralla avance hacia algo.
+function aPantalla(wx, wy){
+  return [ (wx - cam.x)*cam.escala + W*ANCLA, (wy - cam.y)*cam.escala + H*HOR ];
+}
+function aMundo(sx, sy){
+  return [ (sx - W*ANCLA)/cam.escala + cam.x, (sy - H*HOR)/cam.escala + cam.y ];
+}
+
+function bordeX(){ return ladrilloX(ladrillos.length) + LA/2; }
+
+/* ---------- Fondo ---------- */
+function dibujarCielo(decay){
+  const g = ctx.createLinearGradient(0, 0, 0, H*HOR + 40);
+  g.addColorStop(0, P.cieloAlto);
+  g.addColorStop(1, P.cieloBajo);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+  if(P.estrellas){
+    ctx.save();
+    ctx.globalAlpha = 0.55 * (1 - decay*0.5);
+    for(let i=0;i<90;i++){
+      const sx = ((h(i*1.9)*3000 - cam.x*0.05) % (W+60) + W+60) % (W+60) - 30;
+      const sy = h(i*4.3) * H*0.5;
+      const br = 0.35 + 0.65*Math.abs(Math.sin(performance.now()*0.0006 + i));
+      ctx.fillStyle = "rgba(255,252,240," + (br*0.7).toFixed(2) + ")";
+      ctx.fillRect(sx, sy, h(i*8.1)>0.85 ? 1.6 : 1, 1);
+    }
+    ctx.restore();
+  }
+}
+function perfilMontana(amp, base, freq, fase, parallax, color){
+  const desp = cam.x * parallax * cam.escala;
+  ctx.beginPath();
+  ctx.moveTo(-2, H);
+  const yb = H*HOR + base;
+  for(let x=-2; x<=W+2; x+=6){
+    const u = (x + desp) * freq;
+    const y = yb - (Math.sin(u)*0.55 + Math.sin(u*2.3+fase)*0.3 + Math.sin(u*4.7+fase*2)*0.15) * amp - amp*0.5;
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(W+2, H); ctx.closePath();
+  ctx.fillStyle = color; ctx.fill();
+}
+function dibujarNiebla(decay){
+  const y = H*HOR - 70, alto = 150;
+  const g = ctx.createLinearGradient(0, y, 0, y+alto);
+  const a = 0.30 + decay*0.42;
+  g.addColorStop(0, "transparent");
+  g.addColorStop(0.55, P.niebla);
+  g.addColorStop(1, "transparent");
+  ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = g; ctx.fillRect(0, y, W, alto); ctx.restore();
+}
+function dibujarSuelo(){
+  ctx.beginPath();
+  ctx.moveTo(-2, H+2);
+  let techo = H;
+  for(let x=-2; x<=W+2; x+=5){
+    const [wx] = aMundo(x, 0);
+    const [, sy] = aPantalla(0, sueloX(wx));
+    if(sy < techo) techo = sy;
+    ctx.lineTo(x, sy);
+  }
+  ctx.lineTo(W+2, H+2); ctx.closePath();
+  // Degradado: la tierra se hunde hacia el frente en vez de leerse como una losa plana.
+  if(techo > H - 2) techo = H - 2;   // un degradado de altura cero no pinta nada
+  const g = ctx.createLinearGradient(0, techo, 0, H);
+  g.addColorStop(0, P.sueloBorde);
+  g.addColorStop(0.22, P.suelo);
+  g.addColorStop(1, P.sueloHondo);
+  ctx.fillStyle = g; ctx.fill();
+}
+
+/* ---------- Ladrillos ---------- */
+function dibujarLadrillo(i, decay, ahora, ox, oy, rot, alfa){
+  const b = ladrillos[i];
+  const s1 = h(i*1.7+3.1), s2 = h(i*2.9+0.6), s3 = h(i*6.1+9.2);
+  const x = (ox !== undefined ? ox : ladrilloX(i));
+  const y = (oy !== undefined ? oy : ladrilloY(i));
+  const [px, py] = aPantalla(x, y);
+  const e = cam.escala;
+  const w = LA*e, hh = LH*e;
+  if(px + w < -20 || px - w > W+20) return;
+
+  const edad = ahora - (b.puesto || 0);
+  const fresco = b.puesto ? clamp(1 - edad/700, 0, 1) : 0;
+
+  ctx.save();
+  if(alfa !== undefined) ctx.globalAlpha = alfa;
+  ctx.translate(px, py);
+  ctx.rotate((rot !== undefined ? rot : (s1-0.5)*0.020));
+
+  // Cuerpo
+  ctx.fillStyle = colorPiedra(s2, decay, fresco*5);
+  ctx.fillRect(0, 0, w, hh);
+
+  if(e > 0.45){
+    // Luz arriba, sombra abajo: el volumen de la piedra.
+    ctx.fillStyle = "rgba(255,248,235,0.16)";
+    ctx.fillRect(0, 0, w, Math.max(1, 1.2*e));
+    ctx.fillStyle = "rgba(0,0,0,0.24)";
+    ctx.fillRect(0, hh - Math.max(1, 1.4*e), w, Math.max(1, 1.4*e));
+
+    // Melladuras deterministas en las esquinas.
+    if(s3 > 0.55){
+      ctx.fillStyle = P.mortero;
+      const mw = (1.5 + s3*2.5)*e, mh = (1 + s1*2)*e;
+      if(s2 > 0.5) ctx.fillRect(w-mw, 0, mw, mh);
+      else ctx.fillRect(0, hh-mh, mw, mh);
+    }
+  }
+
+  // Grietas
+  if(decay > 0.22 && e > 0.7){
+    ctx.strokeStyle = "rgba(0,0,0," + (0.16 + decay*0.3).toFixed(2) + ")";
+    ctx.lineWidth = Math.max(0.5, 0.7*e);
+    ctx.beginPath();
+    const gx = (0.2 + s1*0.55)*w;
+    ctx.moveTo(gx, 0);
+    ctx.lineTo(gx + (s2-0.5)*7*e, hh*0.48);
+    ctx.lineTo(gx + (s3-0.5)*11*e, hh);
+    ctx.stroke();
+  }
+
+  // Musgo: nace en las juntas y trepa desde abajo.
+  if(decay > 0.25){
+    const cant = Math.floor(decay*3.4) + (s1 > 0.6 ? 1 : 0);
+    ctx.fillStyle = P.musgo;
+    ctx.globalAlpha = (alfa !== undefined ? alfa : 1) * clamp((decay-0.25)*1.9, 0, 0.72);
+    for(let k=0;k<cant;k++){
+      const sk = h(i*13.7 + k*4.4);
+      const mx = sk*w*0.82, my = hh*(0.55 + h(i+k*3.1)*0.45);
+      ctx.beginPath();
+      ctx.ellipse(mx, my, (1.6+sk*3.4)*e, (1.0+sk*1.5)*e, 0, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = (alfa !== undefined ? alfa : 1);
+  }
+
+  // El mortero fresco todavía brilla.
+  if(fresco > 0){
+    ctx.strokeStyle = "rgba(255,214,150," + (fresco*0.8).toFixed(2) + ")";
+    ctx.lineWidth = 1.4;
+    ctx.strokeRect(0.5, 0.5, w-1, hh-1);
+  }
+  ctx.restore();
+}
+
+function posEscombro(i){
+  const c = colDe(i), s1 = h(i*17.3), s2 = h(i*23.9);
+  // Se desparraman por delante y a los costados del pie, no en un montón.
+  const x = c*PX + (s1-0.5)*PX*5.5 - PX*0.5;
+  const y = sueloCol(c) - LH*0.5 + s2*5;
+  return {x, y, rot: (s1-0.5)*2.2};
+}
+
+function dibujarMuro(decay, ahora){
+  const total = ladrillos.length;
+  const izq = (W*ANCLA)/cam.escala, der = (W*(1-ANCLA))/cam.escala;
+  const cMin = Math.max(0, Math.floor((cam.x - izq)/PX) - 2);
+  const cMax = Math.min(colDe(total-1)+1, Math.ceil((cam.x + der)/PX) + 2);
+
+  const nEsc = escombrosDe(simDias);
+  const escSet = new Set();
+  if(!restauracion){
+    for(let k=0;k<nEsc;k++){ const idx = total-1-k; if(idx>=0) escSet.add(idx); }
+  }
+
+  // Zanja de cimiento: cierra el triángulo que deja el terreno en pendiente
+  // bajo una columna escalonada, y asienta el muro en la tierra.
+  ctx.fillStyle = P.sueloHondo;
+  for(let c=cMin; c<=cMax; c++){
+    if(c*AL >= total) continue;
+    const [px, py] = aPantalla(c*PX - 1, sueloCol(c) - 1);
+    ctx.fillRect(px, py, (LA+2)*cam.escala, PY*1.2*cam.escala);
+  }
+
+  // Torres primero: van detrás del muro.
+  for(let c=cMin; c<=cMax; c++){
+    if(c === 0 || c % TORRE_CADA !== 0) continue;
+    if(!columnaLlena(c, total)) continue;
+    dibujarTorre(c, decay);
+  }
+
+  // Ladrillos.
+  const iMin = cMin*AL, iMax = Math.min(total, (cMax+1)*AL);
+  for(let i=iMin; i<iMax; i++){
+    if(escSet.has(i)) continue;
+    dibujarLadrillo(i, decay, ahora);
+  }
+
+  // Escombros al pie: lo caído sigue ahí, recuperable.
+  ctx.save();
+  escSet.forEach(i => {
+    const p = posEscombro(i);
+    dibujarLadrillo(i, Math.min(1, decay+0.15), ahora, p.x, p.y, p.rot, 0.92);
+  });
+  ctx.restore();
+
+  // Los que vuelven durante la restauración.
+  if(restauracion){
+    const pr = easeOut(clamp((ahora - restauracion.t0)/1600, 0, 1));
+    restauracion.escombros.forEach(e => {
+      const p = posEscombro(e.i);
+      const x = lerp(p.x, ladrilloX(e.i), pr);
+      const y = lerp(p.y, ladrilloY(e.i), pr) - Math.sin(pr*Math.PI)*26;
+      dibujarLadrillo(e.i, decay, ahora, x, y, lerp(p.rot, 0, pr));
+    });
+  }
+
+  // Almenas sobre las columnas terminadas.
+  for(let c=cMin; c<=cMax; c++){
+    if(!columnaLlena(c, total) || c % 2 !== 0) continue;
+    const [px, py] = aPantalla(c*PX, cimaCol(c) - PY*1.7);
+    const e = cam.escala;
+    ctx.fillStyle = colorPiedra(h(c*3.7), decay, -2);
+    ctx.fillRect(px, py, LA*e, PY*1.7*e);
+    if(e > 0.45){
+      ctx.fillStyle = "rgba(255,248,235,0.14)";
+      ctx.fillRect(px, py, LA*e, Math.max(1, 1.2*e));
+    }
+  }
+
+  // Pasto al pie cuando nadie cuida el muro.
+  if(decay > 0.30){
+    ctx.save();
+    ctx.strokeStyle = P.musgo;
+    ctx.globalAlpha = clamp((decay-0.30)*1.7, 0, 0.65);
+    ctx.lineWidth = Math.max(0.6, 1.1*cam.escala);
+    for(let c=cMin; c<=cMax; c++){
+      if(!columnaLlena(c, total)) continue;
+      for(let k=0;k<4;k++){
+        const sk = h(c*9.1 + k*2.3);
+        const [px, py] = aPantalla(c*PX + sk*PX, sueloCol(c));
+        const alt = (4 + sk*7 + decay*6) * cam.escala;
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.quadraticCurveTo(px + (sk-0.5)*4*cam.escala, py-alt*0.6, px + (sk-0.5)*9*cam.escala, py-alt);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+}
+
+function dibujarTorre(c, decay){
+  const e = cam.escala;
+  const cursosT = AL + 3.5;
+  const anchoT = LA*2.7, altoT = cursosT*PY;
+  const baseY = sueloCol(c);
+  const [px, py] = aPantalla(c*PX - (anchoT-LA)/2, baseY - altoT);
+  const w = anchoT*e, hh = altoT*e;
+
+  // Más oscura que el muro: la torre es masa, no adorno.
+  ctx.fillStyle = colorPiedra(h(c*2.2), decay, -7);
+  ctx.fillRect(px, py, w, hh);
+
+  // Hiladas insinuadas.
+  if(e > 0.35){
+    ctx.strokeStyle = "rgba(0,0,0,0.15)"; ctx.lineWidth = Math.max(0.5, 0.8*e);
+    for(let r=1; r<cursosT; r++){
+      const yy = py + r*PY*e;
+      ctx.beginPath(); ctx.moveTo(px, yy); ctx.lineTo(px+w, yy); ctx.stroke();
+    }
+    ctx.fillStyle = "rgba(0,0,0,0.18)";
+    ctx.fillRect(px + w - 5*e, py, 5*e, hh);   // costado en sombra: le da cuerpo
+  }
+  // Coronamiento que vuela sobre el cuerpo.
+  const vol = 7*e;
+  ctx.fillStyle = colorPiedra(h(c*2.2+1), decay, -3);
+  ctx.fillRect(px - vol, py - PY*1.4*e, w + vol*2, PY*1.4*e);
+  ctx.fillStyle = "rgba(0,0,0,0.22)";
+  ctx.fillRect(px - vol, py, w + vol*2, Math.max(1, 1.6*e));
+
+  // Antorcha: sólo de noche, y se apaga con el abandono.
+  if(P.estrellas && decay < 0.8){
+    const fl = 0.72 + 0.28*Math.sin(performance.now()*0.006 + c);
+    const cx = px + w/2, cy = py - PY*1.4*e - 2*e;
+    const rad = 46*e*fl*(1-decay*0.6);
+    if(rad > 1){
+      const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
+      g.addColorStop(0, "rgba(255,190,110," + (0.55*(1-decay)).toFixed(2) + ")");
+      g.addColorStop(1, "rgba(255,170,90,0)");
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.fillStyle = "rgba(255,214,150," + (0.9*(1-decay)).toFixed(2) + ")";
+    ctx.fillRect(cx - 1.4*e, cy - 4*e*fl, 2.8*e, 4.5*e*fl);
+  }
+}
+
+/* ---------- Partículas ---------- */
+function polvo(x, y, n){
+  if(reduce) n = Math.min(n, 6);
+  for(let k=0;k<n;k++){
+    const a = Math.random()*Math.PI*2, v = Math.random()*1.5 + 0.3;
+    particulas.push({
+      x, y,
+      vx: Math.cos(a)*v*1.9,
+      vy: -Math.abs(Math.sin(a))*v*0.9 - 0.3,
+      vida: 1, r: 0.7 + Math.random()*2.1
+    });
+  }
+}
+function dibujarParticulas(dt){
+  ctx.save();
+  ctx.fillStyle = P.polvo;
+  for(let k=particulas.length-1; k>=0; k--){
+    const p = particulas[k];
+    p.x += p.vx*dt*0.06; p.y += p.vy*dt*0.06; p.vy += 0.012*dt*0.06;
+    p.vida -= dt*0.0011;
+    if(p.vida <= 0){ particulas.splice(k,1); continue; }
+    const [sx, sy] = aPantalla(p.x, p.y);
+    ctx.globalAlpha = p.vida*0.55;
+    ctx.beginPath(); ctx.arc(sx, sy, p.r*cam.escala, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* ---------- Ladrillo en el aire durante la carga ---------- */
+function dibujarCarga(ahora, decay){
+  if(!carga) return;
+  const t = clamp((ahora - carga.t0)/CARGA_MS, 0, 1);
+  const i = ladrillos.length;
+  const destinoX = ladrilloX(i), destinoY = ladrilloY(i);
+  const alturaY = destinoY - 150;
+  const y = lerp(alturaY, destinoY - 22, easeOut(t));
+  const balanceo = Math.sin(ahora*0.004) * (1-t) * 3.5;
+
+  const [px, py] = aPantalla(destinoX + balanceo, y);
+  const e = cam.escala, w = LA*e, hh = LH*e;
+
+  // Sombra proyectada sobre el destino: dice exactamente dónde va a caer.
+  const [sx, sy] = aPantalla(destinoX, destinoY + LH*0.6);
+  ctx.save();
+  ctx.globalAlpha = 0.14 + t*0.2;
+  ctx.fillStyle = "#000";
+  ctx.beginPath();
+  ctx.ellipse(sx + w/2, sy, w*(0.62 + t*0.22), 3*e, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate((1-t) * 0.07 * Math.sin(ahora*0.003));
+  ctx.fillStyle = colorPiedra(0.5, decay, 4);
+  ctx.fillRect(0, 0, w, hh);
+  ctx.fillStyle = "rgba(255,248,235,0.2)"; ctx.fillRect(0, 0, w, Math.max(1,1.2*e));
+  ctx.fillStyle = "rgba(0,0,0,0.26)"; ctx.fillRect(0, hh-Math.max(1,1.4*e), w, Math.max(1,1.4*e));
+  ctx.restore();
+}
+
+/* ---------- Viñeta: el mundo se apaga mientras cargás ---------- */
+function dibujarVineta(intensidad){
+  if(intensidad <= 0.001) return;
+  const g = ctx.createRadialGradient(W/2, H*0.72, Math.min(W,H)*0.22, W/2, H*0.72, Math.max(W,H)*0.78);
+  g.addColorStop(0, "rgba(0,0,0,0)");
+  g.addColorStop(1, "rgba(0,0,0," + (intensidad*0.5).toFixed(3) + ")");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+}
+
+/* ============================================================
+   7. Bucle
+   ============================================================ */
+let ultimo = performance.now();
+function frame(ahora){
+  const dt = Math.min(48, ahora - ultimo); ultimo = ahora;
+
+  // Deterioro efectivo (la restauración lo devuelve a cero).
+  let decay = deterioro(simDias);
+  if(restauracion){
+    const pr = clamp((ahora - restauracion.t0)/1600, 0, 1);
+    decay = lerp(restauracion.desde, 0, easeOut(pr));
+    if(pr >= 1){ restauracion = null; simDias = 0; sincronizarSlider(); }
+  }
+
+  // Cámara
+  if(!cam.libre) cam.tx = bordeX();
+  const k = 1 - Math.pow(0.0016, dt/1000);
+  cam.x = lerp(cam.x, cam.tx, k);
+  cam.escala = lerp(cam.escala, cam.tescala, 1 - Math.pow(0.004, dt/1000));
+  cam.y = sueloX(cam.x) - 52;
+
+  let sx = 0, sy = 0;
+  if(sacudida > 0 && !reduce){
+    sacudida = Math.max(0, sacudida - dt/260);
+    const a = sacudida*sacudida;
+    sx = (Math.random()-0.5)*7*a; sy = (Math.random()-0.5)*7*a;
+  }
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  ctx.save();
+  ctx.translate(sx, sy);
+
+  dibujarCielo(decay);
+  perfilMontana(90, -66, 0.0016, 0.9, 0.14, P.montLejos);
+  perfilMontana(58, -20, 0.0031, 2.4, 0.34, P.montCerca);
+  dibujarNiebla(decay);
+  dibujarSuelo();
+  dibujarMuro(decay, ahora);
+  dibujarParticulas(dt);
+  dibujarCarga(ahora, decay);
+
+  if(destello > 0){
+    destello = Math.max(0, destello - dt/420);
+    const i = ladrillos.length-1;
+    if(i >= 0){
+      const [px, py] = aPantalla(ladrilloX(i)+LA/2, ladrilloY(i)+LH/2);
+      const r = 150*cam.escala*(1.15-destello);
+      if(r > 1){
+        const g = ctx.createRadialGradient(px, py, 0, px, py, r);
+        g.addColorStop(0, "rgba(255,196,124," + (destello*0.42).toFixed(3) + ")");
+        g.addColorStop(1, "rgba(255,196,124,0)");
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI*2); ctx.fill();
+      }
+    }
+  }
+  ctx.restore();
+
+  if(carga) dibujarVineta(clamp((ahora - carga.t0)/CARGA_MS, 0, 1));
+
+  // Anillo del botón
+  if(carga){
+    const t = clamp((ahora - carga.t0)/CARGA_MS, 0, 1);
+    arco.style.strokeDashoffset = (257.6 * (1-t)).toFixed(1);
+    if(t >= 1) completarCarga();
+  }
+
+  posicionarGlobo();
+  btnVolver.classList.toggle("ver", cam.libre && Math.abs(cam.x - bordeX()) > 140);
+  requestAnimationFrame(frame);
+}
+
+/* ============================================================
+   8. Colocar un ladrillo
+   ============================================================ */
+const boton = document.getElementById("boton");
+const arco = document.getElementById("arco");
+const pie = document.getElementById("pie");
+const contador = document.getElementById("contador");
+const velo = document.getElementById("velo");
+const inputNota = document.getElementById("nota");
+const btnVolver = document.getElementById("btnVolver");
+const globo = document.getElementById("globo");
+
+function empezarCarga(ev){
+  if(boton.disabled || carga || velo.classList.contains("ver")) return;
+  ev.preventDefault();
+  audio();
+  carga = {t0: performance.now()};
+  boton.classList.add("cargando");
+  pie.textContent = "Sostené";
+  cam.libre = false;
+  iniciarCarga();
+  hapticaCarga();
+}
+function abortarCarga(){
+  if(!carga) return;
+  carga = null;
+  boton.classList.remove("cargando");
+  arco.style.strokeDashoffset = "257.6";
+  pie.textContent = "Mantené presionado";
+  cortarCarga(); pararHaptica();
+}
+function completarCarga(){
+  carga = null;
+  boton.classList.remove("cargando");
+  arco.style.strokeDashoffset = "257.6";
+  cortarCarga(); pararHaptica();
+  colocar();
+}
+
+function colocar(){
+  const decayPrevio = deterioro(simDias);
+  const nEsc = escombrosDe(simDias);
+  const total = ladrillos.length;
+
+  const b = {t: Date.now(), nota: null, puesto: performance.now()};
+  ladrillos.push(b);
+
+  // Efecto del impacto
+  const i = ladrillos.length-1;
+  polvo(ladrilloX(i)+LA/2, ladrilloY(i)+LH, 26);
+  sacudida = 1; destello = 1;
+  vibrar(reduce ? 10 : 30);
+  sonarImpacto(1);
+
+  contador.textContent = ladrillos.length;
+  contador.classList.add("pulso");
+  setTimeout(() => contador.classList.remove("pulso"), 200);
+
+  // Restauración: volver rinde más que empezar.
+  if(decayPrevio > 0.30){
+    const esc = [];
+    for(let k=0;k<nEsc;k++){ const idx = total-1-k; if(idx>=0) esc.push({i: idx}); }
+    restauracion = {t0: performance.now(), desde: decayPrevio, escombros: esc};
+    sonarRestauracion();
+    pie.textContent = "La muralla vuelve";
+    setTimeout(() => { pie.textContent = "Mantené presionado"; }, 2200);
+  }else{
+    simDias = 0; sincronizarSlider();
+  }
+
+  guardar();
+  actualizarEstado();
+
+  // La nota llega después del golpe, no encima.
+  setTimeout(() => {
+    if(restauracion) return;   // durante la restauración no interrumpimos
+    abrirNota();
+  }, 480);
+
+  if(colocadosHoy() >= TOPE_DIARIO) cerrarPorHoy();
+}
+
+function abrirNota(){
+  velo.classList.add("ver");
+  inputNota.value = "";
+  setTimeout(() => inputNota.focus(), 60);
+}
+function cerrarNota(guardarla){
+  if(guardarla){
+    const v = inputNota.value.trim();
+    if(v){ ladrillos[ladrillos.length-1].nota = v; guardar(); }
+  }
+  velo.classList.remove("ver");
+}
+function cerrarPorHoy(){
+  boton.disabled = true;
+  pie.textContent = "Suficiente por hoy. La piedra necesita asentarse.";
+}
+
+boton.addEventListener("pointerdown", empezarCarga);
+boton.addEventListener("pointerup", abortarCarga);
+boton.addEventListener("pointerleave", abortarCarga);
+boton.addEventListener("pointercancel", abortarCarga);
+boton.addEventListener("keydown", e => { if((e.key === " " || e.key === "Enter") && !e.repeat) empezarCarga(e); });
+boton.addEventListener("keyup", e => { if(e.key === " " || e.key === "Enter") abortarCarga(); });
+boton.addEventListener("contextmenu", e => e.preventDefault());
+
+document.getElementById("guardar").addEventListener("click", () => cerrarNota(true));
+document.getElementById("omitir").addEventListener("click", () => cerrarNota(false));
+inputNota.addEventListener("keydown", e => {
+  if(e.key === "Enter") cerrarNota(true);
+  if(e.key === "Escape") cerrarNota(false);
+});
+
+/* ============================================================
+   9. Cámara: arrastrar, zoom, tocar un ladrillo
+   ============================================================ */
+const escena = document.getElementById("escenario");
+let arrastre = null, punteros = new Map(), pinchIni = 0, escalaIni = 1;
+
+escena.addEventListener("pointerdown", e => {
+  if(e.target.closest(".hud > *:not(.globo)")) return;
+  punteros.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if(punteros.size === 1){
+    arrastre = {x: e.clientX, camX: cam.x, movido: 0, sx: e.clientX, sy: e.clientY};
+    escena.setPointerCapture(e.pointerId);
+    escena.classList.add("arrastrando");
+  }else if(punteros.size === 2){
+    const p = [...punteros.values()];
+    pinchIni = Math.hypot(p[0].x-p[1].x, p[0].y-p[1].y);
+    escalaIni = cam.tescala;
+    arrastre = null;
+  }
+});
+escena.addEventListener("pointermove", e => {
+  if(!punteros.has(e.pointerId)) return;
+  punteros.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if(punteros.size === 2 && pinchIni > 0){
+    const p = [...punteros.values()];
+    const d = Math.hypot(p[0].x-p[1].x, p[0].y-p[1].y);
+    fijarEscala(clamp(escalaIni * (d/pinchIni), 0.16, 4.2));
+    return;
+  }
+  if(!arrastre) return;
+  const dx = e.clientX - arrastre.x;
+  arrastre.movido = Math.max(arrastre.movido, Math.hypot(e.clientX-arrastre.sx, e.clientY-arrastre.sy));
+  cam.libre = true;
+  cam.tx = arrastre.camX - dx/cam.escala;
+  cam.x = cam.tx;
+});
+function soltar(e){
+  if(arrastre && arrastre.movido < 5) tocarLadrillo(e.clientX, e.clientY);
+  punteros.delete(e.pointerId);
+  if(punteros.size < 2) pinchIni = 0;
+  if(punteros.size === 0){ arrastre = null; escena.classList.remove("arrastrando"); }
+}
+escena.addEventListener("pointerup", soltar);
+escena.addEventListener("pointercancel", e => { punteros.delete(e.pointerId); arrastre = null; pinchIni = 0; escena.classList.remove("arrastrando"); });
+escena.addEventListener("wheel", e => {
+  e.preventDefault();
+  fijarEscala(clamp(cam.tescala * (e.deltaY > 0 ? 0.9 : 1.11), 0.16, 4.2));
+}, {passive:false});
+
+function fijarEscala(v){
+  cam.tescala = v;
+  let mejor = 0, dm = Infinity;
+  ESCALAS.forEach((s, k) => { const d = Math.abs(Math.log(s/v)); if(d < dm){ dm = d; mejor = k; } });
+  marcarZoom(mejor, false);
+}
+function marcarZoom(n, mover){
+  nivelZoom = n;
+  document.querySelectorAll("#zoom button").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.z === n)));
+  if(mover) cam.tescala = ESCALAS[n];
+}
+document.querySelectorAll("#zoom button").forEach(b => {
+  b.addEventListener("click", () => marcarZoom(+b.dataset.z, true));
+});
+btnVolver.addEventListener("click", () => { cam.libre = false; });
+
+function tocarLadrillo(cx, cy){
+  const r = cv.getBoundingClientRect();
+  const [wx, wy] = aMundo(cx - r.left, cy - r.top);
+  const total = ladrillos.length;
+  let hallado = -1;
+  const c = Math.round(wx/PX);
+  for(let cc=Math.max(0,c-1); cc<=c+1; cc++){
+    for(let f=0; f<AL; f++){
+      const i = cc*AL + f;
+      if(i >= total) continue;
+      const bx = ladrilloX(i), by = ladrilloY(i);
+      if(wx >= bx && wx <= bx+LA && wy >= by && wy <= by+LH){ hallado = i; }
+    }
+  }
+  if(hallado >= 0 && ladrillos[hallado].nota){
+    globoIdx = hallado;
+    globo.querySelector(".f").textContent = fecha(ladrillos[hallado].t);
+    globo.querySelector(".t").textContent = ladrillos[hallado].nota;
+    globo.classList.add("ver");
+  }else{
+    globoIdx = -1; globo.classList.remove("ver");
+  }
+}
+function posicionarGlobo(){
+  if(globoIdx < 0) return;
+  const [px, py] = aPantalla(ladrilloX(globoIdx)+LA/2, ladrilloY(globoIdx));
+  if(px < -60 || px > W+60){ globo.classList.remove("ver"); globoIdx = -1; return; }
+  globo.style.left = px + "px";
+  globo.style.top = py + "px";
+}
+function fecha(ts){
+  const d = new Date(ts);
+  const m = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"][d.getMonth()];
+  return d.getDate() + " " + m + " " + d.getFullYear();
+}
+
+/* ============================================================
+   10. Panel de prueba y estado
+   ============================================================ */
+const slider = document.getElementById("slider");
+const diasNum = document.getElementById("diasNum");
+const diasEt = document.getElementById("diasEt");
+const estadoNom = document.getElementById("estadoNom");
+const estadoSub = document.getElementById("estadoSub");
+const estadoPunto = document.getElementById("estadoPunto");
+
+function sincronizarSlider(){ slider.value = String(Math.round(simDias)); actualizarEstado(); }
+function actualizarEstado(){
+  const et = etapaDe(simDias);
+  diasNum.textContent = Math.round(simDias);
+  diasEt.textContent = et.nom;
+  estadoNom.textContent = et.nom;
+  estadoSub.textContent = simDias === 0 ? "hoy" : (simDias === 1 ? "1 día" : Math.round(simDias) + " días");
+  const d = deterioro(simDias);
+  estadoPunto.style.background = d < 0.3 ? P.ambar : (d < 0.75 ? "#8A8A6E" : "#6E6E6E");
+  contador.textContent = ladrillos.length;
+}
+slider.addEventListener("input", () => {
+  simDias = +slider.value;
+  restauracion = null;
+  actualizarEstado();
+});
+document.getElementById("reset").addEventListener("click", () => {
+  try{ localStorage.removeItem("muralla_v1"); }catch(e){}
+  sembrar(); simDias = 0; boton.disabled = false;
+  pie.textContent = "Mantené presionado";
+  globoIdx = -1; globo.classList.remove("ver");
+  cam.libre = false; cam.x = bordeX();
+  guardar(); actualizarEstado();
+});
+
+const btnSonido = document.getElementById("btnSonido");
+btnSonido.addEventListener("click", () => {
+  sonidoOn = !sonidoOn;
+  btnSonido.setAttribute("aria-label", sonidoOn ? "Silenciar sonido" : "Activar sonido");
+  document.getElementById("onda1").style.opacity = sonidoOn ? "1" : "0.15";
+  document.getElementById("onda2").style.opacity = sonidoOn ? "1" : "0.15";
+});
+
+/* ============================================================
+   11. Arranque
+   ============================================================ */
+cam.x = cam.tx = bordeX();
+cam.escala = cam.tescala = ESCALAS[1];
+if(colocadosHoy() >= TOPE_DIARIO) cerrarPorHoy();
+actualizarEstado();
+requestAnimationFrame(t => { ultimo = t; frame(t); });
+
+})();
+</script>
