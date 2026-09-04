@@ -42,5 +42,13 @@ const server = http.createServer((q,r)=>{let p=decodeURIComponent(q.url.split('?
   await page.mouse.wheel(0, 1400);
   await page.waitForTimeout(900);
   await shot('4-settings');
+
+  // open the preview sheet from AJUSTES
+  await page.mouse.click(220, 820);
+  await page.waitForTimeout(1200);
+  await shot('5-preview');
+  await page.mouse.click(300, 700);
+  await page.waitForTimeout(1500);
+  await shot('6-preview-applied');
   await b.close(); server.close();
 })().catch(e=>{console.error(e);process.exit(1);});

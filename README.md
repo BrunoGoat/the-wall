@@ -51,8 +51,16 @@ banda entera de hiladas nuevas por encima de las almenas viejas, y a partir de
 ahí cada piedra que ponés va levantando la muralla que ya tenías, desde el
 principio hacia adelante. No se recoloca nada: la piedra de hace un año sigue
 exactamente donde estaba, sólo que ahora tiene muralla encima. Los niveles
-siguen a los 350, 900, 2200 y 4800. Las almenas que quedan enterradas se ciegan
-con mampostería a medida que la banda nueva las alcanza.
+siguen a los 350 y a los 900, y ahí la muralla deja de crecer en alto y sigue
+creciendo a lo largo. Las almenas que quedan enterradas se ciegan con
+mampostería a medida que la banda nueva las alcanza.
+
+Los hitos son la excepción a la regla de que nada se mueve: cuando la muralla
+sube de nivel, el hito se rehace más alto **con las mismas piedras**, porque si
+no cada hito viejo terminaría siendo un hueco en el perfil de una muralla que lo
+dejó atrás. Su presupuesto de ladrillos se reparte por lo que cada parte es: la
+corona se paga primero, la masa después y las molduras al final, así un hito
+corto de ladrillos pierde el adorno y nunca la cabeza.
 
 **El frente de obra.** Cada piedra nueva va a la hilada *más alta* donde entre
 legalmente, lo que produce el borde escalonado de una muralla realmente en
@@ -73,6 +81,12 @@ piedra parezca arquitectura y no geometría —zócalo en talud, impostas, corni
 ménsulas bajo el matacán, dovelas alrededor de los arcos, aspilleras, remates—.
 Cuando el catálogo da la vuelta, el hito vuelve con otro nombre y algo más de
 costo.
+
+**Marcas, no emojis.** Cada hito se identifica con su propia silueta, dibujada
+muestreando la geometría con la que se construye: la marca que acompaña a
+«Puerta de Piedra» es el alzado de esa puerta, con su arco. Las partes que
+sobresalen del muro se dibujan un tono más claras, así una escalinata se lee
+como una escalinata y no como un bloque almenado más.
 
 **Leyendas.** Cualquier ladrillo se puede tocar para ver cuándo se colocó y
 dejarle una nota. Los que tienen una quedan marcados con un punto tenue en la
@@ -108,7 +122,7 @@ ladrillo la repara entera**, con una ola de reparación que recorre el muro.
 
 ```bash
 flutter pub get
-flutter test          # 52 tests
+flutter test          # 54 tests
 flutter analyze
 flutter run
 flutter build apk --release

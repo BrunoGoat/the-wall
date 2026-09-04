@@ -10,7 +10,9 @@ const server = http.createServer((q,r)=>{let p=decodeURIComponent(q.url.split('?
   const ctx = await b.newContext({viewport:{width:440,height:820},deviceScaleFactor:2});
   const page = await ctx.newPage();
   page.on('pageerror', e=>console.log('[ERR]', String(e).slice(0,300)));
-  await page.route('**://fonts.gstatic.com/**', r=>r.abort());
+  const ROBOTO = fs.readFileSync('/home/user/sdk/flutter/engine/src/flutter/txt/third_party/fonts/Roboto-Regular.ttf');
+  await page.route('**://fonts.gstatic.com/**', r =>
+    r.fulfill({status:200, contentType:'font/ttf', body: ROBOTO}));
   await page.route('**://www.gstatic.com/**', r=>r.abort());
   await page.goto(`http://127.0.0.1:${port}/`,{waitUntil:'load'});
   await page.waitForTimeout(13000);
