@@ -1195,16 +1195,38 @@ class WallPainter extends CustomPainter {
     canvas.drawCircle(c, r * 0.5, Paint()..color = const Color(0xFFFFE9C4));
   }
 
+  /// The two chains that lift the drawbridge deck.
+  ///
+  /// Their length is capped rather than run all the way to the top of the gate
+  /// towers: those towers now grow with the wall, and a chain drawn from the
+  /// deck to the top of a wall three storeys high stopped reading as a chain
+  /// and started reading as a scratch across the screen. They also sag, and
+  /// they are drawn thick enough at any distance to be a chain and not a
+  /// hairline.
   void _drawChains(Canvas canvas, Projector p, StructureInstance st, Palette pal) {
-    final paint = Paint()
-      ..color = pal.ink.withValues(alpha: 0.55)
-      ..strokeWidth = 1.6
-      ..style = PaintingStyle.stroke;
+    final topY = math.min(st.peakY - 0.25, st.featureY + 1.85);
+    if (topY <= st.featureY + 0.2) return;
     for (final side in [-1.0, 1.0]) {
       final a = p.project(V3(st.featureX + side * 0.44, st.featureY + 0.06, 0.72));
-      final b = p.project(V3(st.featureX + side * 0.92, st.peakY - 0.25, 0.5));
+      final b = p.project(V3(st.featureX + side * 0.86, topY, 0.52));
       if (a == null || b == null) continue;
-      canvas.drawLine(Offset(a.x, a.y), Offset(b.x, b.y), paint);
+      // A little slack, hanging from the winch end.
+      final mid = Offset(
+        (a.x + b.x) / 2 - side * 0.06 * (b.y - a.y).abs(),
+        (a.y + b.y) / 2 + 0.10 * (b.y - a.y).abs(),
+      );
+      final path = Path()
+        ..moveTo(a.x, a.y)
+        ..quadraticBezierTo(mid.dx, mid.dy, b.x, b.y);
+      final width = clampD(p.focal / math.max(1.0, a.depth) * 0.055, 1.4, 6.0);
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = pal.ink.withValues(alpha: 0.42)
+          ..strokeWidth = width
+          ..strokeCap = StrokeCap.round
+          ..style = PaintingStyle.stroke,
+      );
     }
   }
 
