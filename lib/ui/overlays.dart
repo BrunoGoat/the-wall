@@ -2,6 +2,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../data/milestones.dart';
+import 'papyrus.dart';
+import 'sigil.dart';
 import 'style.dart';
 
 /// The card that celebrates a finished landmark.
@@ -38,8 +40,12 @@ class MilestoneOverlay extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(type.glyph, style: const TextStyle(fontSize: 52)),
-                    const SizedBox(height: 18),
+                    LandmarkSigil(
+                      kind: type.kind,
+                      color: theme.fg.withValues(alpha: 0.88),
+                      size: 74,
+                    ),
+                    const SizedBox(height: 20),
                     Text(
                       'HITO $ordinal COMPLETADO',
                       style: TextStyle(
@@ -56,7 +62,7 @@ class MilestoneOverlay extends StatelessWidget {
                       style: TextStyle(
                         color: theme.fg,
                         fontSize: 26,
-                        fontFamily: 'serif',
+                        fontFamily: Papyrus.serif,
                         fontWeight: FontWeight.w500,
                       ),
                     ),

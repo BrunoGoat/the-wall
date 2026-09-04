@@ -12,6 +12,15 @@ void main() {
       for (var i = 0; i < 40; i++) {
         final a = small.slots[i];
         final b = big.slots[i];
+        // A landmark is the one thing that grows with the wall: when the wall
+        // levels up, the landmark is rebuilt taller out of the same stones so
+        // it does not end up a notch in a skyline that has passed it by. Its
+        // stones stay its stones, in its own stretch of wall.
+        if (a.structureIndex >= 0) {
+          expect(b.structureIndex, a.structureIndex, reason: 'brick $i');
+          expect(b.x, closeTo(a.x, 2.0), reason: 'brick $i left its landmark');
+          continue;
+        }
         expect(a.x, closeTo(b.x, 1e-9), reason: 'brick $i moved sideways');
         expect(a.y, closeTo(b.y, 1e-9), reason: 'brick $i moved vertically');
         expect(a.w, closeTo(b.w, 1e-9));
@@ -112,12 +121,26 @@ void main() {
     });
 
     test('it stays a wall: much longer than it is tall', () {
-      final l = WallLayout(1000);
-      var top = 0.0;
-      for (final s in l.slots) {
-        if (s.top > top) top = s.top;
+      // Measured against the rampart itself. Landmarks are meant to stand
+      // above it — a tower is not evidence that the wall stopped being a wall.
+      double rampart(WallLayout l) {
+        var top = 0.0;
+        for (final s in l.slots) {
+          if (s.structureIndex < 0 && s.top > top) top = s.top;
+        }
+        return top;
       }
-      expect(l.length / top, greaterThan(10));
+
+      for (final n in [300, 1000, 3000]) {
+        final l = WallLayout(n);
+        expect(l.length / rampart(l), greaterThan(7),
+            reason: 'at $n bricks it stopped reading as a wall');
+      }
+      // And it keeps stretching out faster than it climbs.
+      final short = WallLayout(1000);
+      final long = WallLayout(4000);
+      expect(long.length / rampart(long),
+          greaterThan(short.length / rampart(short)));
     });
 
     test('the profile used for the far silhouette covers the whole wall', () {

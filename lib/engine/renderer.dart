@@ -708,6 +708,54 @@ class WallPainter extends CustomPainter {
           pickInto: size,
           pickIndex: idx);
     }
+
+    _emitBuried(p, l, cam, radius, mortarBase, light, pal);
+  }
+
+  /// Blocks the crenellation gaps of every course the wall has grown past.
+  ///
+  /// Emitted in short chunks rather than as one long box: the painter's
+  /// algorithm sorts by a single depth per face, and a face running the whole
+  /// length of the wall has no single sensible depth.
+  void _emitBuried(
+    Projector p,
+    WallLayout l,
+    OrbitCamera cam,
+    double radius,
+    Color mortar,
+    V3 light,
+    Palette pal,
+  ) {
+    if (l.buried.isEmpty) return;
+    const chunk = 0.62;
+    for (final band in l.buried) {
+      if (band.x1 < cam.travel - radius || band.x0 > cam.travel + radius) {
+        continue;
+      }
+      var x = math.max(band.x0, cam.travel - radius);
+      final xTo = math.min(band.x1, cam.travel + radius);
+      final ao = 0.58 + 0.42 * smoothstep(-0.2, 1.7, band.y0);
+      while (x < xTo) {
+        final x1 = math.min(x + chunk, xTo);
+        final mid = V3((x + x1) / 2, (band.y0 + band.y1) / 2, 0);
+        _emitCore(
+          p,
+          x0: x,
+          x1: x1,
+          y0: band.y0,
+          y1: band.y1,
+          z0: -band.halfDepth,
+          z1: band.halfDepth,
+          albedo: mortar,
+          light: light,
+          pal: pal,
+          ao: ao * 0.88,
+          repairGlow: 0,
+          depth: p.cameraOf(mid).z + band.halfDepth,
+        );
+        x = x1;
+      }
+    }
   }
 
   /// Emits every visible face of the prism currently in [_mesh].

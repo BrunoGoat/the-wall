@@ -126,13 +126,19 @@ class _WallViewState extends State<WallView>
   }
 
   void _onStoreChanged() {
-    if (widget.store.total != _layoutFor) _rebuildLayout();
+    if (widget.store.shownTotal != _layoutFor) _rebuildLayout();
   }
 
   void _rebuildLayout() {
-    _layout = WallLayout(widget.store.total);
-    _layoutFor = widget.store.total;
+    final was = _layout.length;
+    _layout = WallLayout(widget.store.shownTotal);
+    _layoutFor = widget.store.shownTotal;
     _cam.wallLength = _layout.length;
+    // A preview can change the wall's size by orders of magnitude; reframe so
+    // it is not left staring at empty ground.
+    if (was > 0 && (_layout.length / was > 1.8 || _layout.length / was < 0.55)) {
+      _cam.frameAll();
+    }
   }
 
   /// Overrides the clock during development so every time of day can be
@@ -176,7 +182,7 @@ class _WallViewState extends State<WallView>
 
     if (_repairSweep != null) {
       _repairSweep = _repairSweep! - dt * math.max(9.0, _layout.length * 0.9);
-      final origin = _layout.slotFor(widget.store.total - 1);
+      final origin = _layout.slotFor(widget.store.shownTotal - 1);
       if (origin != null) {
         for (var i = 0; i < 2; i++) {
           _fx.repairMote(
@@ -212,7 +218,7 @@ class _WallViewState extends State<WallView>
     if (_ambientCounter % 3 != 0) return;
     for (final st in _layout.structures) {
       if (st.type.kind != MilestoneKind.beacon) continue;
-      if (widget.store.total < st.firstBrick + st.brickCount) continue;
+      if (widget.store.shownTotal < st.firstBrick + st.brickCount) continue;
       if ((st.featureX - _cam.travel).abs() > _cam.detailRadius) continue;
       _fx.ember(st.featureX, st.featureY - 0.1, 0);
     }
@@ -224,6 +230,7 @@ class _WallViewState extends State<WallView>
     final store = widget.store;
     final wasDecaying = store.integrity < 0.995;
     final before = store.integrity;
+    store.setPreview(null);
     final result = store.placeBrick();
     _selectedBrick = null;
     _rebuildLayout();
@@ -303,8 +310,8 @@ class _WallViewState extends State<WallView>
 
   void goToLatest() {
     final slot =
-        _layout.slotFor(widget.store.total - 1) ??
-        _layout.slotFor(widget.store.total);
+        _layout.slotFor(widget.store.shownTotal - 1) ??
+        _layout.slotFor(widget.store.shownTotal);
     if (slot != null) {
       _cam.travelTo(slot.x);
       _cam.focusYTarget = clampD(slot.y + 0.3, 0.9, 3.2);
@@ -396,7 +403,7 @@ class _WallViewState extends State<WallView>
     // Glide over to where the stone is going while the button is held, so the
     // landing is always in frame.
     if (v > 0.05) {
-      final slot = _layout.slotFor(widget.store.total);
+      final slot = _layout.slotFor(widget.store.shownTotal);
       if (slot != null) {
         _cam.follow = true;
         _cam.travelTo(slot.x);
@@ -419,7 +426,7 @@ class _WallViewState extends State<WallView>
     final store = widget.store;
     final scene = WallScene(
       layout: _layout,
-      placed: store.total,
+      placed: store.shownTotal,
       palette: _palette,
       camera: _cam,
       integrity: _displayIntegrity,

@@ -46,19 +46,40 @@ alinean, anchos que varían entre 0,36 y 1,04. No es un mismo rectángulo repeti
 a distintas escalas. Las piedras atraviesan todo el espesor del muro, así que un
 logro es siempre exactamente una piedra visible, se la mire de donde se la mire.
 
+**Niveles.** A los 100 ladrillos la muralla **sube de nivel**: se abre una
+banda entera de hiladas nuevas por encima de las almenas viejas, y a partir de
+ahí cada piedra que ponés va levantando la muralla que ya tenías, desde el
+principio hacia adelante. No se recoloca nada: la piedra de hace un año sigue
+exactamente donde estaba, sólo que ahora tiene muralla encima. Los niveles
+siguen a los 350, 900, 2200 y 4800. Las almenas que quedan enterradas se ciegan
+con mampostería a medida que la banda nueva las alcanza.
+
 **El frente de obra.** Cada piedra nueva va a la hilada *más alta* donde entre
 legalmente, lo que produce el borde escalonado de una muralla realmente en
 construcción, en vez de una fila que repta por el suelo.
 
-**Hitos.** Diez siluetas genuinamente distintas —torre de vigía, puerta, torre
-mayor, escalinata, puente levadizo, almenara, bastión, arcada, santuario,
-barbacana— que se levantan **con los ladrillos reales**, hilada por hilada,
-durante las semanas que cuesta ganarlos. Nunca aparecen de golpe. Cuando el
-catálogo da la vuelta, el hito vuelve con otro nombre y algo más de costo.
+**Hitos.** Treinta siluetas genuinamente distintas —torre de vigía, puerta,
+torre mayor, escalinata, puente levadizo, almenara, bastión, arcada, santuario,
+barbacana, torre albarrana, cubo redondo, aljibe, puerta en recodo, revellín,
+poterna, matacán, campanario, torre del reloj, molino, arcada de dos órdenes,
+escalinata doble, puente del foso, torre de espolón, arco triunfal, casamata,
+contrafuertes, torre octogonal, palomar y faro— que se levantan **con los
+ladrillos reales**, hilada por hilada, durante las semanas que cuesta ganarlos.
+Nunca aparecen de golpe.
+
+No son cajas a distintas escalas: los cuerpos redondos son circulares en planta,
+los octogonales son facetados, y todos llevan el vocabulario que hace que una
+piedra parezca arquitectura y no geometría —zócalo en talud, impostas, cornisas,
+ménsulas bajo el matacán, dovelas alrededor de los arcos, aspilleras, remates—.
+Cuando el catálogo da la vuelta, el hito vuelve con otro nombre y algo más de
+costo.
 
 **Leyendas.** Cualquier ladrillo se puede tocar para ver cuándo se colocó y
 dejarle una nota. Los que tienen una quedan marcados con un punto tenue en la
-muralla, y todas juntas forman un registro en la pestaña *Leyendas*.
+muralla, y todas juntas forman la **bitácora**: la pestaña *Leyendas* es una
+hoja de papiro —trama, manchas, bordes gastados, tipografía con serifas, capital
+rubricada, numeración romana en el margen— que se lee de la primera piedra a la
+última, por meses, como la crónica de una obra medieval.
 
 **La distancia.** Cuando la muralla se hace larga, lo que está lejos se dibuja
 como su propia silueta almenada perdiéndose en la calina, como la Gran Muralla.
@@ -87,7 +108,7 @@ ladrillo la repara entera**, con una ola de reparación que recorre el muro.
 
 ```bash
 flutter pub get
-flutter test          # 41 tests
+flutter test          # 52 tests
 flutter analyze
 flutter run
 flutter build apk --release
@@ -113,6 +134,12 @@ Está firmada con la clave de debug, así que se instala directo en el teléfono
 | `BUDGET=340` | fija el presupuesto de detalle |
 | `DEBUG_CORE=true` | pinta de magenta el núcleo de mortero, para ver dónde asoma |
 
+Y dentro de la app, en *La Muralla → Ajustes → Ver la muralla a futuro*: un
+control con deslizador y atajos a 50, 100, 200, 500, 1000 y 5000 ladrillos que
+muestra cómo se vería la muralla con esa cantidad. Es sólo una vista: no toca
+los ladrillos reales ni escribe nada en disco, y un solo toque vuelve a la
+muralla de uno.
+
 ```bash
 dart run tool/inspect.dart        # imprime el ritmo y la geometría
 python3 tool/make_sfx.py          # regenera los sonidos
@@ -124,9 +151,9 @@ python3 tool/make_icons.py        # regenera los íconos
 ```
 lib/
   core/      hash determinista y matemática 3D
-  data/      los 10 hitos y el ritmo
+  data/      los 30 hitos y el ritmo
   model/     ladrillos, leyendas, persistencia
-  engine/    trazado de la muralla, piedras, cámara, paleta, paisaje, render
+  engine/    trazado, niveles, hitos, piedras, cámara, paleta, paisaje, render
   fx/        partículas, sonido y vibración
   ui/        la pantalla, el botón, las hojas
 ```

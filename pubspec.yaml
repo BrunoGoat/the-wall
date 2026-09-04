@@ -58,6 +58,15 @@ flutter:
   assets:
     - assets/sfx/
 
+  # The chronicle's own face. Bundled rather than asked for at runtime: the
+  # generic 'serif' family resolves to whatever the phone happens to have, and
+  # a logbook that reads in Roboto on half the devices is not a logbook.
+  # Roboto Slab, Apache 2.0, shipped with the Flutter engine.
+  fonts:
+    - family: Chronicle
+      fonts:
+        - asset: assets/fonts/RobotoSlab.ttf
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

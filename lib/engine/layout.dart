@@ -4,6 +4,7 @@ import '../core/math3.dart';
 import '../core/rng.dart';
 import '../data/milestones.dart';
 import '../data/pacing.dart';
+import 'structures.dart';
 
 /// What a stone is doing in the wall. Only used for shading and for the small
 /// touches (a brazier on an ornament, a lantern in a niche).
@@ -65,15 +66,114 @@ class StructureInstance {
 
 // ---------------------------------------------------------------- dimensions
 
+/// How the wall is stacked, and how it grows taller over a lifetime.
+///
+/// The wall does not only run: every so often it gains a whole storey. When a
+/// tier opens, the next bricks go back to the beginning and raise the entire
+/// length that already exists — a levelling course over the old parapet, then
+/// new body courses, then a new walkway and new crenellations on top.
+///
+/// Crucially this never moves a stone that is already laid. Which courses are
+/// available is a function of the brick's own index, so the first N bricks lay
+/// out exactly as they always did; the tier only ever opens *more* room above.
+class WallTiers {
+  const WallTiers._();
+
+  /// Brick counts at which the wall gains a storey.
+  static const List<int> thresholds = [100, 350, 900];
+
+  static const int maxTier = 3;
+
+  /// The courses each tier opens, bottom to top.
+  ///
+  /// Every tier reads the same way: a levelling course over the crenellations
+  /// below (the ground tier has none to level), then body courses, then a
+  /// walkway capstone, then two courses of merlons. Each tier adds fewer body
+  /// courses than the one before, so the wall keeps climbing without running
+  /// away from the landmarks standing in it — the first level-up is the big
+  /// one, and the ones after are the wall thickening its parapet.
+  static const List<List<double>> _tierCourses = [
+    [0.40, 0.38, 0.38, 0.36, 0.20, 0.22, 0.22],
+    [0.20, 0.38, 0.38, 0.20, 0.22, 0.22],
+    [0.20, 0.38, 0.20, 0.22, 0.22],
+    [0.20, 0.20, 0.22, 0.22],
+  ];
+
+  static int tierAt(int brickIndex) {
+    var k = 0;
+    for (final t in thresholds) {
+      if (brickIndex >= t) k++;
+    }
+    return k > maxTier ? maxTier : k;
+  }
+
+  static final List<int> _first = _buildFirst();
+
+  static List<int> _buildFirst() {
+    final out = <int>[];
+    var at = 0;
+    for (final t in _tierCourses) {
+      out.add(at);
+      at += t.length;
+    }
+    return out;
+  }
+
+  static int firstCourseOf(int tier) => _first[tier];
+
+  static int courseCountOf(int tier) => _tierCourses[tier].length;
+
+  static int topCourseOf(int tier) =>
+      firstCourseOf(tier) + courseCountOf(tier) - 1;
+
+  static int tierOfCourse(int c) {
+    for (var t = maxTier; t >= 0; t--) {
+      if (c >= _first[t]) return t;
+    }
+    return 0;
+  }
+
+  /// Position of a course inside its own tier.
+  static int roleIndex(int c) => c - firstCourseOf(tierOfCourse(c));
+
+  static bool isLevelling(int c) =>
+      tierOfCourse(c) > 0 && roleIndex(c) == 0;
+
+  static bool isCapstone(int c) =>
+      roleIndex(c) == courseCountOf(tierOfCourse(c)) - 3;
+
+  static bool isMerlon(int c) =>
+      roleIndex(c) >= courseCountOf(tierOfCourse(c)) - 2;
+
+  static int capstoneOf(int tier) => topCourseOf(tier) - 2;
+
+  static List<int> merlonsOf(int tier) =>
+      [topCourseOf(tier) - 1, topCourseOf(tier)];
+
+  static int levellingOf(int tier) => tier == 0 ? -1 : firstCourseOf(tier);
+
+  /// Which course has to be solid underneath this one.
+  ///
+  /// A levelling course bridges the old crenellations, so it rests on the
+  /// walkway below them rather than on the merlons themselves.
+  static int supportOf(int c) {
+    if (c == 0) return -1;
+    if (isLevelling(c)) return capstoneOf(tierOfCourse(c) - 1);
+    return c - 1;
+  }
+
+  static final List<double> heights = [
+    for (final t in _tierCourses) ...t,
+  ];
+
+  static const List<String> tierNames = ['I', 'II', 'III', 'IV'];
+}
+
 class WallDims {
   const WallDims._();
 
-  /// Four body courses, then the walkway capstone, then two merlon courses.
-  static const List<double> courseHeights = [0.40, 0.38, 0.38, 0.36, 0.20, 0.22, 0.22];
-  static const int bodyCourses = 4;
-  static const int capstoneCourse = 4;
-  static const int merlonLowCourse = 5;
-  static const int totalCourses = 7;
+  static List<double> get courseHeights => WallTiers.heights;
+  static int get totalCourses => WallTiers.heights.length;
 
   static const double minStoneW = 0.36;
   static const double maxStoneW = 1.04;
@@ -87,28 +187,35 @@ class WallDims {
 
   static double courseBottom(int c) {
     var y = 0.0;
-    for (var i = 0; i < c && i < courseHeights.length; i++) {
-      y += courseHeights[i];
+    final h = WallTiers.heights;
+    for (var i = 0; i < c && i < h.length; i++) {
+      y += h[i];
     }
     return y;
   }
 
-  static double courseCenter(int c) => courseBottom(c) + courseHeights[c] / 2;
+  static double courseCenter(int c) =>
+      courseBottom(c) + WallTiers.heights[c] / 2;
 
-  /// Walkway height: the top of the capstone course.
-  static double get walkTop => courseBottom(capstoneCourse + 1);
+  /// Walkway height of a given tier: the top of that tier's capstone.
+  static double walkTopOf(int tier) => courseBottom(WallTiers.capstoneOf(tier) + 1);
 
-  static double get merlonTop => courseBottom(totalCourses);
+  /// Full height of a tier, crenellations included.
+  static double crownOf(int tier) => courseBottom(WallTiers.topCourseOf(tier) + 1);
 
-  /// The wall tapers as it rises. Half-thickness at a given height.
+  /// The ground tier's walkway. Structures in tier 0 are built to this.
+  static double get walkTop => walkTopOf(0);
+
+  /// The wall tapers as it rises, but only gently once it is tall — a tower
+  /// that kept thinning at the ground-tier rate would end up a needle.
   static double halfDepthAtY(double y) {
-    final t = clampD(y / walkTop, 0, 1);
-    return lerpD(0.36, 0.315, t);
+    if (y <= walkTop) return lerpD(0.36, 0.315, clampD(y / walkTop, 0, 1));
+    return lerpD(0.315, 0.275, clampD((y - walkTop) / 8.5, 0, 1));
   }
 
   static double halfDepthForCourse(int c) {
-    if (c >= merlonLowCourse) return 0.27;
-    return halfDepthAtY(courseCenter(c));
+    final d = halfDepthAtY(courseCenter(c));
+    return WallTiers.isMerlon(c) ? d - 0.045 : d;
   }
 }
 
@@ -117,33 +224,6 @@ class WallDims {
 /// One solid mass of a structure, described by a 2D silhouette test plus how
 /// thick the wall is at each x. Stones always run right through the thickness,
 /// so a single stone reads correctly from both sides of the wall.
-class Slab {
-  Slab({
-    required this.x0,
-    required this.x1,
-    required this.y0,
-    required this.y1,
-    required this.solid,
-    required this.zCenter,
-    required this.halfDepth,
-    required this.kind,
-    this.courseScale = 1.0,
-    this.ornament = false,
-    this.order = 0,
-  });
-
-  final double x0, x1, y0, y1;
-  final bool Function(double x, double y) solid;
-  final double Function(double x) zCenter;
-  final double Function(double x) halfDepth;
-  final SlotKind kind;
-  final double courseScale;
-  final bool ornament;
-  final int order;
-}
-
-double _wallZ(double x) => 0;
-
 // ---------------------------------------------------------------- the layout
 
 /// Turns a brick count into concrete stone positions.
@@ -175,10 +255,16 @@ class WallLayout {
   final List<double> profileCoreHalf = [];
   final List<double> profileCoreZ = [];
   final List<double> profileDepth = [];
+
+  /// Old crenellation courses the wall has since grown past.
+  final List<BuriedBand> buried = [];
   double profileStep = 0.34;
 
   StoneSlot? slotFor(int brickIndex) =>
       brickIndex >= 0 && brickIndex < slots.length ? slots[brickIndex] : null;
+
+  /// The tier the wall has reached, which is what the landmarks are built to.
+  late final int currentTier = WallTiers.tierAt(math.max(0, brickCount - 1));
 
   void _build() {
     final want = brickCount + 1;
@@ -200,9 +286,13 @@ class WallLayout {
         structures.add(built.instance);
         index += built.slots.length;
         final endX = built.instance.x1;
-        for (var c = 0; c < fill.length; c++) {
-          fill[c] = endX;
-        }
+        // No course is shoved past the landmark here. Every course finds its
+        // own way around it (see _fitSpans) as and when it gets there, so the
+        // stretch of wall behind can still be finished — and, once a tier
+        // opens, raised — instead of being abandoned at whatever height it had
+        // reached the day the landmark was begun.
+        _spans.add((built.instance.x0, endX));
+        if (endX > _spanEnd) _spanEnd = endX;
         if (built.truncated) break;
       } else {
         for (var i = 0; i < seg.length && index < want; i++) {
@@ -219,11 +309,42 @@ class WallLayout {
     for (final s in slots) {
       if (s.right > length) length = s.right;
     }
+    _buildBuried();
     _buildProfile();
   }
 
+  /// The stretches of wall a landmark is standing on. A course opened by a
+  /// later tier has to climb past them rather than through them.
+  final List<(double, double)> _spans = [];
+  double _spanEnd = 0;
+
+  /// Makes room for the landmarks in the way of a stone of width [w] at [xs].
+  ///
+  /// A stone that would run into a landmark is first narrowed to close the gap
+  /// up against it, and only steps over it when what is left is too small to
+  /// be a stone at all. Stepping over without narrowing left a slot beside
+  /// every landmark, and once tiers stacked those slots became a chimney
+  /// running the whole height of the wall.
+  (double, double) _fitSpans(double xs, double w) {
+    if (_spans.isEmpty || xs >= _spanEnd) return (xs, w);
+    for (final sp in _spans) {
+      if (sp.$2 <= xs) continue;
+      if (sp.$1 >= xs + w) break;
+      if (xs >= sp.$1) {
+        xs = sp.$2;
+        continue;
+      }
+      final room = sp.$1 - xs;
+      if (room >= WallDims.minStoneW) return (xs, room);
+      xs = sp.$2;
+    }
+    return (xs, w);
+  }
+
+  /// Where the next landmark starts: past everything laid, and past every
+  /// landmark already standing.
   double _frontier(List<double> fill) {
-    var m = 0.0;
+    var m = _spanEnd;
     for (final f in fill) {
       if (f > m) m = f;
     }
@@ -251,7 +372,11 @@ class WallLayout {
       wBase = lerpD(0.50, 0.86, hashBell(index, 11));
     }
 
-    for (var c = WallDims.totalCourses - 1; c >= 0; c--) {
+    // Only the courses this brick's own tier has opened. Because it depends on
+    // the index and not on anything mutable, the first N bricks always lay out
+    // the same way — a tier can add room above, never move what is below.
+    final top = WallTiers.topCourseOf(WallTiers.tierAt(index));
+    for (var c = top; c >= 0; c--) {
       final r = _tryCourse(fill, c, wBase, index);
       if (r != null) {
         fill[c] = r.$1 + r.$2;
@@ -264,9 +389,9 @@ class WallLayout {
           zCenter: 0,
           halfDepth: WallDims.halfDepthForCourse(c),
           course: c,
-          kind: c >= WallDims.merlonLowCourse
+          kind: WallTiers.isMerlon(c)
               ? SlotKind.merlon
-              : (c == WallDims.capstoneCourse ? SlotKind.capstone : SlotKind.body),
+              : (WallTiers.isCapstone(c) ? SlotKind.capstone : SlotKind.body),
           structureIndex: -1,
         );
       }
@@ -290,9 +415,12 @@ class WallLayout {
 
   /// Returns (startX, width) if course [c] can take a stone, else null.
   (double, double)? _tryCourse(List<double> fill, int c, double w, int index) {
-    var xs = fill[c];
+    final fitted = _fitSpans(fill[c], w);
+    var xs = fitted.$1;
+    w = fitted.$2;
+    final support = WallTiers.supportOf(c);
 
-    if (c >= WallDims.merlonLowCourse) {
+    if (WallTiers.isMerlon(c)) {
       // Merlon courses only exist inside the crenellation bands.
       final snapped = _snapToMerlonBand(xs);
       if (snapped == null) return null;
@@ -306,12 +434,12 @@ class WallLayout {
         ww = math.min(w, _merlonBandEnd(xs) - xs);
         if (ww < 0.16) return null;
       }
-      if (xs + ww > fill[c - 1] - WallDims.stagger) return null;
+      if (xs + ww > fill[support] - WallDims.stagger) return null;
       return (xs, ww);
     }
 
-    if (c == 0) return (xs, w);
-    if (xs + w > fill[c - 1] - WallDims.stagger) return null;
+    if (support < 0) return (xs, w);
+    if (xs + w > fill[support] - WallDims.stagger) return null;
     return (xs, w);
   }
 
@@ -336,7 +464,13 @@ class WallLayout {
     int remaining,
   ) {
     final type = seg.type!;
-    final spec = StructureShapes.build(type.kind, startX);
+    // Built to the tier the wall is at *now*, not the tier it was at the day
+    // the landmark was begun. A wall that levelled up twice would otherwise
+    // leave every old landmark as a notch in its own skyline. A landmark keeps
+    // its stretch of wall and its stone count either way — it grows upward
+    // with the wall, and its stones grow with it.
+    final spec = StructureShapes(WallDims.walkTopOf(currentTier))
+        .build(type.kind, startX);
     final want = seg.length;
     final generated = _fillSlabs(spec.slabs, want, firstIndex, seg.milestoneNo);
 
@@ -376,12 +510,59 @@ class WallLayout {
 
   /// Fills a set of slabs with exactly [target] stones.
   ///
-  /// Stone size is searched for rather than fixed, so a landmark always costs
-  /// precisely the number of bricks the pacing promised, no matter its shape.
+  /// The budget is shared out by what each part of a landmark is *for*, not
+  /// simply spent from the ground up. A landmark on a wall that has levelled up
+  /// three times has a great deal of mass to pay for, and filling it in one
+  /// pass meant the mass swallowed every brick and the thing was left headless:
+  /// a stump of curtain with no parapet, reading as a gap in the wall rather
+  /// than a landmark standing in it. So the crown is paid for first, the mass
+  /// takes what is left, and the mouldings get the remainder — and it is the
+  /// mouldings that are given up when a landmark cannot afford everything.
   List<_RawStone> _fillSlabs(List<Slab> slabs, int target, int seedA, int seedB) {
-    // Stone count falls as the stones get bigger, so this searches for the
-    // largest stone size that still yields at least [target] of them.
-    var lo = 0.06, hi = 0.80;
+    final mass = <Slab>[], crown = <Slab>[], trim = <Slab>[];
+    for (final s in slabs) {
+      (s.order < 15 ? mass : (s.order < 80 ? crown : trim)).add(s);
+    }
+    if (crown.isEmpty && trim.isEmpty) {
+      return _searchFill(mass, target, seedA, seedB);
+    }
+
+    final c = _searchFill(crown, (target * 0.22).ceil(), seedA, seedB);
+    final t = _searchFill(trim, (target * 0.12).ceil(), seedA, seedB ^ 0x5bd1);
+    final cq = math.min(c.length, (target * 0.22).ceil());
+    final tq = math.min(t.length, (target * 0.12).ceil());
+    final m = _searchFill(mass, math.max(1, target - cq - tq), seedA, seedB);
+    final mq = math.min(m.length, math.max(0, target - cq - tq));
+
+    // Each part takes its share and no more: the stone-size search only
+    // guarantees *at least* what it was asked for, and left uncapped the mass
+    // would quietly eat the crown's share as well as its own.
+    final out = <_RawStone>[
+      ...m.take(mq),
+      ...c.take(cq),
+      ...t.take(tq),
+    ];
+    // Whatever a part could not use goes back into the pot, so the landmark
+    // still costs exactly the bricks the pacing promised.
+    for (final spare in [m.skip(mq), c.skip(cq), t.skip(tq)]) {
+      for (final stone in spare) {
+        if (out.length >= target) break;
+        out.add(stone);
+      }
+    }
+    out.sort((a, b) => a.slabOrder.compareTo(b.slabOrder));
+    return out;
+  }
+
+  /// The largest stone size that still yields at least [target] stones.
+  List<_RawStone> _searchFill(
+    List<Slab> slabs,
+    int target,
+    int seedA,
+    int seedB,
+  ) {
+    if (slabs.isEmpty || target <= 0) return const [];
+    var lo = 0.06, hi = 1.40;
     var best = _generate(slabs, lo, seedA, seedB);
     if (best.length < target) return best;
     for (var i = 0; i < 20; i++) {
@@ -394,7 +575,6 @@ class WallLayout {
         hi = mid;
       }
     }
-    if (best.length > target) best = best.sublist(0, target);
     return best;
   }
 
@@ -487,10 +667,54 @@ class WallLayout {
     }
   }
 
-  // -------------------------------------------------------------- profile
 
-  /// Coarse top profile of the entire wall, so the far distance can be drawn as
-  /// a receding silhouette instead of thousands of invisible stones.
+  // ------------------------------------------------------ buried courses
+
+  /// Works out how far each superseded crenellation has been built over.
+  ///
+  /// A band is only blocked as far as the levelling course above it has
+  /// actually reached, so the wall visibly thickens behind the new tier as it
+  /// creeps along instead of healing everywhere at once.
+  void _buildBuried() {
+    // Measured from the stones actually laid, not from the layout's frontier
+    // bookkeeping. A course does not run continuously: it steps over every
+    // landmark in its way, so what has to be blocked is each stretch it really
+    // covers — blocking from the origin to its far end would hang masonry in
+    // the air over everything it skipped.
+    for (var t = 0; t < WallTiers.maxTier; t++) {
+      final lev = WallTiers.levellingOf(t + 1);
+      if (lev < 0) continue;
+      final runs = _runsOfCourse(lev);
+      if (runs.isEmpty) continue;
+      for (final c in WallTiers.merlonsOf(t)) {
+        final half = WallDims.halfDepthForCourse(c) - 0.035;
+        for (final r in runs) {
+          buried.add(BuriedBand(
+            WallDims.courseBottom(c),
+            WallDims.courseBottom(c + 1),
+            r.$1,
+            r.$2,
+            half,
+          ));
+        }
+      }
+    }
+  }
+
+  /// The continuous stretches course [c] actually covers.
+  List<(double, double)> _runsOfCourse(int c) {
+    final out = <(double, double)>[];
+    for (final s in slots) {
+      if (s.structureIndex >= 0 || s.course != c) continue;
+      if (out.isNotEmpty && s.left <= out.last.$2 + 0.06) {
+        out[out.length - 1] = (out.last.$1, math.max(out.last.$2, s.right));
+      } else {
+        out.add((s.left, s.right));
+      }
+    }
+    return out;
+  }
+
   void _buildProfile() {
     profileStep = 0.34;
     final n = (length / profileStep).ceil() + 2;
@@ -529,6 +753,18 @@ class WallLayout {
   }
 }
 
+/// A course a later tier has built over.
+///
+/// Crenellations are gaps by design. The moment the wall levels up, those gaps
+/// are in the *middle* of a solid mass, and you would see daylight straight
+/// through it. Every buried band gets blocked with blind masonry, set a little
+/// shallower than the merlons so the old crenellation still reads as relief on
+/// the face instead of vanishing.
+class BuriedBand {
+  BuriedBand(this.y0, this.y1, this.x0, this.x1, this.halfDepth);
+  final double y0, y1, x0, x1, halfDepth;
+}
+
 class _BuiltStructure {
   _BuiltStructure(this.slots, this.instance, this.truncated);
   final List<StoneSlot> slots;
@@ -554,463 +790,4 @@ class _RawStone {
   final int slabOrder;
 
   double get top => y + h / 2;
-}
-
-// ------------------------------------------------------------ the landmarks
-
-class StructureSpec {
-  StructureSpec(this.slabs, this.length, this.featureX, this.featureY);
-  final List<Slab> slabs;
-  final double length;
-  final double featureX, featureY;
-}
-
-/// Ten genuinely different silhouettes. Each one is a set of solid masses that
-/// the filler turns into stones; none of them is the same box at another scale.
-class StructureShapes {
-  const StructureShapes._();
-
-  static StructureSpec build(MilestoneKind kind, double x0) {
-    switch (kind) {
-      case MilestoneKind.watchtower:
-        return _watchtower(x0);
-      case MilestoneKind.gate:
-        return _gate(x0);
-      case MilestoneKind.greatTower:
-        return _greatTower(x0);
-      case MilestoneKind.stair:
-        return _stair(x0);
-      case MilestoneKind.drawbridge:
-        return _drawbridge(x0);
-      case MilestoneKind.beacon:
-        return _beacon(x0);
-      case MilestoneKind.bastion:
-        return _bastion(x0);
-      case MilestoneKind.aqueduct:
-        return _aqueduct(x0);
-      case MilestoneKind.shrine:
-        return _shrine(x0);
-      case MilestoneKind.barbican:
-        return _barbican(x0);
-    }
-  }
-
-  static double get _wallTop => WallDims.walkTop;
-
-  /// A crenellated cap: merlons with gaps, used as the final flourish.
-  static Slab _crenellation(
-    double x0,
-    double x1,
-    double yBase,
-    double height,
-    double depth, {
-    double period = 0.62,
-    double duty = 0.58,
-    int order = 90,
-  }) {
-    return Slab(
-      x0: x0,
-      x1: x1,
-      y0: yBase,
-      y1: yBase + height,
-      solid: (x, y) {
-        final t = (x - x0) % period;
-        return t < period * duty;
-      },
-      zCenter: (x) => 0,
-      halfDepth: (x) => depth,
-      kind: SlotKind.merlon,
-      courseScale: 0.72,
-      ornament: true,
-      order: order,
-    );
-  }
-
-  static bool _archHole(double x, double y, double cx, double r, double spring) {
-    if (y < 0) return false;
-    if (y <= spring) return (x - cx).abs() <= r;
-    final dy = y - spring;
-    if (dy > r) return false;
-    final half = math.sqrt(math.max(0.0, r * r - dy * dy));
-    return (x - cx).abs() <= half;
-  }
-
-  // ---- 1. Watchtower: a compact turret straddling the rampart.
-  static StructureSpec _watchtower(double x0) {
-    const len = 2.35;
-    const ta = 0.5, tb = 1.85, top = 3.35;
-    return StructureSpec([
-      Slab(
-        x0: x0, x1: x0 + len, y0: 0, y1: _wallTop,
-        solid: (x, y) => (x - x0 < ta || x - x0 > tb),
-        zCenter: _wallZ,
-        halfDepth: (x) => WallDims.halfDepthAtY(_wallTop * 0.5),
-        kind: SlotKind.body,
-        order: 0,
-      ),
-      Slab(
-        x0: x0 + ta, x1: x0 + tb, y0: 0, y1: top,
-        solid: (x, y) => true,
-        zCenter: _wallZ,
-        halfDepth: (x) => 0.56,
-        kind: SlotKind.tower,
-        order: 1,
-      ),
-      _crenellation(x0 + ta - 0.06, x0 + tb + 0.06, top, 0.44, 0.496, period: 0.52),
-      _crenellation(x0, x0 + ta, _wallTop, 0.34, 0.272, period: 0.5, order: 91),
-      _crenellation(x0 + tb, x0 + len, _wallTop, 0.34, 0.272, period: 0.5, order: 91),
-    ], len, (ta + tb) / 2, top + 0.44);
-  }
-
-  // ---- 2. Gate: an arched way through, with heavy jambs.
-  static StructureSpec _gate(double x0) {
-    const len = 2.9;
-    const bandTop = 2.05;
-    const cx = 1.45, r = 0.46, spring = 1.05;
-    bool jamb(double x) {
-      final u = x - x0;
-      return (u > 0.72 && u < 0.99) || (u > 1.91 && u < 2.18);
-    }
-    return StructureSpec([
-      Slab(
-        x0: x0, x1: x0 + len, y0: 0, y1: bandTop,
-        solid: (x, y) => !jamb(x) && !_archHole(x - x0, y, cx, r, spring),
-        zCenter: _wallZ,
-        halfDepth: (x) => WallDims.halfDepthAtY(_wallTop * 0.5),
-        kind: SlotKind.body,
-        order: 0,
-      ),
-      Slab(
-        x0: x0 + 0.72, x1: x0 + 2.18, y0: 0, y1: bandTop,
-        solid: (x, y) => jamb(x),
-        zCenter: _wallZ,
-        halfDepth: (x) => 0.48,
-        kind: SlotKind.tower,
-        order: 1,
-      ),
-      _crenellation(x0, x0 + len, bandTop, 0.42, 0.32, period: 0.56),
-    ], len, cx, spring + r);
-  }
-
-  // ---- 3. Great tower: the thing you can see from the far end of the wall.
-  static StructureSpec _greatTower(double x0) {
-    const len = 3.05;
-    const ta = 0.42, tb = 2.63, top = 4.25;
-    return StructureSpec([
-      Slab(
-        x0: x0, x1: x0 + len, y0: 0, y1: _wallTop,
-        solid: (x, y) => (x - x0 < ta || x - x0 > tb),
-        zCenter: _wallZ,
-        halfDepth: (x) => WallDims.halfDepthAtY(_wallTop * 0.5),
-        kind: SlotKind.body,
-        order: 0,
-      ),
-      Slab(
-        x0: x0 + ta, x1: x0 + tb, y0: 0, y1: top,
-        solid: (x, y) => true,
-        zCenter: _wallZ,
-        halfDepth: (x) => 0.784,
-        kind: SlotKind.tower,
-        order: 1,
-      ),
-      // A machicolation: the overhang just under the parapet.
-      Slab(
-        x0: x0 + ta - 0.12, x1: x0 + tb + 0.12, y0: top, y1: top + 0.24,
-        solid: (x, y) => true,
-        zCenter: _wallZ,
-        halfDepth: (x) => 0.88,
-        kind: SlotKind.ornament,
-        courseScale: 0.7,
-        ornament: true,
-        order: 89,
-      ),
-      _crenellation(x0 + ta - 0.12, x0 + tb + 0.12, top + 0.24, 0.5, 0.82, period: 0.58),
-    ], len, (ta + tb) / 2, top + 0.74);
-  }
-
-  // ---- 4. Stair: a flight climbing the front face up to the walkway.
-  static StructureSpec _stair(double x0) {
-    const len = 2.65;
-    const runStart = 0.25, runEnd = 2.35;
-    double stepTop(double u) {
-      final t = clampD((u - runStart) / (runEnd - runStart), 0, 1);
-      const steps = 6;
-      return _wallTop * ((t * steps).floor() + 1) / steps;
-    }
-    return StructureSpec([
-      Slab(
-        x0: x0, x1: x0 + len, y0: 0, y1: _wallTop,
-        solid: (x, y) => true,
-        zCenter: _wallZ,
-        halfDepth: (x) => WallDims.halfDepthAtY(_wallTop * 0.5),
-        kind: SlotKind.body,
-        order: 0,
-      ),
-      Slab(
-        x0: x0 + runStart, x1: x0 + runEnd, y0: 0, y1: _wallTop,
-        solid: (x, y) => y <= stepTop(x - x0),
-        zCenter: (x) => 0.66,
-        halfDepth: (x) => 0.208,
-        kind: SlotKind.tower,
-        courseScale: 0.8,
-        order: 1,
-      ),
-      _crenellation(x0, x0 + len, _wallTop, 0.36, 0.288, period: 0.54),
-    ], len, (runStart + runEnd) / 2, _wallTop);
-  }
-
-  // ---- 5. Drawbridge: two gate towers, a void, and a deck lowered across it.
-  static StructureSpec _drawbridge(double x0) {
-    const len = 3.5;
-    const la = 0.72, lb = 1.34, ra = 2.16, rb = 2.78, ttop = 2.62;
-    return StructureSpec([
-      Slab(
-        x0: x0, x1: x0 + len, y0: 0, y1: _wallTop,
-        solid: (x, y) {
-          final u = x - x0;
-          return u < la || u > rb;
-        },
-        zCenter: _wallZ,
-        halfDepth: (x) => WallDims.halfDepthAtY(_wallTop * 0.5),
-        kind: SlotKind.body,
-        order: 0,
-      ),
-      Slab(
-        x0: x0 + la, x1: x0 + rb, y0: 0, y1: ttop,
-        solid: (x, y) {
-          final u = x - x0;
-          return (u >= la && u <= lb) || (u >= ra && u <= rb);
-        },
-        zCenter: _wallZ,
-        halfDepth: (x) => 0.512,
-        kind: SlotKind.tower,
-        order: 1,
-      ),
-      // The lintel bridging the two towers above the passage.
-      Slab(
-        x0: x0 + lb, x1: x0 + ra, y0: 1.44, y1: _wallTop,
-        solid: (x, y) => true,
-        zCenter: _wallZ,
-        halfDepth: (x) => 0.32,
-        kind: SlotKind.body,
-        order: 2,
-      ),
-      // The deck itself, laid down last.
-      Slab(
-        x0: x0 + lb - 0.04, x1: x0 + ra + 0.04, y0: 0.96, y1: 1.16,
-        solid: (x, y) => true,
-        zCenter: (x) => 0.70,
-        halfDepth: (x) => 0.088,
-        kind: SlotKind.deck,
-        courseScale: 0.6,
-        ornament: true,
-        order: 88,
-      ),
-      _crenellation(x0 + la, x0 + lb, ttop, 0.4, 0.448, period: 0.5),
-      _crenellation(x0 + ra, x0 + rb, ttop, 0.4, 0.448, period: 0.5, order: 91),
-    ], len, (lb + ra) / 2, 1.16);
-  }
-
-  // ---- 6. Beacon: a slim shaft with a fire bowl on top.
-  static StructureSpec _beacon(double x0) {
-    const len = 2.05;
-    const sa = 0.62, sb = 1.42, top = 2.95;
-    return StructureSpec([
-      Slab(
-        x0: x0, x1: x0 + len, y0: 0, y1: _wallTop,
-        solid: (x, y) => (x - x0 < sa || x - x0 > sb),
-        zCenter: _wallZ,
-        halfDepth: (x) => WallDims.halfDepthAtY(_wallTop * 0.5),
-        kind: SlotKind.body,
-        order: 0,
-      ),
-      Slab(
-        x0: x0 + sa, x1: x0 + sb, y0: 0, y1: top,
-        solid: (x, y) => true,
-        zCenter: _wallZ,
-        halfDepth: (x) => 0.416,
-        kind: SlotKind.tower,
-        order: 1,
-      ),
-      // The flared bowl that holds the fire.
-      Slab(
-        x0: x0 + sa - 0.22, x1: x0 + sb + 0.22, y0: top, y1: top + 0.34,
-        solid: (x, y) {
-          final t = (y - top) / 0.34;
-          final half = lerpD(0.40, 0.62, t);
-          return (x - (x0 + (sa + sb) / 2)).abs() <= half;
-        },
-        zCenter: _wallZ,
-        halfDepth: (x) => 0.464,
-        kind: SlotKind.ornament,
-        courseScale: 0.6,
-        ornament: true,
-        order: 88,
-      ),
-      _crenellation(x0, x0 + sa, _wallTop, 0.34, 0.272, period: 0.5, order: 91),
-      _crenellation(x0 + sb, x0 + len, _wallTop, 0.34, 0.272, period: 0.5, order: 92),
-    ], len, (sa + sb) / 2, top + 0.4);
-  }
-
-  // ---- 7. Bastion: an angular mass shouldering out of the wall line.
-  static StructureSpec _bastion(double x0) {
-    const len = 3.65;
-    const ba = 0.48, bb = 3.15, btop = 2.08;
-    double bump(double u) {
-      final t = clampD((u - ba) / (bb - ba), 0, 1);
-      if (t < 0.28) return t / 0.28;
-      if (t > 0.72) return (1 - t) / 0.28;
-      return 1;
-    }
-    double front(double x) => 0.34 + 0.74 * bump(x - x0);
-    return StructureSpec([
-      Slab(
-        x0: x0, x1: x0 + len, y0: 0, y1: _wallTop,
-        solid: (x, y) => (x - x0 < ba || x - x0 > bb),
-        zCenter: _wallZ,
-        halfDepth: (x) => WallDims.halfDepthAtY(_wallTop * 0.5),
-        kind: SlotKind.body,
-        order: 0,
-      ),
-      Slab(
-        x0: x0 + ba, x1: x0 + bb, y0: 0, y1: btop,
-        solid: (x, y) => true,
-        zCenter: (x) => (front(x) - 0.34) / 2,
-        halfDepth: (x) => (front(x) + 0.34) / 2,
-        kind: SlotKind.tower,
-        order: 1,
-      ),
-      Slab(
-        x0: x0 + ba, x1: x0 + bb, y0: btop, y1: btop + 0.46,
-        solid: (x, y) {
-          final t = (x - x0 - ba) / (bb - ba);
-          final u = (t * 7.2) % 1.0;
-          return u < 0.6;
-        },
-        zCenter: (x) => (front(x) - 0.34) / 2,
-        halfDepth: (x) => (front(x) + 0.34) / 2 * 0.92,
-        kind: SlotKind.merlon,
-        courseScale: 0.7,
-        ornament: true,
-        order: 90,
-      ),
-      _crenellation(x0, x0 + ba, _wallTop, 0.34, 0.272, period: 0.5, order: 91),
-      _crenellation(x0 + bb, x0 + len, _wallTop, 0.34, 0.272, period: 0.5, order: 92),
-    ], len, (ba + bb) / 2, btop + 0.46);
-  }
-
-  // ---- 8. Arcade: three spans of arches carrying the wall over a low place.
-  static StructureSpec _aqueduct(double x0) {
-    const len = 4.05;
-    const top = 2.15;
-    const centers = [0.88, 2.02, 3.16];
-    const r = 0.42, spring = 0.92;
-    return StructureSpec([
-      Slab(
-        x0: x0, x1: x0 + len, y0: 0, y1: top,
-        solid: (x, y) {
-          final u = x - x0;
-          for (final c in centers) {
-            if (_archHole(u, y, c, r, spring)) return false;
-          }
-          return true;
-        },
-        zCenter: _wallZ,
-        halfDepth: (x) => WallDims.halfDepthAtY(_wallTop * 0.5),
-        kind: SlotKind.body,
-        order: 0,
-      ),
-      _crenellation(x0, x0 + len, top, 0.4, 0.32, period: 0.58),
-    ], len, centers[1], spring + r);
-  }
-
-  // ---- 9. Shrine: a niche cut into the wall, with its back set deep.
-  static StructureSpec _shrine(double x0) {
-    const len = 2.1;
-    const nx0 = 0.78, nx1 = 1.32, ny0 = 0.42, ny1 = 1.18;
-    bool niche(double u, double y) {
-      if (y < ny0) return false;
-      if (u < nx0 || u > nx1) return false;
-      if (y <= ny1) return true;
-      final dy = y - ny1;
-      const r = 0.27;
-      if (dy > r) return false;
-      final half = math.sqrt(math.max(0.0, r * r - dy * dy));
-      return (u - (nx0 + nx1) / 2).abs() <= half;
-    }
-    return StructureSpec([
-      Slab(
-        x0: x0, x1: x0 + len, y0: 0, y1: _wallTop,
-        solid: (x, y) => !niche(x - x0, y),
-        zCenter: _wallZ,
-        halfDepth: (x) => WallDims.halfDepthAtY(_wallTop * 0.5),
-        kind: SlotKind.body,
-        order: 0,
-      ),
-      // The recessed back of the niche.
-      Slab(
-        x0: x0 + nx0, x1: x0 + nx1, y0: ny0, y1: ny1 + 0.27,
-        solid: (x, y) => niche(x - x0, y),
-        zCenter: (x) => -0.20,
-        halfDepth: (x) => 0.16,
-        kind: SlotKind.recess,
-        courseScale: 0.62,
-        order: 1,
-      ),
-      // A small pedestal standing in the niche.
-      Slab(
-        x0: x0 + nx0 + 0.14, x1: x0 + nx1 - 0.14, y0: ny0, y1: ny0 + 0.2,
-        solid: (x, y) => true,
-        zCenter: (x) => 0.06,
-        halfDepth: (x) => 0.112,
-        kind: SlotKind.ornament,
-        courseScale: 0.5,
-        ornament: true,
-        order: 88,
-      ),
-      _crenellation(x0, x0 + len, _wallTop, 0.36, 0.288, period: 0.52),
-    ], len, (nx0 + nx1) / 2, ny1);
-  }
-
-  // ---- 10. Barbican: two towers guarding one arch. A proper piece of work.
-  static StructureSpec _barbican(double x0) {
-    const len = 4.3;
-    const la = 0.5, lb = 1.42, ra = 2.88, rb = 3.8, ttop = 3.05;
-    const curtainTop = 2.15, cx = 2.15, r = 0.5, spring = 1.12;
-    return StructureSpec([
-      Slab(
-        x0: x0, x1: x0 + len, y0: 0, y1: _wallTop,
-        solid: (x, y) {
-          final u = x - x0;
-          return u < la || u > rb;
-        },
-        zCenter: _wallZ,
-        halfDepth: (x) => WallDims.halfDepthAtY(_wallTop * 0.5),
-        kind: SlotKind.body,
-        order: 0,
-      ),
-      Slab(
-        x0: x0 + la, x1: x0 + rb, y0: 0, y1: ttop,
-        solid: (x, y) {
-          final u = x - x0;
-          return (u >= la && u <= lb) || (u >= ra && u <= rb);
-        },
-        zCenter: _wallZ,
-        halfDepth: (x) => 0.544,
-        kind: SlotKind.tower,
-        order: 1,
-      ),
-      Slab(
-        x0: x0 + lb, x1: x0 + ra, y0: 0, y1: curtainTop,
-        solid: (x, y) => !_archHole(x - x0, y, cx, r, spring),
-        zCenter: _wallZ,
-        halfDepth: (x) => 0.368,
-        kind: SlotKind.body,
-        order: 2,
-      ),
-      _crenellation(x0 + lb, x0 + ra, curtainTop, 0.4, 0.352, period: 0.54, order: 89),
-      _crenellation(x0 + la, x0 + lb, ttop, 0.44, 0.48, period: 0.5, order: 90),
-      _crenellation(x0 + ra, x0 + rb, ttop, 0.44, 0.48, period: 0.5, order: 91),
-    ], len, cx, spring + r);
-  }
 }

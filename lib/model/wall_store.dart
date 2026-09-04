@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/pacing.dart';
+import '../engine/layout.dart';
 import 'models.dart';
 
 /// What happened when a brick was placed. Drives the celebration.
@@ -48,6 +50,35 @@ class WallStore extends ChangeNotifier {
   double integrityAtLaunch = 1.0;
 
   int get total => bricks.length;
+
+  /// A pretend brick count, for looking at what the wall becomes without
+  /// waiting years for it. The real bricks are untouched: nothing is written,
+  /// nothing is lost, and clearing it puts the real wall straight back.
+  int? preview;
+
+  bool get isPreviewing => preview != null;
+
+  /// What the wall should be drawn as right now.
+  int get shownTotal => preview ?? bricks.length;
+
+  void setPreview(int? count) {
+    preview = count;
+    _rebuildDerived();
+    notifyListeners();
+  }
+
+  /// Roman numeral of the tier a wall of [bricks] stones has reached.
+  static String tierNameFor(int bricks) =>
+      WallTiers.tierNames[WallTiers.tierAt(math.max(0, bricks - 1))];
+
+  /// How many stones are still missing before the wall levels up again, or
+  /// null once it is at its final tier.
+  static int? bricksToNextTier(int bricks) {
+    for (final t in WallTiers.thresholds) {
+      if (bricks < t) return t - bricks;
+    }
+    return null;
+  }
 
   DateTime? get lastPlacedAt => bricks.isEmpty ? null : bricks.last.placedAt;
 
@@ -100,7 +131,7 @@ class WallStore extends ChangeNotifier {
       };
 
   void _rebuildDerived() {
-    plan = WallPlan(total);
+    plan = WallPlan(shownTotal);
   }
 
   void _save() {
@@ -291,12 +322,20 @@ class WallStore extends ChangeNotifier {
   /// Fast-forwards the wall for development, so the pacing and the look of a
   /// year of use can be inspected without waiting a year. Driven by a
   /// compile-time define that defaults to off.
+  /// Legends written on some of the filled bricks, so the chronicle can be
+  /// looked at without a year of typing.
+  static const List<String> _debugLabels = [
+    'Leí', 'Corrí', 'Estudié', 'Escribí', 'No fumé', 'Salí a caminar',
+    'Llamé a mamá', 'Ordené el taller', 'Toqué la guitarra', 'Nadé',
+  ];
+
   void debugFill(int count, {int endedDaysAgo = 0}) {
     final end = DateTime.now().subtract(Duration(days: endedDaysAgo));
     for (var i = 0; i < count; i++) {
       bricks.add(Brick(
         index: total,
         placedAt: end.subtract(Duration(minutes: (count - i) * 137)),
+        label: i % 9 == 3 ? _debugLabels[(i ~/ 9) % _debugLabels.length] : null,
       ));
     }
     _rebuildDerived();

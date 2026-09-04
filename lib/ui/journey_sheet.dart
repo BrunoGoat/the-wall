@@ -1,10 +1,14 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../model/models.dart';
 import '../fx/sensory.dart';
 import '../model/wall_store.dart';
 import '../engine/layout.dart';
-import 'overlays.dart';
+import 'debug_sheet.dart';
+import 'papyrus.dart';
+import 'sigil.dart';
 import 'style.dart';
 
 /// Everything the wall has become: the numbers, the landmarks and the hundred
@@ -150,6 +154,10 @@ class _Summary extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 26),
+        Text('NIVEL DE LA MURALLA', style: t.label),
+        const SizedBox(height: 10),
+        _TierBar(store: store, theme: t),
+        const SizedBox(height: 26),
         Text('ESTADO DE LA MURALLA', style: t.label),
         const SizedBox(height: 10),
         ClipRRect(
@@ -213,6 +221,8 @@ class _Summary extends StatelessWidget {
         Text('AJUSTES', style: t.label),
         const SizedBox(height: 6),
         _SoundToggles(theme: t),
+        const SizedBox(height: 4),
+        _DebugEntry(store: store, theme: t),
       ],
     );
   }
@@ -227,6 +237,120 @@ class _Summary extends StatelessWidget {
           ],
         ),
       );
+}
+
+/// How high the wall has climbed, and how far the next level still is.
+///
+/// Every level opens a whole new band of courses above the old crenellations:
+/// the stones already laid stay exactly where they are, and the wall grows up
+/// over them instead of only sideways.
+class _TierBar extends StatelessWidget {
+  const _TierBar({required this.store, required this.theme});
+  final WallStore store;
+  final UiTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = theme;
+    final tier = WallTiers.tierAt(math.max(0, store.total - 1));
+    final left = WallStore.bricksToNextTier(store.total);
+    final from = tier == 0 ? 0 : WallTiers.thresholds[tier - 1];
+    final to = left == null ? store.total : store.total + left;
+    final progress = to <= from
+        ? 1.0
+        : ((store.total - from) / (to - from)).clamp(0.0, 1.0);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(
+              WallStore.tierNameFor(store.total),
+              style: t.number.copyWith(
+                fontSize: 27,
+                fontFamily: Papyrus.serif,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                left == null
+                    ? 'Altura máxima alcanzada.'
+                    : 'Faltan $left para que suba otro nivel.',
+                style: t.bodySoft.copyWith(fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 9),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 7,
+            backgroundColor: t.fg.withValues(alpha: 0.10),
+            valueColor: AlwaysStoppedAnimation(t.accent),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The way into the preview. Deliberately quiet: it changes nothing.
+class _DebugEntry extends StatelessWidget {
+  const _DebugEntry({required this.store, required this.theme});
+  final WallStore store;
+  final UiTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = theme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () {
+        Sensory.instance.tick();
+        // The navigator's own context, not this row's: this row is inside the
+        // sheet being closed, and its context is gone the moment it pops.
+        final nav = Navigator.of(context);
+        nav.pop();
+        showModalBottomSheet<void>(
+          context: nav.context,
+          backgroundColor: Colors.transparent,
+          isScrollControlled: true,
+          builder: (_) => DebugSheet(store: store, theme: t),
+        );
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            Icon(Icons.tune, size: 19, color: t.fgSoft),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Ver la muralla a futuro', style: t.body),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Cómo se vería con 100, 500 o 5000 ladrillos. '
+                    'No toca los tuyos.',
+                    style: t.bodySoft.copyWith(fontSize: 11.5),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 19, color: t.fgFaint),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _SoundToggles extends StatefulWidget {
@@ -314,8 +438,14 @@ class _Milestones extends StatelessWidget {
             ),
             child: Row(
               children: [
-                Text(locked ? '·' : type.glyph,
-                    style: const TextStyle(fontSize: 26)),
+                LandmarkSigil(
+                  kind: type.kind,
+                  color: locked
+                      ? t.fg.withValues(alpha: 0.34)
+                      : (active ? t.accent : t.fg.withValues(alpha: 0.78)),
+                  size: 34,
+                  locked: locked,
+                ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -370,7 +500,8 @@ class _Milestones extends StatelessWidget {
   }
 }
 
-/// Every stone the person actually wrote something on.
+/// The chronicle: every stone the person actually wrote something on, read as
+/// a scribe's log on a sheet of papyrus rather than as a list of rows.
 class _Legends extends StatelessWidget {
   const _Legends({
     required this.store,
@@ -386,82 +517,123 @@ class _Legends extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = theme;
-    final items = store.labelled;
+    // Oldest first: a chronicle is read forwards, from the first stone to the
+    // last, which is the whole point of it being a story.
+    final items = store.labelled.reversed.toList();
 
-    if (items.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(30, 40, 30, 40),
-        child: Column(
-          children: [
-            Icon(Icons.edit_note, size: 34, color: t.fgFaint),
-            const SizedBox(height: 14),
-            Text('Todavía no escribiste ninguna',
-                style: t.body.copyWith(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            Text(
-              'Tocá cualquier ladrillo de la muralla y podés dejarle una '
-              'leyenda: “Leí”, “Corrí”, lo que quieras. Es opcional; el '
-              'ladrillo cuenta igual.',
-              textAlign: TextAlign.center,
-              style: t.bodySoft,
-            ),
-          ],
-        ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 16),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          const Positioned.fill(
+            child: CustomPaint(painter: PapyrusPainter()),
+          ),
+          Material(
+            type: MaterialType.transparency,
+            child: items.isEmpty
+                ? _empty(context)
+                : _log(context, items),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _heading() => Column(
+        children: [
+          const SizedBox(height: 26),
+          Text(
+            'BITÁCORA DE LA MURALLA',
+            textAlign: TextAlign.center,
+            style: Papyrus.body(13, w: FontWeight.w700, c: Papyrus.ink)
+                .copyWith(letterSpacing: 2.6),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '· ${Papyrus.roman(store.total)} piedras asentadas ·',
+            textAlign: TextAlign.center,
+            style: Papyrus.body(11.5, c: Papyrus.inkFaint)
+                .copyWith(letterSpacing: 1.2),
+          ),
+          const SizedBox(height: 16),
+          const PapyrusRule(),
+          const SizedBox(height: 4),
+        ],
       );
-    }
 
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(22, 8, 22, 40),
-      itemCount: items.length,
-      itemBuilder: (context, i) {
-        final b = items[i];
-        return Container(
-          margin: const EdgeInsets.only(bottom: 9),
-          padding: const EdgeInsets.fromLTRB(15, 12, 6, 12),
-          decoration: BoxDecoration(
-            color: t.fg.withValues(alpha: 0.04),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: t.stroke),
+  Widget _empty(BuildContext context) => ListView(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 30),
+        children: [
+          _heading(),
+          const SizedBox(height: 24),
+          Text(
+            'Aquí no hay nada escrito todavía.',
+            textAlign: TextAlign.center,
+            style: Papyrus.body(16.5, w: FontWeight.w600),
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(b.label!,
-                        style: t.body.copyWith(
-                            fontSize: 15.5, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 3),
-                    Text(
-                      'Ladrillo ${b.index + 1} · ${StoneCard.formatDate(b.placedAt)}',
-                      style: t.bodySoft.copyWith(fontSize: 11.5),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                icon: Icon(Icons.edit_outlined, size: 17, color: t.fgSoft),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  onEdit(b);
-                },
-              ),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                icon: Icon(Icons.my_location, size: 17, color: t.fgSoft),
-                onPressed: () {
-                  final slot = WallLayout(store.total).slotFor(b.index);
-                  Navigator.of(context).pop();
-                  if (slot != null) onGoTo(slot.x);
-                },
-              ),
-            ],
+          const SizedBox(height: 12),
+          Text(
+            'Tocá cualquier piedra de la muralla y dejale una leyenda: '
+            '“Leí”, “Corrí”, lo que quieras. No hace falta —la piedra ya '
+            'está puesta— pero lo que se escribe queda en esta bitácora, y '
+            'dentro de un año esto va a ser una historia.',
+            textAlign: TextAlign.center,
+            style: Papyrus.body(14, c: Papyrus.inkSoft),
           ),
-        );
-      },
+          const SizedBox(height: 26),
+          const PapyrusRule(wide: true),
+        ],
+      );
+
+  Widget _log(BuildContext context, List<Brick> items) {
+    // Broken into months, each with its own illuminated heading.
+    final rows = <Widget>[_heading()];
+    String? month;
+    for (var i = 0; i < items.length; i++) {
+      final b = items[i];
+      final m = Papyrus.monthHeading(b.placedAt);
+      if (m != month) {
+        month = m;
+        rows.add(Padding(
+          padding: EdgeInsets.only(top: i == 0 ? 18 : 26, bottom: 2),
+          child: Text(
+            m,
+            style: Papyrus.body(10.5, w: FontWeight.w700, c: Papyrus.rubric)
+                .copyWith(letterSpacing: 2.0),
+          ),
+        ));
+        rows.add(const Divider(color: Papyrus.rule, height: 12));
+      }
+      rows.add(PapyrusEntry(
+        brick: b,
+        ordinal: i + 1,
+        dropCap: i == 0,
+        onGo: () {
+          final slot = WallLayout(store.total).slotFor(b.index);
+          Navigator.of(context).pop();
+          if (slot != null) onGoTo(slot.x);
+        },
+        onEdit: () {
+          Navigator.of(context).pop();
+          onEdit(b);
+        },
+      ));
+    }
+    rows
+      ..add(const SizedBox(height: 22))
+      ..add(const PapyrusRule(wide: true))
+      ..add(const SizedBox(height: 10))
+      ..add(Text(
+        'Y la muralla sigue creciendo.',
+        textAlign: TextAlign.center,
+        style: Papyrus.body(12.5, c: Papyrus.inkFaint)
+            .copyWith(fontStyle: FontStyle.italic),
+      ));
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 0, 16, 30),
+      children: rows,
     );
   }
 }

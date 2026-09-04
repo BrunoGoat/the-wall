@@ -177,6 +177,17 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
+          // --- preview mode: impossible to forget you are in it
+          if (store.isPreviewing)
+            Positioned(
+              top: media.padding.top + 78,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: _PreviewBanner(theme: t, store: store),
+              ),
+            ),
+
           // --- the tapped stone, and its optional note
           if (_selected != null)
             Positioned(
@@ -397,6 +408,45 @@ class _BottomDeck extends StatelessWidget {
             onCharge: wall.setCharge,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Says, unmissably, that what you are looking at is not your wall.
+class _PreviewBanner extends StatelessWidget {
+  const _PreviewBanner({required this.theme, required this.store});
+  final UiTheme theme;
+  final WallStore store;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = theme;
+    return GestureDetector(
+      onTap: () => store.setPreview(null),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(15, 8, 11, 8),
+        decoration: BoxDecoration(
+          color: t.panelStrong,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: t.accent.withValues(alpha: 0.55)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'VISTA DE ${store.shownTotal} LADRILLOS',
+              style: TextStyle(
+                color: t.accent,
+                fontSize: 10.5,
+                letterSpacing: 1.6,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Icon(Icons.close, size: 15, color: t.fgSoft),
+          ],
+        ),
       ),
     );
   }
