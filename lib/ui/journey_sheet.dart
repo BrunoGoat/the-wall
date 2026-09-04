@@ -321,6 +321,9 @@ class _DebugEntry extends StatelessWidget {
         showModalBottomSheet<void>(
           context: nav.context,
           backgroundColor: Colors.transparent,
+          // No scrim: the whole point is watching the wall change behind the
+          // slider, and a dimmed scene defeats it.
+          barrierColor: Colors.transparent,
           isScrollControlled: true,
           builder: (_) => DebugSheet(store: store, theme: t),
         );

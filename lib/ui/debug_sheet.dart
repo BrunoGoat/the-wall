@@ -120,29 +120,71 @@ class _DebugSheetState extends State<DebugSheet> {
                 ),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           Row(
             children: [
               if (layoutReady)
-                TextButton.icon(
-                  onPressed: () {
+                _Quiet(
+                  theme: t,
+                  label: 'Volver a la mía',
+                  onTap: () {
                     widget.store.setPreview(null);
                     Sensory.instance.tick();
                     Navigator.of(context).pop();
                   },
-                  icon: Icon(Icons.undo, size: 17, color: t.fgSoft),
-                  label: Text('Volver a la mía',
-                      style: TextStyle(color: t.fgSoft)),
                 ),
               const Spacer(),
-              FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: t.accent),
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Mirar'),
+              _Quiet(
+                theme: t,
+                label: 'Listo',
+                accent: true,
+                onTap: () => Navigator.of(context).pop(),
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// A button that is a word and a hairline. Nothing here should shout: the
+/// wall behind is what you came to look at.
+class _Quiet extends StatelessWidget {
+  const _Quiet({
+    required this.theme,
+    required this.label,
+    required this.onTap,
+    this.accent = false,
+  });
+
+  final UiTheme theme;
+  final String label;
+  final VoidCallback onTap;
+  final bool accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = theme;
+    final c = accent ? t.accent : t.fgSoft;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: c.withValues(alpha: accent ? 0.6 : 0.28)),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: c,
+            fontSize: 12.5,
+            letterSpacing: 0.9,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }
@@ -167,23 +209,25 @@ class _Chip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
           color: selected
-              ? t.accent.withValues(alpha: 0.18)
-              : t.fg.withValues(alpha: 0.05),
+              ? t.accent.withValues(alpha: 0.13)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? t.accent.withValues(alpha: 0.7) : t.stroke,
+            color: selected
+                ? t.accent.withValues(alpha: 0.6)
+                : t.fg.withValues(alpha: 0.16),
           ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? t.accent : t.fg.withValues(alpha: 0.75),
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.4,
+            color: selected ? t.accent : t.fg.withValues(alpha: 0.62),
+            fontSize: 12.5,
+            fontWeight: FontWeight.w500,
+            letterSpacing: 0.6,
           ),
         ),
       ),
