@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'fx/sensory.dart';
+import 'model/appearance.dart';
 import 'model/wall_store.dart';
 import 'ui/home_screen.dart';
 
@@ -37,6 +38,14 @@ class _LaMurallaAppState extends State<LaMurallaApp> {
   }
 
   Future<void> _boot() async {
+    await Appearance.instance.load();
+    // Development shortcut for comparing the pointings side by side.
+    const mortar = String.fromEnvironment('MORTAR');
+    if (mortar.isNotEmpty) {
+      for (final l in MortarLook.all) {
+        if (l.style.name == mortar) await Appearance.instance.setMortar(l.style);
+      }
+    }
     await store.load();
 
     // Development shortcut for inspecting how the wall reads after weeks or a

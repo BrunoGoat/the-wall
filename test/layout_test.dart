@@ -28,6 +28,30 @@ void main() {
       }
     });
 
+    test('the ghost is not part of the wall yet', () {
+      // One slot beyond the placed bricks is always laid out so the app can
+      // show where the next stone lands. It must not lengthen the wall, appear
+      // in the distant silhouette, or cast a shadow before it is earned.
+      final l = WallLayout(120);
+      expect(l.slots.length, 121);
+      final ghost = l.slots[120];
+
+      var laid = 0.0;
+      for (var i = 0; i < 120; i++) {
+        if (l.slots[i].right > laid) laid = l.slots[i].right;
+      }
+      expect(l.length, closeTo(laid, 1e-9),
+          reason: 'the ghost stretched the wall');
+
+      if (ghost.left > laid + 0.05) {
+        final bucket = (ghost.x / l.profileStep).floor();
+        if (bucket < l.profileTop.length) {
+          expect(l.profileTop[bucket], 0,
+              reason: 'the ghost showed up in the silhouette and its shadow');
+        }
+      }
+    });
+
     test('rebuilding the same wall gives exactly the same wall', () {
       final a = WallLayout(220);
       final b = WallLayout(220);

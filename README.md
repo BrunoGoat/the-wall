@@ -95,8 +95,18 @@ hoja de papiro —trama, manchas, bordes gastados, tipografía con serifas, capi
 rubricada, numeración romana en el margen— que se lee de la primera piedra a la
 última, por meses, como la crónica de una obra medieval.
 
-**La distancia.** Cuando la muralla se hace larga, lo que está lejos se dibuja
-como su propia silueta almenada perdiéndose en la calina, como la Gran Muralla.
+**La distancia.** Los ladrillos siguen siendo ladrillos hasta donde alcanza la
+vista: pasada la banda de detalle cercano cada piedra se dibuja como su bloque,
+en su sitio, con su color y sus juntas —sin las esquinas comidas, que a esa
+distancia miden menos de un píxel—. Sólo más allá de eso, en murallas mucho más
+largas que cualquiera que alguien vaya a construir, se convierte en su propia
+silueta almenada perdiéndose en la calina, como la Gran Muralla.
+
+**El mortero.** En *Ajustes → Mortero y juntas* hay cinco maneras de rejuntar
+la muralla, y se cambian en vivo, con la muralla a la vista: junta viva, junta
+rehundida, junta fina, junta enrasada y piedra seca. Cambian el ancho de la
+junta, cuánto se mete el mortero hacia adentro, su tono respecto de la piedra y
+cuánto sobresale cada piedra de sus vecinas. No tocan ningún ladrillo.
 
 **El deterioro.** Después de un día y medio sin ladrillos la muralla empieza a
 resentirse: la piedra se apaga, aparece liquen, el mortero se abre, el cielo se
@@ -122,7 +132,7 @@ ladrillo la repara entera**, con una ola de reparación que recorre el muro.
 
 ```bash
 flutter pub get
-flutter test          # 54 tests
+flutter test          # 55 tests
 flutter analyze
 flutter run
 flutter build apk --release
@@ -146,6 +156,7 @@ Está firmada con la clave de debug, así que se instala directo en el teléfono
 | `HOUR=19` | fija la hora del día |
 | `CAM_YAW/CAM_PITCH/CAM_DIST/CAM_AT` | encuadre fijo |
 | `BUDGET=340` | fija el presupuesto de detalle |
+| `MORTAR=seca` | fija el rejuntado, para comparar los cinco |
 | `DEBUG_CORE=true` | pinta de magenta el núcleo de mortero, para ver dónde asoma |
 
 Y dentro de la app, en *La Muralla → Ajustes → Ver la muralla a futuro*: un

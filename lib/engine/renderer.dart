@@ -8,6 +8,7 @@ import '../core/math3.dart';
 import '../core/rng.dart';
 import '../data/milestones.dart';
 import '../fx/effects.dart';
+import '../model/appearance.dart';
 import 'camera.dart';
 import 'layout.dart';
 import 'landscape.dart';
@@ -44,6 +45,8 @@ class WallScene {
     this.fx,
     this.repairSweep,
     this.detailBudget = 300,
+    this.coarseBudget = 2600,
+    this.mortar = MortarLook.viva,
     this.selectedBrick,
     this.charge = 0,
   });
@@ -67,6 +70,14 @@ class WallScene {
   final double? repairSweep;
 
   final int detailBudget;
+
+  /// How many further stones are drawn as plain blocks beyond the detailed
+  /// band. They keep their size, colour and joints, only not their chipped
+  /// corners — which at that distance are under a pixel anyway.
+  final int coarseBudget;
+
+  /// How the masonry is pointed.
+  final MortarLook mortar;
 
   /// The stone the person just tapped, ringed so it is obvious which one the
   /// note belongs to.
@@ -92,7 +103,7 @@ class WallPainter extends CustomPainter {
   final WallScene scene;
   final List<PickTarget> picks;
 
-  static final List<_Face> _facePool = List.generate(6000, (_) => _Face());
+  static final List<_Face> _facePool = List.generate(16000, (_) => _Face());
   static final StoneMesh _mesh = StoneMesh(24);
   static final Float64List _clipA = Float64List(96);
   static final Float64List _clipB = Float64List(96);
@@ -116,10 +127,15 @@ class WallPainter extends CustomPainter {
     // and let the distant silhouette take over beyond it.
     final l0 = scene.layout;
     final density = l0.length > 0.5 ? scene.placed / l0.length : 4.0;
-    cam.detailRadius = clampD(
-      scene.detailBudget / (2 * math.max(1.0, density)),
-      6,
-      260,
+    final perSide = 2 * math.max(1.0, density);
+    cam.detailRadius = clampD(scene.detailBudget / perSide, 6, 260);
+    // Beyond the detailed band the stones keep going as plain blocks. Only
+    // past *this* does the wall become its own silhouette — which on any wall
+    // anyone will actually build is off the end of it.
+    cam.coarseRadius = clampD(
+      (scene.detailBudget + scene.coarseBudget) / perSide,
+      cam.detailRadius,
+      900,
     );
     final p = cam.projector(size.width, size.height, scene.time);
     final horizonY = _horizonY(p, size);
@@ -468,7 +484,7 @@ class WallPainter extends CustomPainter {
 
   int _bucketLo() {
     final l = scene.layout;
-    final r = scene.camera.detailRadius * 2.2;
+    final r = scene.camera.coarseRadius * 1.3;
     return ((scene.camera.travel - r) / l.profileStep)
         .floor()
         .clamp(0, math.max(0, l.profileCore.length - 1));
@@ -476,7 +492,7 @@ class WallPainter extends CustomPainter {
 
   int _bucketHi() {
     final l = scene.layout;
-    final r = scene.camera.detailRadius * 2.2;
+    final r = scene.camera.coarseRadius * 1.3;
     return ((scene.camera.travel + r) / l.profileStep)
         .ceil()
         .clamp(0, math.max(0, l.profileCore.length - 1));
@@ -494,7 +510,7 @@ class WallPainter extends CustomPainter {
     final pal = scene.palette;
     final cam = scene.camera;
     final light = pal.lightDir;
-    final near = math.max(2.0, cam.detailRadius - l.profileStep * 3);
+    final near = math.max(2.0, cam.coarseRadius - l.profileStep * 3);
     final step = l.profileStep;
     final n = l.profileTop.length;
     final decay = 1.0 - scene.integrity;
@@ -595,14 +611,15 @@ class WallPainter extends CustomPainter {
     final decay = 1.0 - scene.integrity;
     final radius = cam.detailRadius;
     final profiles = StoneProfiles.instance;
-    final mortarBase = Color.lerp(pal.mortar, pal.stone, 0.62)!;
+    final look = scene.mortar;
+    final mortarBase = Color.lerp(pal.mortar, pal.stone, look.tint)!;
     final fx = scene.fx;
 
     // Nearest-first so the detail budget is spent where the eye is.
     final order = <int>[];
     for (var i = 0; i < scene.placed && i < l.slots.length; i++) {
       final s = l.slots[i];
-      if ((s.x - cam.travel).abs() > radius) continue;
+      if ((s.x - cam.travel).abs() > cam.coarseRadius) continue;
       order.add(i);
     }
     order.sort((a, b) {
@@ -611,6 +628,8 @@ class WallPainter extends CustomPainter {
       return da.compareTo(db);
     });
     final take = math.min(order.length, scene.detailBudget);
+    final coarse =
+        math.min(order.length, scene.detailBudget + scene.coarseBudget);
 
     for (var k = 0; k < take; k++) {
       final idx = order[k];
@@ -647,6 +666,7 @@ class WallPainter extends CustomPainter {
       // Cheap ambient occlusion: deep courses and recesses sit in shade.
       var ao = 0.58 + 0.42 * smoothstep(-0.2, 1.7, slot.y);
       if (slot.kind == SlotKind.recess) ao *= 0.62;
+      final capped = _hasWallAbove(l, slot);
 
       final profile = profiles.forSeed(slot.seed);
       _mesh.build(
@@ -658,6 +678,8 @@ class WallPainter extends CustomPainter {
         scaleY: sy,
         erosion: erosion,
         mirror: (slot.seed & 0x1000) != 0,
+        joint: look.joint,
+        relief: look.relief,
       );
       _mesh.toCamera(p);
 
@@ -692,21 +714,49 @@ class WallPainter extends CustomPainter {
         x1: slot.x + slot.w / 2,
         y0: slot.y - slot.h / 2,
         y1: slot.y + slot.h / 2,
-        z0: slot.zCenter - slot.halfDepth + 0.07,
-        z1: slot.zCenter + slot.halfDepth - 0.07,
+        z0: slot.zCenter - slot.halfDepth + look.recess,
+        z1: slot.zCenter + slot.halfDepth - look.recess,
         albedo: mortarBase,
         light: light,
         pal: pal,
         ao: ao * 0.92,
         repairGlow: repairGlow * 0.4,
         depth: farDepth,
+        capped: capped,
       );
 
       _emitPrism(p, slot, albedo, light, pal, ao,
           flash: flash,
           repairGlow: repairGlow,
+          capped: capped,
           pickInto: size,
           pickIndex: idx);
+    }
+
+    // Past the detailed band every stone is still a stone: the same block, in
+    // the same place, its own colour, with its own joints around it — just
+    // without the chipped corners, which out there are under a pixel wide. It
+    // used to become a smooth ribbon at this distance, and the seam where the
+    // masonry stopped was the most conspicuous thing on the wall.
+    for (var k = take; k < coarse; k++) {
+      final idx = order[k];
+      final slot = l.slots[idx];
+      final exposure = clampD(slot.y / 2.2, 0.25, 1.0);
+      final erosion = decay * exposure;
+      final ao = 0.58 + 0.42 * smoothstep(-0.2, 1.7, slot.y);
+      _emitBlock(
+        p,
+        slot,
+        _albedoFor(slot, pal, erosion),
+        mortarBase,
+        light,
+        pal,
+        ao,
+        look,
+        size,
+        idx,
+        _hasWallAbove(l, slot),
+      );
     }
 
     _emitBuried(p, l, cam, radius, mortarBase, light, pal);
@@ -771,6 +821,7 @@ class WallPainter extends CustomPainter {
     double ao, {
     double flash = 0,
     double repairGlow = 0,
+    bool capped = false,
     Size? pickInto,
     int pickIndex = -1,
   }) {
@@ -836,7 +887,14 @@ class WallPainter extends CustomPainter {
       _clipA[10] = _mesh.camBack[i * 3 + 1];
       _clipA[11] = _mesh.camBack[i * 3 + 2];
 
-      final c = _shade(nrm, albedo, light, pal, ao, flash, repairGlow);
+      // A stone with wall on top of it is looking up into a crevice, not at
+      // the sky. Left lit, every course showed a bright white ledge along its
+      // top edge and the wall read as a stack of loose slabs instead of a
+      // face — which is most of what made the mortar look bad.
+      final shade = capped && nrm.y > 0.30
+          ? lerpD(1.0, 0.34, smoothstep(0.30, 0.85, nrm.y))
+          : 1.0;
+      final c = _shade(nrm, albedo, light, pal, ao * shade, flash, repairGlow);
       _emit(p, _clipA, 4, _haze(c, p, slot.x, pal).toARGB32());
     }
   }
@@ -857,6 +915,7 @@ class WallPainter extends CustomPainter {
     required double ao,
     required double repairGlow,
     required double depth,
+    bool capped = false,
   }) {
     if (z1 <= z0) {
       final mid = (z0 + z1) / 2;
@@ -883,7 +942,7 @@ class WallPainter extends CustomPainter {
     }
     if (e.y > y1) {
       _quad(p, V3(x0, y1, z1), V3(x1, y1, z1), V3(x1, y1, z0), V3(x0, y1, z0),
-          col(const V3(0, 1, 0), 1.05), depthOverride: depth);
+          col(const V3(0, 1, 0), capped ? 0.36 : 1.05), depthOverride: depth);
     } else if (e.y < y0) {
       _quad(p, V3(x0, y0, z0), V3(x1, y0, z0), V3(x1, y0, z1), V3(x0, y0, z1),
           col(const V3(0, -1, 0), 0.75), depthOverride: depth);
@@ -894,6 +953,71 @@ class WallPainter extends CustomPainter {
     } else if (e.x < x0) {
       _quad(p, V3(x0, y0, z0), V3(x0, y0, z1), V3(x0, y1, z1), V3(x0, y1, z0),
           col(const V3(-1, 0, 0), 0.92), depthOverride: depth);
+    }
+  }
+
+  /// Whether the wall carries on above this stone.
+  ///
+  /// Read off the coarse top profile rather than the layout's own courses,
+  /// because a landmark's stones do not sit on courses at all. It takes the
+  /// *lowest* reading across the stone's span, so a walkway stone with sky
+  /// showing between two merlons still catches the light, while a stone with
+  /// wall over the whole of it does not.
+  bool _hasWallAbove(WallLayout l, StoneSlot slot) {
+    if (l.profileTop.isEmpty) return false;
+    final last = l.profileTop.length - 1;
+    final i0 = (slot.left / l.profileStep).floor().clamp(0, last);
+    final i1 = (slot.right / l.profileStep).ceil().clamp(0, last);
+    var above = double.infinity;
+    for (var i = i0; i <= i1; i++) {
+      if (l.profileTop[i] < above) above = l.profileTop[i];
+    }
+    return above > slot.top + 0.06;
+  }
+
+  /// One stone, far enough away that its chipped corners are under a pixel.
+  ///
+  /// Drawn at the full size of its slot rather than cut back for a joint: out
+  /// here the joint is a fraction of a pixel too, and letting the block fill it
+  /// means the coarse band butts up against the detailed one with no seam.
+  void _emitBlock(
+    Projector p,
+    StoneSlot slot,
+    Color albedo,
+    Color mortar,
+    V3 light,
+    Palette pal,
+    double ao,
+    MortarLook look,
+    Size size,
+    int idx,
+    bool capped,
+  ) {
+    final centre = p.cameraOf(V3(slot.x, slot.y, slot.zCenter));
+    if (centre.z <= p.near) return;
+    // Under about a pixel and a half wide it is not worth a draw call; the
+    // silhouette behind covers that ground.
+    if (slot.w * p.focal / centre.z < 1.4) return;
+
+    final before = _faceCount;
+    _emitCore(
+      p,
+      x0: slot.x - slot.w / 2,
+      x1: slot.x + slot.w / 2,
+      y0: slot.y - slot.h / 2,
+      y1: slot.y + slot.h / 2,
+      z0: slot.zCenter - slot.halfDepth,
+      z1: slot.zCenter + slot.halfDepth,
+      albedo: albedo,
+      light: light,
+      pal: pal,
+      ao: ao,
+      repairGlow: 0,
+      depth: centre.z,
+      capped: capped,
+    );
+    if (_faceCount > before) {
+      _registerPick(_facePool[before], idx, size);
     }
   }
 

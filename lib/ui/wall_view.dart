@@ -15,6 +15,7 @@ import '../engine/renderer.dart';
 import '../fx/effects.dart';
 import '../fx/sensory.dart';
 import '../model/models.dart';
+import '../model/appearance.dart';
 import '../model/wall_store.dart';
 
 /// Handle the surrounding UI uses to drive the wall.
@@ -84,6 +85,12 @@ class _WallViewState extends State<WallView>
   static const int _budgetOverride =
       int.fromEnvironment('BUDGET', defaultValue: -1);
   int _detailBudget = _budgetOverride > 0 ? _budgetOverride : 300;
+
+  /// Stones drawn as plain blocks past the detailed band. Generous on purpose:
+  /// a wall that turns into a smooth ribbon a few metres from the camera is
+  /// the single most obvious thing wrong with it, and a block costs a fraction
+  /// of what a chipped stone costs.
+  int _coarseBudget = 1600;
   double _frameAvg = 16;
 
   late Palette _palette;
@@ -162,10 +169,20 @@ class _WallViewState extends State<WallView>
 
     if (_budgetOverride <= 0) {
       _frameAvg = _frameAvg * 0.92 + dtRaw * 1000 * 0.08;
-      if (_frameAvg > 21 && _detailBudget > 150) {
-        _detailBudget -= 6;
-      } else if (_frameAvg < 13 && _detailBudget < 460) {
-        _detailBudget += 3;
+      // The coarse band is given up first and won back last: losing the far
+      // masonry is much more noticeable than losing a few chipped corners.
+      if (_frameAvg > 21) {
+        if (_coarseBudget > 320) {
+          _coarseBudget -= 40;
+        } else if (_detailBudget > 150) {
+          _detailBudget -= 6;
+        }
+      } else if (_frameAvg < 13) {
+        if (_detailBudget < 460) {
+          _detailBudget += 3;
+        } else if (_coarseBudget < 3200) {
+          _coarseBudget += 24;
+        }
       }
     }
 
@@ -442,6 +459,8 @@ class _WallViewState extends State<WallView>
       fx: _placement,
       repairSweep: _repairSweep,
       detailBudget: _detailBudget,
+      coarseBudget: _coarseBudget,
+      mortar: Appearance.instance.look,
       selectedBrick: _selectedBrick,
       charge: _charge,
     );

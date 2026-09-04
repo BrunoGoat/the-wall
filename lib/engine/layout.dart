@@ -260,6 +260,15 @@ class WallLayout {
   final List<BuriedBand> buried = [];
   double profileStep = 0.34;
 
+  /// The stones that are actually part of the wall.
+  ///
+  /// One extra slot is always laid out beyond them, so the app can show a
+  /// ghost of where the next stone will land — but the ghost is not a stone:
+  /// it must not lengthen the wall, appear in the distant silhouette, or cast
+  /// a shadow on the ground before anyone has earned it.
+  Iterable<StoneSlot> get _laid =>
+      slots.length > brickCount ? slots.take(brickCount) : slots;
+
   StoneSlot? slotFor(int brickIndex) =>
       brickIndex >= 0 && brickIndex < slots.length ? slots[brickIndex] : null;
 
@@ -304,10 +313,11 @@ class WallLayout {
     }
 
     // The visible length is what has actually been built, not how far the
-    // frontier bookkeeping has advanced past a half-finished landmark.
+    // frontier bookkeeping has advanced past a half-finished landmark — and
+    // not counting the ghost, which is not a stone yet.
     length = 0;
-    for (final s in slots) {
-      if (s.right > length) length = s.right;
+    for (var i = 0; i < slots.length && i < brickCount; i++) {
+      if (slots[i].right > length) length = slots[i].right;
     }
     _buildBuried();
     _buildProfile();
@@ -704,7 +714,7 @@ class WallLayout {
   /// The continuous stretches course [c] actually covers.
   List<(double, double)> _runsOfCourse(int c) {
     final out = <(double, double)>[];
-    for (final s in slots) {
+    for (final s in _laid) {
       if (s.structureIndex >= 0 || s.course != c) continue;
       if (out.isNotEmpty && s.left <= out.last.$2 + 0.06) {
         out[out.length - 1] = (out.last.$1, math.max(out.last.$2, s.right));
@@ -733,7 +743,7 @@ class WallLayout {
     profileDepth
       ..clear()
       ..addAll(List<double>.filled(n, 0));
-    for (final s in slots) {
+    for (final s in _laid) {
       final i0 = (s.left / profileStep).floor().clamp(0, n - 1);
       final i1 = (s.right / profileStep).ceil().clamp(0, n - 1);
       final solid = s.kind != SlotKind.merlon &&

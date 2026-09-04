@@ -127,6 +127,7 @@ class StoneMesh {
     double erosion = 0,
     bool mirror = false,
     double joint = 0.005,
+    double relief = 1.0,
   }) {
     n = profile.count;
     final w = math.max(0.04, slot.w - joint * 2) * scaleX * (1 - erosion * 0.10);
@@ -135,9 +136,9 @@ class StoneMesh {
     // Rubble masonry never sits flush: letting each stone stand a little
     // proud of its neighbours is what makes the face read as stone rather than
     // as tiles on a slab.
-    final relief = hashRange(-0.005, 0.020, slot.seed, 71);
-    final zf = slot.zCenter + slot.halfDepth + relief;
-    final zb = slot.zCenter - slot.halfDepth - relief * 0.35;
+    final proud = hashRange(-0.005, 0.020, slot.seed, 71) * relief;
+    final zf = slot.zCenter + slot.halfDepth + proud;
+    final zb = slot.zCenter - slot.halfDepth - proud * 0.35;
     // The back face is fractionally smaller, so the side faces catch the light
     // at a slight angle instead of reading as a flat cut.
     const taper = 0.94;

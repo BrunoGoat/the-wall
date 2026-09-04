@@ -140,4 +140,7 @@ class OrbitCamera {
   /// continuous stretch of wall rather than being scattered thinly over one
   /// that is far too long for it.
   double detailRadius = 20;
+
+  /// How far the stones carry on as plain blocks past the detailed band.
+  double coarseRadius = 60;
 }

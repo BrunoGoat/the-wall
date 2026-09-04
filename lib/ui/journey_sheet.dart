@@ -2,10 +2,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../model/appearance.dart';
 import '../model/models.dart';
 import '../fx/sensory.dart';
 import '../model/wall_store.dart';
 import '../engine/layout.dart';
+import 'appearance_sheet.dart';
 import 'debug_sheet.dart';
 import 'papyrus.dart';
 import 'sigil.dart';
@@ -222,7 +224,23 @@ class _Summary extends StatelessWidget {
         const SizedBox(height: 6),
         _SoundToggles(theme: t),
         const SizedBox(height: 4),
-        _DebugEntry(store: store, theme: t),
+        _SheetRow(
+          theme: t,
+          icon: Icons.grain,
+          title: 'Mortero y juntas',
+          subtitle: 'Cómo se ve la piedra: junta viva, fina, enrasada o '
+              'piedra seca.',
+          trailing: MortarLook.of(Appearance.instance.mortar).name,
+          open: (nav) => AppearanceSheet(theme: t),
+        ),
+        _SheetRow(
+          theme: t,
+          icon: Icons.tune,
+          title: 'Ver la muralla a futuro',
+          subtitle: 'Cómo se vería con 100, 500 o 5000 ladrillos. '
+              'No toca los tuyos.',
+          open: (nav) => DebugSheet(store: store, theme: t),
+        ),
       ],
     );
   }
@@ -301,11 +319,26 @@ class _TierBar extends StatelessWidget {
   }
 }
 
-/// The way into the preview. Deliberately quiet: it changes nothing.
-class _DebugEntry extends StatelessWidget {
-  const _DebugEntry({required this.store, required this.theme});
-  final WallStore store;
+/// A quiet way into one of the sheets that changes how the wall looks.
+///
+/// Every one of them opens without a scrim: they are all judgements about the
+/// wall, and you cannot make those against a dimmed wall.
+class _SheetRow extends StatelessWidget {
+  const _SheetRow({
+    required this.theme,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.open,
+    this.trailing,
+  });
+
   final UiTheme theme;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String? trailing;
+  final Widget Function(NavigatorState nav) open;
 
   @override
   Widget build(BuildContext context) {
@@ -321,33 +354,40 @@ class _DebugEntry extends StatelessWidget {
         showModalBottomSheet<void>(
           context: nav.context,
           backgroundColor: Colors.transparent,
-          // No scrim: the whole point is watching the wall change behind the
-          // slider, and a dimmed scene defeats it.
           barrierColor: Colors.transparent,
           isScrollControlled: true,
-          builder: (_) => DebugSheet(store: store, theme: t),
+          builder: (_) => open(nav),
         );
       },
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Row(
           children: [
-            Icon(Icons.tune, size: 19, color: t.fgSoft),
+            Icon(icon, size: 19, color: t.fgSoft),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Ver la muralla a futuro', style: t.body),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Cómo se vería con 100, 500 o 5000 ladrillos. '
-                    'No toca los tuyos.',
-                    style: t.bodySoft.copyWith(fontSize: 11.5),
+                  Row(
+                    children: [
+                      Expanded(child: Text(title, style: t.body)),
+                      if (trailing != null)
+                        Text(
+                          trailing!,
+                          style: t.bodySoft.copyWith(
+                            fontSize: 11.5,
+                            color: t.accent,
+                          ),
+                        ),
+                    ],
                   ),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: t.bodySoft.copyWith(fontSize: 11.5)),
                 ],
               ),
             ),
+            const SizedBox(width: 8),
             Icon(Icons.chevron_right, size: 19, color: t.fgFaint),
           ],
         ),
