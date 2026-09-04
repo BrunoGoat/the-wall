@@ -172,7 +172,7 @@ class _WallViewState extends State<WallView>
       // The coarse band is given up first and won back last: losing the far
       // masonry is much more noticeable than losing a few chipped corners.
       if (_frameAvg > 21) {
-        if (_coarseBudget > 320) {
+        if (_coarseBudget > 900) {
           _coarseBudget -= 40;
         } else if (_detailBudget > 150) {
           _detailBudget -= 6;

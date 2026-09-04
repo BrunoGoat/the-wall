@@ -377,7 +377,7 @@ class StructureShapes {
         zCenter: _flat,
         halfDepth: (x) => 0.56,
         kind: SlotKind.tower,
-        order: crownOrder + 2,
+        order: 1,
       ),
       _stringCourse(x0 + ta - 0.05, x0 + tb + 0.05, wallTop + 0.42, depth: 0.60),
       _corbels(x0 + ta - 0.1, x0 + tb + 0.1, top, depth: 0.64, period: 0.22),
@@ -1617,10 +1617,12 @@ class StructureShapes {
         halfDepth: (x) => _wallHalf + 0.06,
         kind: SlotKind.body,
         courseScale: 0.7,
-        order: 86,
+        // Part of the crown, not of the trim: the attic is the top of the
+        // arch, and giving it up before the mouldings would behead it.
+        order: crownOrder + 6,
       ),
       _stringCourse(x0 + 0.24, x0 + len - 0.24, cornice + 0.86,
-          height: 0.14, depth: _wallHalf + 0.14, order: 87),
+          height: 0.14, depth: _wallHalf + 0.14, order: crownOrder + 7),
     ], len, cx, spring + r);
   }
 

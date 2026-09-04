@@ -150,7 +150,7 @@ void main() {
     test('a landmark always stands at least as tall as the wall it is in', () {
       // A landmark that cannot afford its own parapet reads as a hole in the
       // wall rather than a monument in it, which is worse than no landmark.
-      for (final n in [200, 600, 1000]) {
+      for (final n in [200, 600, 1200, 3000]) {
         final l = WallLayout(n);
         var rampart = 0.0;
         for (final s in l.slots) {
@@ -159,6 +159,36 @@ void main() {
         for (final st in l.structures) {
           expect(st.peakY, greaterThan(rampart - 0.1),
               reason: '${st.type.name} sank into the wall at $n bricks');
+        }
+      }
+    });
+
+    test('a landmark never leaves part of itself hanging in the air', () {
+      // When a landmark cannot afford everything it is meant to have, what it
+      // gives up must be the top: its mass is built whole first. Paying for the
+      // parapet before the tower under it left the parapet floating over the
+      // hole where the tower should have been.
+      for (final n in [200, 600, 1200, 3000]) {
+        final l = WallLayout(n);
+        for (final st in l.structures) {
+          final bands = <List<double>>[];
+          for (final s in l.slots) {
+            if (s.structureIndex == st.index) bands.add([s.y - s.h / 2, s.top]);
+          }
+          if (bands.length < 4) continue;
+          bands.sort((a, b) => a[0].compareTo(b[0]));
+          var reach = bands.first[0];
+          var gap = 0.0, at = 0.0;
+          for (final b in bands) {
+            if (b[0] - reach > gap) {
+              gap = b[0] - reach;
+              at = reach;
+            }
+            if (b[1] > reach) reach = b[1];
+          }
+          expect(gap, lessThan(0.7),
+              reason: '${st.type.name} is in two pieces around y=$at '
+                  'at $n bricks');
         }
       }
     });

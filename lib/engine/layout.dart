@@ -520,48 +520,91 @@ class WallLayout {
 
   /// Fills a set of slabs with exactly [target] stones.
   ///
-  /// The budget is shared out by what each part of a landmark is *for*, not
-  /// simply spent from the ground up. A landmark on a wall that has levelled up
-  /// three times has a great deal of mass to pay for, and filling it in one
-  /// pass meant the mass swallowed every brick and the thing was left headless:
+  /// Two things have to hold at once, and they pull against each other.
+  ///
+  /// The landmark must cost precisely the bricks the pacing promised, so the
+  /// stone size is searched for rather than fixed. And a landmark standing on a
+  /// wall that has levelled up has a great deal of mass to pay for: filled in
+  /// one pass, that mass swallowed every brick and the thing was left headless,
   /// a stump of curtain with no parapet, reading as a gap in the wall rather
-  /// than a landmark standing in it. So the crown is paid for first, the mass
-  /// takes what is left, and the mouldings get the remainder — and it is the
-  /// mouldings that are given up when a landmark cannot afford everything.
+  /// than a monument in it.
+  ///
+  /// So the mass is built first and built *whole* — at whatever stone size lets
+  /// it fit inside its share — and everything that finishes it is paid for out
+  /// of what is left. Whole is the important word: an unfinished mass leaves its
+  /// own crown hanging in the air above the hole where the rest of the tower
+  /// should have been. What gets given up when a landmark cannot afford
+  /// everything is the mouldings, then the parapet, in that order — never the
+  /// thing they sit on.
   List<_RawStone> _fillSlabs(List<Slab> slabs, int target, int seedA, int seedB) {
-    final mass = <Slab>[], crown = <Slab>[], trim = <Slab>[];
+    final mass = <Slab>[], finish = <Slab>[];
     for (final s in slabs) {
-      (s.order < 15 ? mass : (s.order < 80 ? crown : trim)).add(s);
+      (s.order < 15 ? mass : finish).add(s);
     }
-    if (crown.isEmpty && trim.isEmpty) {
-      return _searchFill(mass, target, seedA, seedB);
+    if (finish.isEmpty || mass.isEmpty) {
+      return _capped(_searchFill(slabs, target, seedA, seedB), target);
     }
 
-    final c = _searchFill(crown, (target * 0.22).ceil(), seedA, seedB);
-    final t = _searchFill(trim, (target * 0.12).ceil(), seedA, seedB ^ 0x5bd1);
-    final cq = math.min(c.length, (target * 0.22).ceil());
-    final tq = math.min(t.length, (target * 0.12).ceil());
-    final m = _searchFill(mass, math.max(1, target - cq - tq), seedA, seedB);
-    final mq = math.min(m.length, math.max(0, target - cq - tq));
+    final share = math.max(1, (target * 0.74).round());
+    final m = _searchAtMost(mass, share, seedA, seedB);
+    if (m.length > share || m.length >= target) {
+      return _capped(_searchFill(slabs, target, seedA, seedB), target);
+    }
 
-    // Each part takes its share and no more: the stone-size search only
-    // guarantees *at least* what it was asked for, and left uncapped the mass
-    // would quietly eat the crown's share as well as its own.
-    final out = <_RawStone>[
-      ...m.take(mq),
-      ...c.take(cq),
-      ...t.take(tq),
-    ];
-    // Whatever a part could not use goes back into the pot, so the landmark
-    // still costs exactly the bricks the pacing promised.
-    for (final spare in [m.skip(mq), c.skip(cq), t.skip(tq)]) {
-      for (final stone in spare) {
-        if (out.length >= target) break;
-        out.add(stone);
+    final rest = target - m.length;
+    final f = _searchFill(finish, rest, seedA, seedB);
+    if (m.length + f.length < target) {
+      return _capped(_searchFill(slabs, target, seedA, seedB), target);
+    }
+    // Ordered mass first, so what the cap takes off the end is the trim, then
+    // the parapet — and the mass is never touched.
+    return _capped([...m, ...f], target);
+  }
+
+  /// Trims a landmark to the bricks it is allowed, giving up whatever is
+  /// furthest from being the landmark itself.
+  ///
+  /// Sorted rather than trusted to arrive in order, and sorted stably, because
+  /// what the sort decides is both the order the bricks go on in and the order
+  /// things are given up in: within one part of a landmark the stones must
+  /// still be laid from the ground up.
+  List<_RawStone> _capped(List<_RawStone> stones, int target) {
+    if (stones.length <= target) return stones;
+    final order = List<int>.generate(stones.length, (i) => i);
+    order.sort((a, b) {
+      final c = stones[a].slabOrder.compareTo(stones[b].slabOrder);
+      return c != 0 ? c : a.compareTo(b);
+    });
+    return [for (var i = 0; i < target; i++) stones[order[i]]];
+  }
+
+  /// The finest stone size whose count still fits inside [budget].
+  ///
+  /// The mirror of [_searchFill]: that one guarantees *at least* a count, this
+  /// one guarantees at most, which is what makes it safe to build a part of a
+  /// landmark in full without it eating the rest of the landmark's bricks.
+  List<_RawStone> _searchAtMost(
+    List<Slab> slabs,
+    int budget,
+    int seedA,
+    int seedB,
+  ) {
+    if (slabs.isEmpty || budget <= 0) return const [];
+    var lo = 0.06, hi = 1.60;
+    var best = _generate(slabs, hi, seedA, seedB);
+    // Even at its coarsest the mass does not fit: the caller falls back.
+    if (best.length > budget) return best;
+    for (var i = 0; i < 20; i++) {
+      final mid = (lo + hi) / 2;
+      final g = _generate(slabs, mid, seedA, seedB);
+      if (g.length <= budget) {
+        hi = mid;
+        best = g;
+      } else {
+        lo = mid;
       }
     }
-    out.sort((a, b) => a.slabOrder.compareTo(b.slabOrder));
-    return out;
+    return best;
   }
 
   /// The largest stone size that still yields at least [target] stones.

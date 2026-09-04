@@ -142,7 +142,7 @@ class WallPainter extends CustomPainter {
 
     _drawSky(canvas, size, p, horizonY);
     _drawGround(canvas, size, horizonY);
-    _drawRanges(canvas, p, size);
+    _drawRanges(canvas, p, size, horizonY);
     _drawTerrain(canvas, p, size);
     _drawShadow(canvas, p);
 
@@ -286,10 +286,48 @@ class WallPainter extends CustomPainter {
   /// They are drawn as a ring centred on wherever the camera is looking, but
   /// their shape is sampled from world position, so walking along the wall
   /// reveals new country instead of dragging the same skyline along.
-  void _drawRanges(Canvas canvas, Projector p, Size size) {
+  /// The three mountain ranges on the skyline.
+  ///
+  /// Three things had to be true at once, and the old version got none of them
+  /// right once the camera left its usual place:
+  ///
+  ///  * The ring has to be centred on the *camera*, not on the point it is
+  ///    looking at. Zoomed all the way out the eye sits a hundred units from
+  ///    that point, which put it almost on top of the nearest range — half the
+  ///    country ended up behind the viewer, and the half in front reared up
+  ///    across the whole screen.
+  ///  * The shape has to be sampled somewhere that does not move when you
+  ///    merely orbit, or the skyline swims as you turn. So the geometry follows
+  ///    the eye and the height follows the stretch of wall being looked at:
+  ///    walking the wall still reveals new country, turning on the spot does
+  ///    not.
+  ///  * Every strip has to be a closed shape. Whenever a point fell behind the
+  ///    near plane the old loop handed Skia an open path, which closes itself
+  ///    with a straight line back to the start — that is where the huge wedges
+  ///    across the view came from. Now only the arc actually in front of the
+  ///    camera is walked at all, and each strip is closed by construction.
+  void _drawRanges(Canvas canvas, Projector p, Size size, double horizonY) {
     final pal = scene.palette;
     final light = pal.lightDir;
-    final cx = scene.camera.travel;
+
+    // Below the horizon is the ground plane, and a range hundreds of units away
+    // is behind it. Clipping there is what stops the mountains from floating in
+    // the middle of the field when the camera looks down at the wall, and what
+    // makes their feet meet the ground instead of hanging over it.
+    final cut = clampD(horizonY, -1.0, size.height + 1.0);
+    if (cut <= 0) return;
+    canvas.save();
+    canvas.clipRect(
+      Rect.fromLTWH(0, -size.height, size.width, cut + size.height + 1),
+    );
+
+    // Only the arc in front of the camera: everything else is behind the eye,
+    // where projection is meaningless. Sampled just wide enough for the lens.
+    final az = math.atan2(p.forward.x, p.forward.z);
+    final span = math.atan(size.width * 0.5 / p.focal) + 0.30;
+    const steps = 210;
+    final floor = size.height + 40;
+    final look = scene.camera.travel;
 
     for (var li = Landscape.ridges.length - 1; li >= 0; li--) {
       final layer = Landscape.ridges[li];
@@ -300,49 +338,93 @@ class WallPainter extends CustomPainter {
       final body = Color.lerp(base, pal.haze, fade)!;
       final lit = Color.lerp(body, pal.sun, 0.20 * (1 - fade))!;
 
-      const steps = 168;
-      Path? path;
-      var lastLitSide = false;
+      var path = Path();
+      var open = false;
+      var litSide = false;
+      var startX = 0.0, lastX = 0.0, crest = size.height;
+
+      // Each range fades into the ground colour where it meets the horizon,
+      // the way distance actually works. Without it the clip line reads as the
+      // mountains having been cut off with scissors.
+      Paint fill(bool isLit) {
+        final c = isLit ? lit : body;
+        final top = math.min(crest, cut - 1);
+        return Paint()
+          ..shader = ui.Gradient.linear(
+            Offset(0, top),
+            Offset(0, cut),
+            [c, Color.lerp(c, pal.groundFar, 0.55 + 0.2 * (2 - li) / 2)!],
+          );
+      }
+
+      void close() {
+        if (!open) return;
+        path
+          ..lineTo(lastX, floor)
+          ..lineTo(startX, floor)
+          ..close();
+        canvas.drawPath(path, fill(litSide));
+        path = Path();
+        open = false;
+        crest = size.height;
+      }
+
       for (var i = 0; i <= steps; i++) {
-        final th = i / steps * math.pi * 2;
-        final wx = cx + math.sin(th) * layer.radius;
-        final wz = math.cos(th) * layer.radius;
-        final h = Landscape.ridgeHeight(layer, wx, wz);
-        final top = p.project(V3(wx, math.max(h, layer.base), wz));
-        final foot = p.project(V3(wx, layer.base, wz));
-        if (top == null || foot == null) {
-          if (path != null) {
-            canvas.drawPath(path, Paint()..color = lastLitSide ? lit : body);
-            path = null;
-          }
+        final th = az - span + (i / steps) * (span * 2);
+        final dx = math.sin(th), dz = math.cos(th);
+        final h = Landscape.ridgeHeight(
+          layer,
+          look + dx * layer.radius,
+          dz * layer.radius,
+        );
+        final top = p.project(V3(
+          p.eye.x + dx * layer.radius,
+          math.max(h, layer.base),
+          p.eye.z + dz * layer.radius,
+        ));
+        if (top == null) {
+          close();
           continue;
         }
         // Slopes facing the light catch a little more of it.
-        final facing = (math.sin(th) * light.x + math.cos(th) * light.z) < 0;
-        if (path == null || facing != lastLitSide) {
-          if (path != null) {
-            path.lineTo(foot.x, foot.y);
-            canvas.drawPath(path, Paint()..color = lastLitSide ? lit : body);
-          }
-          path = Path()..moveTo(foot.x, foot.y);
-          lastLitSide = facing;
+        final facing = (dx * light.x + dz * light.z) < 0;
+        if (open && facing != litSide) {
+          // Carry the seam through so the two strips meet along one edge
+          // instead of leaving a hairline of sky between them.
+          if (top.y < crest) crest = top.y;
+          path
+            ..lineTo(top.x, top.y)
+            ..lineTo(top.x, floor)
+            ..lineTo(startX, floor)
+            ..close();
+          canvas.drawPath(path, fill(litSide));
+          path = Path()..moveTo(top.x, floor);
+          path.lineTo(top.x, top.y);
+          startX = top.x;
+          litSide = facing;
+          lastX = top.x;
+          crest = top.y;
+          continue;
         }
-        path.lineTo(top.x, top.y);
-        // Close each strip down to the foot so it never floats.
-        if (i == steps) {
-          path.lineTo(foot.x, foot.y);
-          canvas.drawPath(path, Paint()..color = lastLitSide ? lit : body);
-          path = null;
+        if (!open) {
+          path.moveTo(top.x, floor);
+          path.lineTo(top.x, top.y);
+          startX = top.x;
+          litSide = facing;
+          crest = top.y;
+          open = true;
+        } else {
+          path.lineTo(top.x, top.y);
+          if (top.y < crest) crest = top.y;
         }
+        lastX = top.x;
       }
-      if (path != null) {
-        canvas.drawPath(path, Paint()..color = lastLitSide ? lit : body);
-      }
+      close();
     }
+
+    canvas.restore();
   }
 
-  /// A handful of soft patches of scrub on the ground. They cost almost
-  /// nothing and stop the plain the wall stands on reading as empty paper.
   void _drawTerrain(Canvas canvas, Projector p, Size size) {
     final pal = scene.palette;
     final base = scene.camera.travel;
