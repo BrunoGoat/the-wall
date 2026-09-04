@@ -94,7 +94,7 @@ flutter build apk --release
 Cada push a la rama de desarrollo compila la APK en GitHub Actions
 (`.github/workflows/apk.yml`) y la publica como *release* y como artefacto.
 Está firmada con la clave de debug, así que se instala directo en el teléfono
-(Android 6.0 / API 23 o superior).
+(Android 7.0 / API 24 o superior).
 
 ### Herramientas de desarrollo
 

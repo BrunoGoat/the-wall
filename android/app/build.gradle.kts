@@ -21,8 +21,10 @@ android {
 
     defaultConfig {
         applicationId = "com.lamuralla.la_muralla"
-        // audioplayers needs 23; nothing else in the app asks for more.
-        minSdk = 23
+        // Flutter's default (API 24) already clears every plugin here, and
+        // leaving the reference in place keeps `flutter build` from rewriting
+        // this line into Groovy syntax inside a Kotlin script.
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

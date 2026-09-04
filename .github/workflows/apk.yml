@@ -64,7 +64,7 @@ jobs:
             APK de prueba de **La Muralla**.
 
             Firmada con la clave de debug: se instala directo en el teléfono
-            (Android 6.0 / API 23 o superior). Si tenías una build anterior
+            (Android 7.0 / API 24 o superior). Si tenías una build anterior
             instalada, desinstalala antes.
           files: out/*.apk
           prerelease: true
