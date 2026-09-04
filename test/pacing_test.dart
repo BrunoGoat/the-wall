@@ -1,58 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:la_muralla/data/epics.dart';
 import 'package:la_muralla/data/milestones.dart';
 import 'package:la_muralla/data/pacing.dart';
 
 void main() {
-  group('the hundred epics', () {
-    test('there are exactly one hundred, numbered 1..100', () {
-      expect(kEpics.length, 100);
-      for (var i = 0; i < 100; i++) {
-        expect(kEpics[i].number, i + 1);
-      }
-    });
-
-    test('no title and no lore line is ever repeated', () {
-      expect(kEpics.map((e) => e.title).toSet().length, 100);
-      expect(kEpics.map((e) => e.lore).toSet().length, 100);
-    });
-
-    test('every family of sigil is actually used', () {
-      expect(kEpics.map((e) => e.kind).toSet().length, EpicKind.values.length);
-    });
-  });
-
-  group('epic pacing is tuned for real use', () {
-    test('the schedule only ever moves forward', () {
-      for (var n = 2; n <= 100; n++) {
-        expect(Pacing.epicBrick(n), greaterThan(Pacing.epicBrick(n - 1)),
-            reason: 'epic $n must come after epic ${n - 1}');
-      }
-    });
-
-    test('the first one is hidden inside the first few days', () {
-      expect(Pacing.epicBrick(1), lessThanOrEqualTo(5));
-    });
-
-    test('a first month of ordinary use turns up several', () {
-      // One or two habits is roughly 30-60 bricks in a month.
-      expect(Pacing.epicsHiddenBy(30), greaterThanOrEqualTo(5));
-      expect(Pacing.epicsHiddenBy(60), greaterThanOrEqualTo(9));
-    });
-
-    test('a year of ordinary use turns up many, without exhausting them', () {
-      // A year lands somewhere between ~350 and ~1100 bricks.
-      expect(Pacing.epicsHiddenBy(365), greaterThanOrEqualTo(25));
-      expect(Pacing.epicsHiddenBy(1100), greaterThanOrEqualTo(45));
-      expect(Pacing.epicsHiddenBy(1100), lessThan(100),
-          reason: 'there must be something left for year two');
-    });
-
-    test('all hundred are reachable, but only over the very long haul', () {
-      expect(Pacing.epicsHiddenBy(6000), 100);
-    });
-  });
-
   group('milestone pacing', () {
     test('the first landmark starts inside the first two weeks', () {
       expect(Pacing.milestoneStart(0), 12);

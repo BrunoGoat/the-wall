@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../data/epics.dart';
-import '../data/pacing.dart';
-import '../engine/sigil.dart';
+import '../model/models.dart';
 import '../fx/sensory.dart';
 import '../model/wall_store.dart';
+import '../engine/layout.dart';
+import 'overlays.dart';
 import 'style.dart';
 
 /// Everything the wall has become: the numbers, the landmarks and the hundred
@@ -16,6 +16,7 @@ class JourneySheet extends StatefulWidget {
     required this.theme,
     required this.onGoTo,
     required this.structureX,
+    required this.onEditLabel,
   });
 
   final WallStore store;
@@ -26,6 +27,9 @@ class JourneySheet extends StatefulWidget {
 
   /// Centre of each built landmark, keyed by the brick it started on.
   final Map<int, double> structureX;
+
+  /// Opens the note editor for a brick.
+  final void Function(Brick brick) onEditLabel;
 
   @override
   State<JourneySheet> createState() => _JourneySheetState();
@@ -71,7 +75,12 @@ class _JourneySheetState extends State<JourneySheet> {
                       theme: t,
                       onGoTo: widget.onGoTo,
                       structureX: widget.structureX),
-                  _ => _Epics(store: widget.store, theme: t),
+                  _ => _Legends(
+                      store: widget.store,
+                      theme: t,
+                      onGoTo: widget.onGoTo,
+                      onEdit: widget.onEditLabel,
+                    ),
                 },
               ),
             ],
@@ -82,7 +91,7 @@ class _JourneySheetState extends State<JourneySheet> {
   }
 
   Widget _tabs(UiTheme t) {
-    const labels = ['LA MURALLA', 'HITOS', 'ÉPICOS'];
+    const labels = ['LA MURALLA', 'HITOS', 'LEYENDAS'];
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(3, (i) {
@@ -361,201 +370,98 @@ class _Milestones extends StatelessWidget {
   }
 }
 
-class _Epics extends StatelessWidget {
-  const _Epics({required this.store, required this.theme});
-  final WallStore store;
-  final UiTheme theme;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = theme;
-    final seeded = store.seededEpics.toSet();
-    final found = store.discoveries;
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(22, 6, 22, 12),
-          child: Row(
-            children: [
-              Text('${found.length} de 100', style: t.number),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  store.hiddenRemaining > 0
-                      ? '${store.hiddenRemaining} escondido${store.hiddenRemaining == 1 ? '' : 's'} '
-                          'en la muralla ahora mismo. Buscalos entre las piedras.'
-                      : 'Nada escondido por ahora. Seguí sumando ladrillos.',
-                  style: t.bodySoft.copyWith(fontSize: 11.5),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: GridView.builder(
-            padding: const EdgeInsets.fromLTRB(22, 0, 22, 40),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 5,
-              mainAxisSpacing: 10,
-              crossAxisSpacing: 10,
-            ),
-            itemCount: 100,
-            itemBuilder: (context, i) {
-              final n = i + 1;
-              final epic = kEpics[i];
-              final isFound = found.containsKey(n);
-              final isHidden = seeded.contains(n) && !isFound;
-              final tint = EpicSigil.colorFor(epic.kind);
-
-              return GestureDetector(
-                onTap: () {
-                  Sensory.instance.tick();
-                  showDialog(
-                    context: context,
-                    builder: (_) => _EpicDialog(
-                      epic: epic,
-                      theme: t,
-                      found: isFound,
-                      hidden: isHidden,
-                      atBrick: Pacing.epicBrick(n),
-                      foundAt: found[n]?.foundAt,
-                    ),
-                  );
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: isFound
-                        ? tint.withValues(alpha: 0.14)
-                        : t.fg.withValues(alpha: isHidden ? 0.07 : 0.03),
-                    borderRadius: BorderRadius.circular(13),
-                    border: Border.all(
-                      color: isFound
-                          ? tint.withValues(alpha: 0.55)
-                          : (isHidden
-                              ? t.accent.withValues(alpha: 0.35)
-                              : t.stroke),
-                    ),
-                  ),
-                  child: isFound
-                      ? CustomPaint(
-                          painter: _MiniSigil(epic.kind, tint),
-                        )
-                      : Center(
-                          child: Text(
-                            isHidden ? '?' : '$n',
-                            style: TextStyle(
-                              color: isHidden
-                                  ? t.accent.withValues(alpha: 0.8)
-                                  : t.fgFaint.withValues(alpha: 0.5),
-                              fontSize: isHidden ? 16 : 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _MiniSigil extends CustomPainter {
-  _MiniSigil(this.kind, this.tint);
-  final EpicKind kind;
-  final Color tint;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    EpicSigil.paint(
-      canvas,
-      Offset(size.width / 2, size.height / 2),
-      size.width * 0.28,
-      kind,
-      tint,
-      1.0,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _MiniSigil old) => false;
-}
-
-class _EpicDialog extends StatelessWidget {
-  const _EpicDialog({
-    required this.epic,
+/// Every stone the person actually wrote something on.
+class _Legends extends StatelessWidget {
+  const _Legends({
+    required this.store,
     required this.theme,
-    required this.found,
-    required this.hidden,
-    required this.atBrick,
-    required this.foundAt,
+    required this.onGoTo,
+    required this.onEdit,
   });
 
-  final Epic epic;
+  final WallStore store;
   final UiTheme theme;
-  final bool found, hidden;
-  final int atBrick;
-  final DateTime? foundAt;
+  final void Function(double x) onGoTo;
+  final void Function(Brick brick) onEdit;
 
   @override
   Widget build(BuildContext context) {
     final t = theme;
-    final tint = EpicSigil.colorFor(epic.kind);
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Frosted(
-        theme: t,
-        strong: true,
-        radius: 24,
-        padding: const EdgeInsets.all(24),
+    final items = store.labelled;
+
+    if (items.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(30, 40, 30, 40),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(
-              width: 76,
-              height: 76,
-              child: CustomPaint(
-                painter: _MiniSigil(
-                  epic.kind,
-                  found ? tint : t.fgFaint,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
+            Icon(Icons.edit_note, size: 34, color: t.fgFaint),
+            const SizedBox(height: 14),
+            Text('Todavía no escribiste ninguna',
+                style: t.body.copyWith(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
             Text(
-              found ? epic.title : (hidden ? 'Escondido en la muralla' : 'Todavía no'),
+              'Tocá cualquier ladrillo de la muralla y podés dejarle una '
+              'leyenda: “Leí”, “Corrí”, lo que quieras. Es opcional; el '
+              'ladrillo cuenta igual.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: t.fg,
-                fontSize: 20,
-                fontFamily: 'serif',
-                fontWeight: FontWeight.w500,
-              ),
+              style: t.bodySoft,
             ),
-            const SizedBox(height: 12),
-            Text(
-              found
-                  ? epic.lore
-                  : hidden
-                      ? 'Está ahí ahora mismo, en alguna piedra. Girá la muralla y miralo bien: '
-                          'algo late donde no debería.'
-                      : 'Aparece alrededor del ladrillo $atBrick.',
-              textAlign: TextAlign.center,
-              style: t.bodySoft.copyWith(fontStyle: FontStyle.italic),
-            ),
-            if (found && foundAt != null) ...[
-              const SizedBox(height: 14),
-              Text(
-                '${epic.tierName} · encontrado el ${foundAt!.day}/${foundAt!.month}/${foundAt!.year}',
-                style: TextStyle(color: t.fgFaint, fontSize: 11, letterSpacing: 1.1),
-              ),
-            ],
           ],
         ),
-      ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(22, 8, 22, 40),
+      itemCount: items.length,
+      itemBuilder: (context, i) {
+        final b = items[i];
+        return Container(
+          margin: const EdgeInsets.only(bottom: 9),
+          padding: const EdgeInsets.fromLTRB(15, 12, 6, 12),
+          decoration: BoxDecoration(
+            color: t.fg.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: t.stroke),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(b.label!,
+                        style: t.body.copyWith(
+                            fontSize: 15.5, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Ladrillo ${b.index + 1} · ${StoneCard.formatDate(b.placedAt)}',
+                      style: t.bodySoft.copyWith(fontSize: 11.5),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: Icon(Icons.edit_outlined, size: 17, color: t.fgSoft),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  onEdit(b);
+                },
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: Icon(Icons.my_location, size: 17, color: t.fgSoft),
+                onPressed: () {
+                  final slot = WallLayout(store.total).slotFor(b.index);
+                  Navigator.of(context).pop();
+                  if (slot != null) onGoTo(slot.x);
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

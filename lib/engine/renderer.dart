@@ -6,13 +6,12 @@ import 'package:flutter/material.dart';
 
 import '../core/math3.dart';
 import '../core/rng.dart';
-import '../data/epics.dart';
 import '../data/milestones.dart';
 import '../fx/effects.dart';
 import 'camera.dart';
 import 'layout.dart';
+import 'landscape.dart';
 import 'palette.dart';
-import 'sigil.dart';
 import 'stone.dart';
 
 int _ch(double v) {
@@ -23,10 +22,12 @@ int _ch(double v) {
 /// One stone as it appears on screen this frame, kept so taps can be resolved
 /// back to the brick that was drawn there.
 class PickTarget {
-  PickTarget(this.brickIndex, this.cx, this.cy, this.radius, this.epicNumber);
+  PickTarget(this.brickIndex, this.cx, this.cy, this.radius, this.labelled);
   final int brickIndex;
   final double cx, cy, radius;
-  final int? epicNumber;
+
+  /// True when this stone carries a note, so it can be marked on the wall.
+  final bool labelled;
 }
 
 class WallScene {
@@ -38,14 +39,13 @@ class WallScene {
     required this.integrity,
     required this.time,
     required this.effects,
-    required this.epicByBrick,
-    required this.foundEpics,
+    required this.labelledBricks,
     required this.structureNames,
     this.fx,
     this.repairSweep,
     this.detailBudget = 300,
-    this.revealPulse = 0,
-    this.revealAt,
+    this.selectedBrick,
+    this.charge = 0,
   });
 
   final WallLayout layout;
@@ -56,9 +56,8 @@ class WallScene {
   final double time;
   final EffectSystem effects;
 
-  /// brick index -> epic number.
-  final Map<int, int> epicByBrick;
-  final Set<int> foundEpics;
+  /// Bricks the person wrote a note on.
+  final Set<int> labelledBricks;
   final Map<int, String> structureNames;
 
   final PlacementFx? fx;
@@ -68,8 +67,13 @@ class WallScene {
   final double? repairSweep;
 
   final int detailBudget;
-  final double revealPulse;
-  final V3? revealAt;
+
+  /// The stone the person just tapped, ringed so it is obvious which one the
+  /// note belongs to.
+  final int? selectedBrick;
+
+  /// 0..1 while the place button is held down.
+  final double charge;
 }
 
 class _Face {
@@ -122,6 +126,7 @@ class WallPainter extends CustomPainter {
 
     _drawSky(canvas, size, p, horizonY);
     _drawGround(canvas, size, horizonY);
+    _drawRanges(canvas, p, size);
     _drawTerrain(canvas, p, size);
     _drawShadow(canvas, p);
 
@@ -131,10 +136,9 @@ class WallPainter extends CustomPainter {
     _flush(canvas);
 
     _drawStructureExtras(canvas, p, size);
-    _drawEpicMarkers(canvas, p, size);
+    _drawStoneMarks(canvas, p, size);
     _drawParticles(canvas, p);
     _drawGhost(canvas, p);
-    _drawRevealBurst(canvas, p);
     _drawAtmosphere(canvas, size, horizonY);
   }
 
@@ -168,7 +172,7 @@ class WallPainter extends CustomPainter {
       );
     canvas.drawRect(rect, paint);
 
-    if (_isDark(pal.skyTop)) _drawStars(canvas, size, p, horizonY);
+    if (pal.starAlpha > 0.02) _drawStars(canvas, size, p, horizonY);
     _drawSun(canvas, size, p);
 
     // A soft band of haze sitting on the horizon.
@@ -185,8 +189,6 @@ class WallPainter extends CustomPainter {
     }
   }
 
-  bool _isDark(Color c) => (c.r * 0.3 + c.g * 0.5 + c.b * 0.2) < 0.30;
-
   void _drawStars(Canvas canvas, Size size, Projector p, double horizonY) {
     final paint = Paint()..color = Colors.white;
     for (var i = 0; i < 130; i++) {
@@ -199,29 +201,51 @@ class WallPainter extends CustomPainter {
       final sy = p.cy - p.focal * d.dot(p.up) / den;
       if (sx < 0 || sx > size.width || sy < 0 || sy > horizonY) continue;
       final tw = 0.55 + 0.45 * math.sin(scene.time * 1.7 + i * 2.1);
-      paint.color = Colors.white.withValues(alpha: (0.25 + 0.55 * hash01(i, 9)) * tw);
+      paint.color = Colors.white.withValues(
+          alpha: (0.25 + 0.55 * hash01(i, 9)) * tw * scene.palette.starAlpha);
       canvas.drawCircle(Offset(sx, sy), 0.6 + hash01(i, 11) * 1.1, paint);
     }
   }
 
+  /// The sun through the day, the moon through the night. Both ride the same
+  /// arc, which is what makes the shadows swing round as the hours pass.
   void _drawSun(Canvas canvas, Size size, Projector p) {
     final pal = scene.palette;
-    final d = pal.lightDir;
+    final day = pal.isDaylight;
+    final d = day ? pal.sunDir : pal.moonDir;
     final den = d.dot(p.forward);
     if (den <= 0.08) return;
     final sx = p.cx + p.focal * d.dot(p.right) / den;
     final sy = p.cy - p.focal * d.dot(p.up) / den;
-    final r = size.shortestSide * 0.055;
+    if (sx < -400 || sx > size.width + 400) return;
+
+    final r = size.shortestSide * (day ? 0.052 : 0.040);
+    final glow = day ? 5.5 : 3.4;
+    // Low sun reddens and swells, the way it does near the horizon.
+    final low = 1 - clampD(d.y * 2.4, 0, 1);
+    final disc = day
+        ? Color.lerp(pal.sun, const Color(0xFFFF9A4D), low * 0.55)!
+        : const Color(0xFFEFF3FF);
+
     canvas.drawCircle(
       Offset(sx, sy),
-      r * 5.5,
+      r * glow * (1 + low * 0.5),
       Paint()
-        ..shader = ui.Gradient.radial(Offset(sx, sy), r * 5.5, [
-          pal.sun.withValues(alpha: 0.30),
-          pal.sun.withValues(alpha: 0.0),
+        ..shader = ui.Gradient.radial(Offset(sx, sy), r * glow * (1 + low * 0.5), [
+          disc.withValues(alpha: day ? 0.32 : 0.20),
+          disc.withValues(alpha: 0.0),
         ]),
     );
-    canvas.drawCircle(Offset(sx, sy), r, Paint()..color = pal.sun.withValues(alpha: 0.92));
+    canvas.drawCircle(
+        Offset(sx, sy), r, Paint()..color = disc.withValues(alpha: 0.94));
+    if (!day) {
+      // A bite out of the disc, so it reads as a moon and not a pale sun.
+      canvas.drawCircle(
+        Offset(sx + r * 0.42, sy - r * 0.30),
+        r * 0.88,
+        Paint()..color = pal.skyTop.withValues(alpha: 0.92),
+      );
+    }
   }
 
   void _drawGround(Canvas canvas, Size size, double horizonY) {
@@ -239,6 +263,66 @@ class WallPainter extends CustomPainter {
           [pal.groundFar, pal.ground],
         ),
     );
+  }
+
+  /// Three ranges of hills standing all the way round the horizon.
+  ///
+  /// They are drawn as a ring centred on wherever the camera is looking, but
+  /// their shape is sampled from world position, so walking along the wall
+  /// reveals new country instead of dragging the same skyline along.
+  void _drawRanges(Canvas canvas, Projector p, Size size) {
+    final pal = scene.palette;
+    final light = pal.lightDir;
+    final cx = scene.camera.travel;
+
+    for (var li = Landscape.ridges.length - 1; li >= 0; li--) {
+      final layer = Landscape.ridges[li];
+      final fade = 0.30 + li * 0.28;
+      // The nearest range keeps some of the ground's own colour; the far ones
+      // dissolve almost entirely into the haze.
+      final base = Color.lerp(pal.ground, pal.groundFar, 0.35 + li * 0.3)!;
+      final body = Color.lerp(base, pal.haze, fade)!;
+      final lit = Color.lerp(body, pal.sun, 0.20 * (1 - fade))!;
+
+      const steps = 168;
+      Path? path;
+      var lastLitSide = false;
+      for (var i = 0; i <= steps; i++) {
+        final th = i / steps * math.pi * 2;
+        final wx = cx + math.sin(th) * layer.radius;
+        final wz = math.cos(th) * layer.radius;
+        final h = Landscape.ridgeHeight(layer, wx, wz);
+        final top = p.project(V3(wx, math.max(h, layer.base), wz));
+        final foot = p.project(V3(wx, layer.base, wz));
+        if (top == null || foot == null) {
+          if (path != null) {
+            canvas.drawPath(path, Paint()..color = lastLitSide ? lit : body);
+            path = null;
+          }
+          continue;
+        }
+        // Slopes facing the light catch a little more of it.
+        final facing = (math.sin(th) * light.x + math.cos(th) * light.z) < 0;
+        if (path == null || facing != lastLitSide) {
+          if (path != null) {
+            path.lineTo(foot.x, foot.y);
+            canvas.drawPath(path, Paint()..color = lastLitSide ? lit : body);
+          }
+          path = Path()..moveTo(foot.x, foot.y);
+          lastLitSide = facing;
+        }
+        path.lineTo(top.x, top.y);
+        // Close each strip down to the foot so it never floats.
+        if (i == steps) {
+          path.lineTo(foot.x, foot.y);
+          canvas.drawPath(path, Paint()..color = lastLitSide ? lit : body);
+          path = null;
+        }
+      }
+      if (path != null) {
+        canvas.drawPath(path, Paint()..color = lastLitSide ? lit : body);
+      }
+    }
   }
 
   /// A handful of soft patches of scrub on the ground. They cost almost
@@ -469,12 +553,6 @@ class WallPainter extends CustomPainter {
     }
   }
 
-  void _quadXY(Projector p, double x0, double y0, double x1, double y1,
-      double z, int color, {double? depthOverride}) {
-    _quad(p, V3(x0, y0, z), V3(x1, y0, z), V3(x1, y1, z), V3(x0, y1, z), color,
-        depthOverride: depthOverride);
-  }
-
   void _quad(Projector p, V3 a, V3 b, V3 c, V3 d, int color,
       {double? depthOverride}) {
     final pts = [a, b, c, d];
@@ -586,88 +664,182 @@ class WallPainter extends CustomPainter {
       final albedo = _albedoFor(slot, pal, erosion);
       final n = _mesh.n;
 
-      // The mortar bed this stone is set into. Drawing it per stone means it
-      // follows the wall's batter exactly, and the joints between stones read
-      // as recessed mortar rather than as holes through the wall.
+      // The mortar core this stone is set into: a solid box, very slightly
+      // larger than the slot so it fills the joints, and slightly thinner so
+      // the stone's own irregular face still stands proud of it.
       //
-      // Its sort depth is pinned to the back of its own stone: a flat quad
-      // sitting inside the stone would otherwise sort ahead of the stone's own
-      // top and side faces and paint over them.
-      var backDepth = 0.0;
+      // It has to be a solid and not a pair of flat plates. Plates leave the
+      // wall hollow the moment you look at it from above or from behind, and
+      // no amount of sorting fixes that — you are simply looking through a
+      // joint at nothing. Its faces are all pinned behind the *furthest*
+      // corner of its own stone so the core can never paint over the stone,
+      // whichever side of the wall the camera has orbited to.
+      var farDepth = 0.0;
       for (var i = 0; i < n; i++) {
-        backDepth += _mesh.camBack[i * 3 + 2];
+        final f = _mesh.camFront[i * 3 + 2];
+        final b = _mesh.camBack[i * 3 + 2];
+        if (f > farDepth) farDepth = f;
+        if (b > farDepth) farDepth = b;
       }
-      backDepth = backDepth / n + 0.02;
-      final bedShade = _shade(const V3(0, 0, 1), mortarBase, light, pal,
-          ao * 0.80, 0, repairGlow * 0.4);
-      final bedColor = _haze(bedShade, p, slot.x, pal).toARGB32();
-      final bedHw = slot.w / 2 + 0.016 + erosion * 0.02;
-      final bedHh = slot.h / 2 + 0.016 + erosion * 0.02;
-      final bedF = slot.zCenter + slot.halfDepth - 0.05;
-      final bedB = slot.zCenter - slot.halfDepth + 0.05;
-      _quadXY(p, slot.x - bedHw, slot.y - bedHh, slot.x + bedHw,
-          slot.y + bedHh, bedF, bedColor, depthOverride: backDepth);
-      _quadXY(p, slot.x - bedHw, slot.y - bedHh, slot.x + bedHw,
-          slot.y + bedHh, bedB, bedColor, depthOverride: backDepth);
+      farDepth += 0.02;
+      final grow = 0.016 + erosion * 0.02;
+      _emitCore(
+        p,
+        x0: slot.x - slot.w / 2 - grow,
+        x1: slot.x + slot.w / 2 + grow,
+        y0: slot.y - slot.h / 2 - grow,
+        y1: slot.y + slot.h / 2 + grow,
+        z0: slot.zCenter - slot.halfDepth + 0.05,
+        z1: slot.zCenter + slot.halfDepth - 0.05,
+        albedo: mortarBase,
+        light: light,
+        pal: pal,
+        ao: ao * 0.80,
+        repairGlow: repairGlow * 0.4,
+        depth: farDepth,
+      );
 
-      // --- front and back faces
-      for (var side = 0; side < 2; side++) {
-        final cam3 = side == 0 ? _mesh.camFront : _mesh.camBack;
-        final normal = V3(0, 0, side == 0 ? 1 : -1);
-        final toEye = V3(
-          p.eye.x - slot.x,
-          p.eye.y - slot.y,
-          p.eye.z - (slot.zCenter + (side == 0 ? slot.halfDepth : -slot.halfDepth)),
-        );
-        if (normal.dot(toEye) <= 0) continue;
-        for (var i = 0; i < n; i++) {
-          final j = side == 0 ? i : (n - 1 - i);
-          _clipA[i * 3] = cam3[j * 3];
-          _clipA[i * 3 + 1] = cam3[j * 3 + 1];
-          _clipA[i * 3 + 2] = cam3[j * 3 + 2];
-        }
-        final c = _shade(normal, albedo, light, pal, ao, flash, repairGlow);
-        final before = _faceCount;
-        _emit(p, _clipA, n, _haze(c, p, slot.x, pal).toARGB32());
-        if (side == 0 && _faceCount > before) {
-          _registerPick(_facePool[before], idx, size);
-        }
-      }
+      _emitPrism(p, slot, albedo, light, pal, ao,
+          flash: flash,
+          repairGlow: repairGlow,
+          pickInto: size,
+          pickIndex: idx);
+    }
+  }
 
-      // --- side faces, which are also the tops the light catches
+  /// Emits every visible face of the prism currently in [_mesh].
+  ///
+  /// Shared by the wall's stones and by the boulders lying around it, so both
+  /// are lit and sorted by exactly the same rules.
+  void _emitPrism(
+    Projector p,
+    StoneSlot slot,
+    Color albedo,
+    V3 light,
+    Palette pal,
+    double ao, {
+    double flash = 0,
+    double repairGlow = 0,
+    Size? pickInto,
+    int pickIndex = -1,
+  }) {
+    // Anything straddling the near plane clips into a sliver whose average
+    // depth reads as "extremely close", which sorts it in front of the entire
+    // scene. Nothing that near is worth drawing anyway.
+    final centre = p.cameraOf(V3(slot.x, slot.y, slot.zCenter));
+    if (centre.z < slot.halfDepth + slot.w * 0.5 + p.near) return;
+
+    final n = _mesh.n;
+    // --- front and back faces
+    for (var side = 0; side < 2; side++) {
+      final cam3 = side == 0 ? _mesh.camFront : _mesh.camBack;
+      final normal = V3(0, 0, side == 0 ? 1 : -1);
+      final toEye = V3(
+        p.eye.x - slot.x,
+        p.eye.y - slot.y,
+        p.eye.z - (slot.zCenter + (side == 0 ? slot.halfDepth : -slot.halfDepth)),
+      );
+      if (normal.dot(toEye) <= 0) continue;
       for (var i = 0; i < n; i++) {
-        final j = (i + 1) % n;
-        final ax = _mesh.front[i * 3], ay = _mesh.front[i * 3 + 1], az = _mesh.front[i * 3 + 2];
-        final bx = _mesh.front[j * 3], by = _mesh.front[j * 3 + 1], bz = _mesh.front[j * 3 + 2];
-        final cx = _mesh.back[j * 3], cy2 = _mesh.back[j * 3 + 1], cz = _mesh.back[j * 3 + 2];
-        final dx = _mesh.back[i * 3], dy = _mesh.back[i * 3 + 1], dz = _mesh.back[i * 3 + 2];
-
-        // The profile winds counter-clockwise seen from the front, so the
-        // outward normal of each side face is (into-the-wall) x (along-edge).
-        final e1 = V3(bx - ax, by - ay, bz - az);
-        final e2 = V3(dx - ax, dy - ay, dz - az);
-        final nrm = e2.cross(e1).normalized;
-        final mx = (ax + bx + cx + dx) * 0.25;
-        final my = (ay + by + cy2 + dy) * 0.25;
-        final mz = (az + bz + cz + dz) * 0.25;
-        if (nrm.dot(V3(p.eye.x - mx, p.eye.y - my, p.eye.z - mz)) <= 0) continue;
-
-        _clipA[0] = _mesh.camFront[i * 3];
-        _clipA[1] = _mesh.camFront[i * 3 + 1];
-        _clipA[2] = _mesh.camFront[i * 3 + 2];
-        _clipA[3] = _mesh.camFront[j * 3];
-        _clipA[4] = _mesh.camFront[j * 3 + 1];
-        _clipA[5] = _mesh.camFront[j * 3 + 2];
-        _clipA[6] = _mesh.camBack[j * 3];
-        _clipA[7] = _mesh.camBack[j * 3 + 1];
-        _clipA[8] = _mesh.camBack[j * 3 + 2];
-        _clipA[9] = _mesh.camBack[i * 3];
-        _clipA[10] = _mesh.camBack[i * 3 + 1];
-        _clipA[11] = _mesh.camBack[i * 3 + 2];
-
-        final c = _shade(nrm, albedo, light, pal, ao, flash, repairGlow);
-        _emit(p, _clipA, 4, _haze(c, p, slot.x, pal).toARGB32());
+        final j = side == 0 ? i : (n - 1 - i);
+        _clipA[i * 3] = cam3[j * 3];
+        _clipA[i * 3 + 1] = cam3[j * 3 + 1];
+        _clipA[i * 3 + 2] = cam3[j * 3 + 2];
       }
+      final c = _shade(normal, albedo, light, pal, ao, flash, repairGlow);
+      final before = _faceCount;
+      _emit(p, _clipA, n, _haze(c, p, slot.x, pal).toARGB32());
+      if (side == 0 && pickInto != null && _faceCount > before) {
+        _registerPick(_facePool[before], pickIndex, pickInto);
+      }
+    }
+
+    // --- side faces, which are also the tops the light catches
+    for (var i = 0; i < n; i++) {
+      final j = (i + 1) % n;
+      final ax = _mesh.front[i * 3], ay = _mesh.front[i * 3 + 1], az = _mesh.front[i * 3 + 2];
+      final bx = _mesh.front[j * 3], by = _mesh.front[j * 3 + 1], bz = _mesh.front[j * 3 + 2];
+      final cx = _mesh.back[j * 3], cy2 = _mesh.back[j * 3 + 1], cz = _mesh.back[j * 3 + 2];
+      final dx = _mesh.back[i * 3], dy = _mesh.back[i * 3 + 1], dz = _mesh.back[i * 3 + 2];
+
+      // The profile winds counter-clockwise seen from the front, so the
+      // outward normal of each side face is (into-the-wall) x (along-edge).
+      final e1 = V3(bx - ax, by - ay, bz - az);
+      final e2 = V3(dx - ax, dy - ay, dz - az);
+      final nrm = e2.cross(e1).normalized;
+      final mx = (ax + bx + cx + dx) * 0.25;
+      final my = (ay + by + cy2 + dy) * 0.25;
+      final mz = (az + bz + cz + dz) * 0.25;
+      if (nrm.dot(V3(p.eye.x - mx, p.eye.y - my, p.eye.z - mz)) <= 0) continue;
+
+      _clipA[0] = _mesh.camFront[i * 3];
+      _clipA[1] = _mesh.camFront[i * 3 + 1];
+      _clipA[2] = _mesh.camFront[i * 3 + 2];
+      _clipA[3] = _mesh.camFront[j * 3];
+      _clipA[4] = _mesh.camFront[j * 3 + 1];
+      _clipA[5] = _mesh.camFront[j * 3 + 2];
+      _clipA[6] = _mesh.camBack[j * 3];
+      _clipA[7] = _mesh.camBack[j * 3 + 1];
+      _clipA[8] = _mesh.camBack[j * 3 + 2];
+      _clipA[9] = _mesh.camBack[i * 3];
+      _clipA[10] = _mesh.camBack[i * 3 + 1];
+      _clipA[11] = _mesh.camBack[i * 3 + 2];
+
+      final c = _shade(nrm, albedo, light, pal, ao, flash, repairGlow);
+      _emit(p, _clipA, 4, _haze(c, p, slot.x, pal).toARGB32());
+    }
+  }
+
+  /// The solid mortar box behind one stone. Only the faces actually turned
+  /// towards the camera are emitted.
+  void _emitCore(
+    Projector p, {
+    required double x0,
+    required double x1,
+    required double y0,
+    required double y1,
+    required double z0,
+    required double z1,
+    required Color albedo,
+    required V3 light,
+    required Palette pal,
+    required double ao,
+    required double repairGlow,
+    required double depth,
+  }) {
+    if (z1 <= z0) {
+      final mid = (z0 + z1) / 2;
+      z0 = mid - 0.01;
+      z1 = mid + 0.01;
+    }
+    final e = p.eye;
+    int col(V3 normal, double k) => _haze(
+          _shade(normal, albedo, light, pal, ao * k, 0, repairGlow),
+          p,
+          (x0 + x1) / 2,
+          pal,
+        ).toARGB32();
+
+    if (e.z > z1) {
+      _quad(p, V3(x0, y0, z1), V3(x1, y0, z1), V3(x1, y1, z1), V3(x0, y1, z1),
+          col(const V3(0, 0, 1), 1.0), depthOverride: depth);
+    } else if (e.z < z0) {
+      _quad(p, V3(x1, y0, z0), V3(x0, y0, z0), V3(x0, y1, z0), V3(x1, y1, z0),
+          col(const V3(0, 0, -1), 1.0), depthOverride: depth);
+    }
+    if (e.y > y1) {
+      _quad(p, V3(x0, y1, z1), V3(x1, y1, z1), V3(x1, y1, z0), V3(x0, y1, z0),
+          col(const V3(0, 1, 0), 1.05), depthOverride: depth);
+    } else if (e.y < y0) {
+      _quad(p, V3(x0, y0, z0), V3(x1, y0, z0), V3(x1, y0, z1), V3(x0, y0, z1),
+          col(const V3(0, -1, 0), 0.75), depthOverride: depth);
+    }
+    if (e.x > x1) {
+      _quad(p, V3(x1, y0, z1), V3(x1, y0, z0), V3(x1, y1, z0), V3(x1, y1, z1),
+          col(const V3(1, 0, 0), 0.92), depthOverride: depth);
+    } else if (e.x < x0) {
+      _quad(p, V3(x0, y0, z0), V3(x0, y0, z1), V3(x0, y1, z1), V3(x0, y1, z0),
+          col(const V3(-1, 0, 0), 0.92), depthOverride: depth);
     }
   }
 
@@ -687,7 +859,7 @@ class WallPainter extends CustomPainter {
       (minX + maxX) / 2,
       (minY + maxY) / 2,
       math.max(6.0, math.max(maxX - minX, maxY - minY) * 0.55),
-      scene.epicByBrick[brickIndex],
+      scene.labelledBricks.contains(brickIndex),
     ));
   }
 
@@ -920,50 +1092,48 @@ class WallPainter extends CustomPainter {
     canvas.restore();
   }
 
-  // ---------------------------------------------------------- epic markers
+  // ---------------------------------------------------------- stone marks
 
-  void _drawEpicMarkers(Canvas canvas, Projector p, Size size) {
-    if (scene.epicByBrick.isEmpty) return;
+  /// A quiet mark on the stones that carry a note, and a ring around the one
+  /// currently selected.
+  void _drawStoneMarks(Canvas canvas, Projector p, Size size) {
+    final pal = scene.palette;
     for (final pick in picks) {
-      final epicNo = pick.epicNumber;
-      if (epicNo == null) continue;
-      final found = scene.foundEpics.contains(epicNo);
-      final epic = kEpics[epicNo - 1];
-      final r = clampD(pick.radius * 0.42, 4, 34);
+      final selected = pick.brickIndex == scene.selectedBrick;
+      if (!pick.labelled && !selected) continue;
       final c = Offset(pick.cx, pick.cy);
-      final tint = EpicSigil.colorFor(epic.kind);
+      final r = clampD(pick.radius * 0.38, 3, 26);
 
-      if (found) {
+      if (pick.labelled) {
+        final breathe = 0.72 + 0.28 * math.sin(scene.time * 1.4 + pick.brickIndex);
         canvas.drawCircle(
           c,
-          r * 2.6,
+          r * 1.7,
           Paint()
-            ..shader = ui.Gradient.radial(c, r * 2.6, [
-              tint.withValues(alpha: 0.42),
-              tint.withValues(alpha: 0.0),
+            ..shader = ui.Gradient.radial(c, r * 1.7, [
+              pal.accent.withValues(alpha: 0.30 * breathe),
+              pal.accent.withValues(alpha: 0.0),
             ]),
         );
-        EpicSigil.paint(canvas, c, r, epic.kind, tint, 1.0);
-      } else {
-        // Hidden, but not invisible: a faint anomaly that breathes, so it can
-        // be found by someone actually looking at their wall.
-        final breathe = 0.5 + 0.5 * math.sin(scene.time * 1.5 + epicNo * 1.7);
-        final a = 0.16 + 0.30 * breathe;
         canvas.drawCircle(
           c,
-          r * 1.9,
-          Paint()
-            ..shader = ui.Gradient.radial(c, r * 1.9, [
-              tint.withValues(alpha: a * 0.55),
-              tint.withValues(alpha: 0.0),
-            ]),
+          math.max(1.6, r * 0.22),
+          Paint()..color = pal.accent.withValues(alpha: 0.85),
         );
-        EpicSigil.paint(canvas, c, r * 0.62, epic.kind, tint, a * 0.85);
+      }
+
+      if (selected) {
+        canvas.drawCircle(
+          c,
+          r * 1.5,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2
+            ..color = Colors.white.withValues(alpha: 0.85),
+        );
       }
     }
   }
-
-
 
   // ------------------------------------------------------------- particles
 
@@ -1034,35 +1204,35 @@ class WallPainter extends CustomPainter {
     }
     if (!ok) return;
     path.close();
-    final pulse = 0.35 + 0.25 * math.sin(scene.time * 2.6);
+    // Idle it is a faint outline; as the button is held it fills and brightens,
+    // so you can see exactly where the stone is about to go.
+    final ch = scene.charge.clamp(0.0, 1.0);
+    final beat = ch > 0.02 ? 6.0 + ch * 14 : 2.6;
+    final pulse = 0.35 + 0.25 * math.sin(scene.time * beat);
+    final accent = scene.palette.accent;
+
+    if (ch > 0.02) {
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = accent.withValues(alpha: 0.28 * ch)
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 6 + 14 * ch),
+      );
+    }
     canvas.drawPath(
       path,
       Paint()
-        ..color = Colors.white.withValues(alpha: 0.10 * pulse)
+        ..color = Color.lerp(Colors.white, accent, ch)!
+            .withValues(alpha: 0.03 * pulse + 0.45 * ch)
         ..style = PaintingStyle.fill,
     );
     canvas.drawPath(
       path,
       Paint()
-        ..color = Colors.white.withValues(alpha: 0.30 + 0.25 * pulse)
+        ..color = Color.lerp(Colors.white, accent, ch * 0.7)!
+            .withValues(alpha: 0.10 + 0.06 * pulse + 0.55 * ch)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4,
-    );
-  }
-
-  void _drawRevealBurst(Canvas canvas, Projector p) {
-    if (scene.revealPulse <= 0 || scene.revealAt == null) return;
-    final at = p.project(scene.revealAt!);
-    if (at == null) return;
-    final t = scene.revealPulse;
-    final r = (1 - t) * 900 * (p.focal / math.max(at.depth, 0.5)) * 0.02 + 20;
-    canvas.drawCircle(
-      Offset(at.x, at.y),
-      r,
-      Paint()
-        ..color = Colors.white.withValues(alpha: t * 0.55)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3 + 10 * t,
+        ..strokeWidth = 1.0 + 2.6 * ch,
     );
   }
 

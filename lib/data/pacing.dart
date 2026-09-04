@@ -7,26 +7,21 @@ import 'milestones.dart';
 ///
 ///  * One brick is always one achievement. Never a batch. That rule is not
 ///    negotiable, so pacing is expressed purely in brick counts.
-///  * A person with one or two habits places roughly 30-60 bricks in a month.
-///    That first month has to feel alive, so the first milestone starts at
-///    brick 12 and the first epic is hidden at brick 4.
-///  * A person who keeps it up for a year lands somewhere around 350-1100
-///    bricks. By then they must have met many *different* milestones and a
-///    large number of epics, without exhausting the 100 unique ones.
-///  * The remaining epics stretch out to ~6000 bricks so there is always
-///    something left for the very long haul.
+///  * Someone logging one or two things a day places roughly 30-60 bricks in a
+///    month. That first month has to feel alive, so the first landmark starts
+///    at brick 12 and is finished well inside the month.
+///  * Someone who keeps it up for a year lands somewhere around 350-1100
+///    bricks. By then they must have met many *different* landmarks.
+///  * Landmarks keep arriving for years afterwards without ever bunching up.
 class Pacing {
   const Pacing._();
 
   /// Brick index at which the first milestone begins to be built.
   static const int firstMilestoneAt = 12;
 
-  /// Brick index at which the first epic is hidden in the wall.
-  static const int firstEpicAt = 4;
-
   /// Where milestone number [n] (0-based) starts.
   ///
-  /// Gaps widen gently rather than exploding, so milestones keep arriving for
+  /// Gaps widen gently rather than exploding, so landmarks keep arriving for
   /// years: 12, 45, 86, 135, 192, 257, ...
   static int milestoneStart(int n) {
     var at = firstMilestoneAt;
@@ -37,64 +32,6 @@ class Pacing {
   }
 
   static int _milestoneGap(int i) => 33 + 8 * i;
-
-  /// Anchor points of the epic curve: (epic ordinal, brick index).
-  ///
-  /// Interpolated monotonically in between. Reading the curve: ~8 epics inside
-  /// the first 45 bricks, ~34 by brick 400, ~56 by brick 1100, all 100 by 6000.
-  static const List<List<int>> _epicAnchors = [
-    [1, 4],
-    [2, 8],
-    [3, 13],
-    [4, 19],
-    [6, 29],
-    [8, 43],
-    [10, 58],
-    [13, 88],
-    [16, 124],
-    [20, 180],
-    [25, 262],
-    [30, 356],
-    [36, 490],
-    [42, 645],
-    [50, 890],
-    [58, 1180],
-    [66, 1530],
-    [74, 1960],
-    [82, 2520],
-    [90, 3300],
-    [95, 4300],
-    [100, 6000],
-  ];
-
-  /// Brick index that hides epic number [n] (1-based, 1..100).
-  static int epicBrick(int n) {
-    if (n <= 1) return firstEpicAt;
-    if (n >= 100) return 6000;
-    for (var i = 0; i < _epicAnchors.length - 1; i++) {
-      final a = _epicAnchors[i];
-      final b = _epicAnchors[i + 1];
-      if (n >= a[0] && n <= b[0]) {
-        if (b[0] == a[0]) return a[1];
-        final t = (n - a[0]) / (b[0] - a[0]);
-        return (a[1] + (b[1] - a[1]) * t).round();
-      }
-    }
-    return 6000;
-  }
-
-  /// Reverse lookup: how many epics are hidden in a wall of [bricks] bricks.
-  static int epicsHiddenBy(int bricks) {
-    var count = 0;
-    for (var n = 1; n <= 100; n++) {
-      if (epicBrick(n) <= bricks) {
-        count++;
-      } else {
-        break;
-      }
-    }
-    return count;
-  }
 
   /// Grace period before the wall starts to suffer, in days.
   static const double decayGraceDays = 1.6;

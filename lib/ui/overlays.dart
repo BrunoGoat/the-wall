@@ -1,199 +1,8 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 
-import '../data/epics.dart';
 import '../data/milestones.dart';
-import '../engine/sigil.dart';
 import 'style.dart';
-
-/// The full-screen moment when an epic is finally uncovered.
-class EpicRevealOverlay extends StatefulWidget {
-  const EpicRevealOverlay({
-    super.key,
-    required this.epic,
-    required this.found,
-    required this.theme,
-    required this.onDismiss,
-  });
-
-  final Epic epic;
-  final int found;
-  final UiTheme theme;
-  final VoidCallback onDismiss;
-
-  @override
-  State<EpicRevealOverlay> createState() => _EpicRevealOverlayState();
-}
-
-class _EpicRevealOverlayState extends State<EpicRevealOverlay>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  )..forward();
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final e = widget.epic;
-    final tint = EpicSigil.colorFor(e.kind);
-    return GestureDetector(
-      onTap: widget.onDismiss,
-      child: AnimatedBuilder(
-        animation: _c,
-        builder: (context, _) {
-          final t = Curves.easeOutCubic.transform(_c.value.clamp(0.0, 1.0));
-          final pop = Curves.elasticOut.transform(_c.value.clamp(0.0, 1.0));
-          return Container(
-            color: Colors.black.withValues(alpha: 0.62 * t),
-            child: Center(
-              child: Opacity(
-                opacity: t,
-                child: Transform.translate(
-                  offset: Offset(0, (1 - t) * 26),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 380),
-                    child: Padding(
-                      padding: const EdgeInsets.all(26),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Transform.scale(
-                            scale: 0.4 + 0.6 * pop,
-                            child: SizedBox(
-                              width: 132,
-                              height: 132,
-                              child: CustomPaint(
-                                painter: _SigilPainter(e.kind, tint, _c.value),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 26),
-                          Text(
-                            '${e.tierName.toUpperCase()} · ${EpicSigil.nameFor(e.kind).toUpperCase()}',
-                            style: TextStyle(
-                              color: tint,
-                              fontSize: 10.5,
-                              letterSpacing: 3.2,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          Text(
-                            e.title,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: Color(0xFFF6F1E6),
-                              fontSize: 27,
-                              height: 1.18,
-                              fontFamily: 'serif',
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            e.lore,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.74),
-                              fontSize: 14.5,
-                              height: 1.55,
-                              fontStyle: FontStyle.italic,
-                            ),
-                          ),
-                          const SizedBox(height: 30),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(30),
-                              border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.22)),
-                            ),
-                            child: Text(
-                              '${widget.found} de 100 encontrados',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.72),
-                                fontSize: 11.5,
-                                letterSpacing: 1.6,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          Text(
-                            'tocá para seguir',
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.34),
-                              fontSize: 11,
-                              letterSpacing: 1.6,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _SigilPainter extends CustomPainter {
-  _SigilPainter(this.kind, this.tint, this.t);
-  final EpicKind kind;
-  final Color tint;
-  final double t;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = Offset(size.width / 2, size.height / 2);
-    final r = size.width * 0.34;
-    canvas.drawCircle(
-      c,
-      r * 2.2,
-      Paint()
-        ..shader = ui.Gradient.radial(c, r * 2.2, [
-          tint.withValues(alpha: 0.34),
-          tint.withValues(alpha: 0.0),
-        ]),
-    );
-    // A ring of light that opens outwards on reveal.
-    final ring = Curves.easeOutQuart.transform(t.clamp(0.0, 1.0));
-    if (ring < 1) {
-      canvas.drawCircle(
-        c,
-        r * (0.5 + ring * 2.4),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3 * (1 - ring)
-          ..color = tint.withValues(alpha: (1 - ring) * 0.8),
-      );
-    }
-    canvas.drawCircle(
-      c,
-      r * 1.28,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = tint.withValues(alpha: 0.32),
-    );
-    EpicSigil.paint(canvas, c, r, kind, tint, 1.0);
-  }
-
-  @override
-  bool shouldRepaint(covariant _SigilPainter old) => old.t != t;
-}
 
 /// The card that celebrates a finished landmark.
 class MilestoneOverlay extends StatelessWidget {
@@ -305,59 +114,225 @@ class Whisper extends StatelessWidget {
 }
 
 /// What one stone was for, shown when you tap it.
+///
+/// The note is always optional: a stone with nothing written on it counts for
+/// exactly as much as one with a paragraph.
 class StoneCard extends StatelessWidget {
   const StoneCard({
     super.key,
     required this.theme,
-    required this.habitName,
-    required this.glyph,
     required this.when,
     required this.number,
-    required this.epicTitle,
+    required this.label,
+    required this.onEdit,
+    required this.onClose,
   });
 
   final UiTheme theme;
-  final String habitName;
-  final String glyph;
   final DateTime when;
   final int number;
-  final String? epicTitle;
+  final String? label;
+  final VoidCallback onEdit;
+  final VoidCallback onClose;
 
   static const _months = [
     'ene', 'feb', 'mar', 'abr', 'may', 'jun',
     'jul', 'ago', 'sep', 'oct', 'nov', 'dic'
   ];
 
+  static String formatDate(DateTime w) =>
+      '${w.day} ${_months[w.month - 1]} ${w.year} · '
+      '${w.hour.toString().padLeft(2, '0')}:${w.minute.toString().padLeft(2, '0')}';
+
   @override
   Widget build(BuildContext context) {
-    final d = '${when.day} ${_months[when.month - 1]} ${when.year} · '
-        '${when.hour.toString().padLeft(2, '0')}:${when.minute.toString().padLeft(2, '0')}';
+    final t = theme;
+    final has = label != null && label!.trim().isNotEmpty;
     return Frosted(
-      theme: theme,
-      radius: 20,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      theme: t,
+      radius: 22,
+      padding: const EdgeInsets.fromLTRB(18, 14, 10, 14),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(glyph, style: const TextStyle(fontSize: 22)),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Ladrillo $number · $habitName',
-                  style: theme.body.copyWith(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 2),
-              Text(d, style: theme.bodySoft.copyWith(fontSize: 11.5)),
-              if (epicTitle != null) ...[
-                const SizedBox(height: 4),
-                Text('◈ $epicTitle',
-                    style: TextStyle(
-                        color: theme.accent, fontSize: 11.5, letterSpacing: 0.4)),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'LADRILLO $number · ${formatDate(when)}',
+                  style: t.label.copyWith(fontSize: 9.5, letterSpacing: 1.4),
+                ),
+                const SizedBox(height: 7),
+                GestureDetector(
+                  onTap: onEdit,
+                  behavior: HitTestBehavior.opaque,
+                  child: has
+                      ? Text(
+                          label!,
+                          style: t.body.copyWith(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.edit_outlined,
+                                size: 15, color: t.accent),
+                            const SizedBox(width: 7),
+                            Text(
+                              'escribir una leyenda',
+                              style: TextStyle(
+                                color: t.accent,
+                                fontSize: 14,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
               ],
-            ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          if (has)
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              icon: Icon(Icons.edit_outlined, size: 17, color: t.fgSoft),
+              onPressed: onEdit,
+            ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            icon: Icon(Icons.close, size: 17, color: t.fgSoft),
+            onPressed: onClose,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The little editor for a stone's note.
+class LabelSheet extends StatefulWidget {
+  const LabelSheet({
+    super.key,
+    required this.theme,
+    required this.number,
+    required this.initial,
+  });
+
+  final UiTheme theme;
+  final int number;
+  final String? initial;
+
+  /// Returns the new note, an empty string to clear it, or null if cancelled.
+  static Future<String?> show(
+    BuildContext context, {
+    required UiTheme theme,
+    required int number,
+    String? initial,
+  }) {
+    return showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) =>
+          LabelSheet(theme: theme, number: number, initial: initial),
+    );
+  }
+
+  @override
+  State<LabelSheet> createState() => _LabelSheetState();
+}
+
+class _LabelSheetState extends State<LabelSheet> {
+  late final TextEditingController _ctl =
+      TextEditingController(text: widget.initial ?? '');
+
+  @override
+  void dispose() {
+    _ctl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.theme;
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(22, 18, 22, 26),
+        decoration: BoxDecoration(
+          color: t.panelStrong,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border.all(color: t.stroke),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: t.fgFaint,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            Text('LEYENDA DEL LADRILLO ${widget.number}', style: t.label),
+            const SizedBox(height: 4),
+            Text(
+              'Opcional. Para acordarte de qué fue este.',
+              style: t.bodySoft.copyWith(fontSize: 12),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _ctl,
+              autofocus: true,
+              maxLength: 60,
+              textCapitalization: TextCapitalization.sentences,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (v) => Navigator.of(context).pop(v),
+              style: t.body.copyWith(fontSize: 17),
+              decoration: InputDecoration(
+                hintText: 'Leí',
+                hintStyle: TextStyle(color: t.fgFaint),
+                counterStyle: TextStyle(color: t.fgFaint, fontSize: 10),
+                enabledBorder:
+                    UnderlineInputBorder(borderSide: BorderSide(color: t.stroke)),
+                focusedBorder:
+                    UnderlineInputBorder(borderSide: BorderSide(color: t.accent)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                if ((widget.initial ?? '').isNotEmpty)
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(''),
+                    child: Text('Borrar', style: TextStyle(color: t.fgSoft)),
+                  ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text('Cancelar', style: TextStyle(color: t.fgSoft)),
+                ),
+                const SizedBox(width: 6),
+                FilledButton(
+                  style: FilledButton.styleFrom(backgroundColor: t.accent),
+                  onPressed: () => Navigator.of(context).pop(_ctl.text),
+                  child: const Text('Guardar'),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

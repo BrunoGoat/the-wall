@@ -63,6 +63,15 @@ class Sensory {
     _haptic(HapticFeedback.selectionClick);
   }
 
+  /// A tick as the hold builds. It gets firmer the closer the stone is to
+  /// going up, so the charge can be felt without looking.
+  void charge(double progress) {
+    if (progress >= 0.99) return; // the impact itself covers the last one
+    _haptic(progress > 0.7
+        ? HapticFeedback.mediumImpact
+        : HapticFeedback.selectionClick);
+  }
+
   /// The stone hits. This is the payoff.
   void impact({double strength = 1.0}) {
     _play('place.wav', volume: (0.65 + 0.35 * strength).clamp(0.0, 1.0));

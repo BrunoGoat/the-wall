@@ -1,9 +1,14 @@
 # La Muralla
 
-Una app de hábitos donde cada logro se registra colocando **un ladrillo**, y
-ladrillo a ladrillo se levanta una muralla que es la visualización de todo lo
-conseguido. Si dejás de sumar ladrillos, la muralla empieza a deteriorarse:
-mantenerla importa tanto como construirla.
+Una app donde cada logro se registra colocando **un ladrillo**, y ladrillo a
+ladrillo se levanta una muralla que es la visualización de todo lo conseguido.
+Si dejás de sumar ladrillos, la muralla empieza a deteriorarse: mantenerla
+importa tanto como construirla.
+
+Hay un solo control: un botón que se mantiene apretado un segundo largo. Cuando
+el anillo se cierra, la piedra cae. Después, si querés, tocás ese ladrillo y le
+escribís una leyenda —"Leí", "Corrí", lo que sea—. Es opcional: el ladrillo
+cuenta igual.
 
 La muralla es 3D y se puede orbitar libremente —desde el costado, desde atrás,
 desde arriba— con un estilo gráfico estilizado y piedra caliza.
@@ -21,16 +26,12 @@ camino en el código que agregue más de una piedra por acción.
 Este es el segundo eje del diseño, y es el que decide casi todo lo demás. Las
 cifras están elegidas para el uso real, no para una demo con miles de ladrillos.
 
-Con uno o dos hábitos, un mes son unos 30–60 ladrillos. Un año, entre 350 y 1100.
+Un mes de uso corriente son unos 30–60 ladrillos. Un año, entre 350 y 1100.
 
 | | |
 |---|---|
-| Primer épico escondido | ladrillo **4** |
 | Primer hito (Torre de Vigía) | empieza en el **12**, termina en el **34** |
-| Épicos escondidos en el primer mes | **5 a 10** |
 | Hitos distintos en un año | **4 a 10**, todos de formas diferentes |
-| Épicos escondidos en un año | **25 a 55** de los 100 |
-| Los 100 épicos | recién alrededor del ladrillo 6000 |
 
 Es decir: el primer mes tiene que sentirse vivo, y quien sostiene la muralla un
 año entero ya se cruzó con hitos variados y muchos épicos, sin agotar nunca los
@@ -55,10 +56,9 @@ barbacana— que se levantan **con los ladrillos reales**, hilada por hilada,
 durante las semanas que cuesta ganarlos. Nunca aparecen de golpe. Cuando el
 catálogo da la vuelta, el hito vuelve con otro nombre y algo más de costo.
 
-**Cien épicos únicos.** Cien, todos diferentes, ninguno repetido. No se regalan:
-cuando el ladrillo que lo lleva se coloca, la piedra queda con una anomalía
-tenue, y descubrirlo es trabajo de quien mira su muralla. Se encuentran tocando
-la piedra.
+**Leyendas.** Cualquier ladrillo se puede tocar para ver cuándo se colocó y
+dejarle una nota. Los que tienen una quedan marcados con un punto tenue en la
+muralla, y todas juntas forman un registro en la pestaña *Leyendas*.
 
 **La distancia.** Cuando la muralla se hace larga, lo que está lejos se dibuja
 como su propia silueta almenada perdiéndose en la calina, como la Gran Muralla.
@@ -73,17 +73,21 @@ ladrillo la repara entera**, con una ola de reparación que recorre el muro.
 - Renderizador 3D propio (`lib/engine/`): rasterizador por algoritmo del pintor,
   sombreado plano, sin dependencias nativas. Presupuesto de detalle adaptativo
   que sube y baja según el tiempo de cuadro, para que vaya a 60 fps.
-- Paleta que sigue la hora real del día: amanecer, día, atardecer y noche con
-  estrellas, todas atravesadas por el estado de deterioro.
-- El momento de colocar: la cámara vuela a la piedra, cae con peso, aterriza con
-  polvo, esquirlas, sacudida de cámara, destello, sonido de piedra sintetizado y
-  una secuencia de vibración de dos tiempos.
+- **Ciclo día/noche real.** El sol sale por el este a las 6, cruza el cielo y se
+  pone a las 20; después la luna recorre el arco opuesto. Las sombras giran con
+  él a lo largo del día. La paleta atraviesa noche, alba, mañana, mediodía, hora
+  dorada, atardecer y crepúsculo, con las estrellas apareciendo y apagándose, y
+  todo eso además teñido por el estado de deterioro.
+- El momento de colocar: mientras sostenés el botón la cámara se desliza hasta
+  el hueco donde va la piedra y el fantasma se enciende; al cerrarse el anillo
+  la piedra cae con peso y aterriza con polvo, esquirlas, sacudida de cámara,
+  destello, sonido de piedra sintetizado y vibración en dos tiempos.
 
 ## Correr y compilar
 
 ```bash
 flutter pub get
-flutter test          # 47 tests
+flutter test          # 39 tests
 flutter analyze
 flutter run
 flutter build apk --release
@@ -119,14 +123,14 @@ python3 tool/make_icons.py        # regenera los íconos
 ```
 lib/
   core/      hash determinista y matemática 3D
-  data/      los 100 épicos, los 10 hitos, y el ritmo
-  model/     hábitos, ladrillos, hallazgos, persistencia
-  engine/    trazado de la muralla, piedras, cámara, paleta, renderizador
+  data/      los 10 hitos y el ritmo
+  model/     ladrillos, leyendas, persistencia
+  engine/    trazado de la muralla, piedras, cámara, paleta, paisaje, render
   fx/        partículas, sonido y vibración
-  ui/        la pantalla, las hojas y los momentos de revelación
+  ui/        la pantalla, el botón, las hojas
 ```
 
 Nada de la forma de la muralla se guarda en disco: se deriva del índice de cada
 ladrillo. Una piedra colocada hace un año se vuelve a dibujar idéntica en cada
-arranque, y el archivo guardado son sólo los hábitos, los ladrillos y los épicos
-encontrados.
+arranque, y el archivo guardado son sólo los ladrillos, su fecha y su leyenda si
+tienen.

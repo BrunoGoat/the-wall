@@ -6,7 +6,6 @@ import 'package:flutter/scheduler.dart';
 
 import '../core/math3.dart';
 import '../core/rng.dart';
-import '../data/epics.dart';
 import '../data/milestones.dart';
 import '../data/pacing.dart';
 import '../engine/camera.dart';
@@ -22,7 +21,12 @@ import '../model/wall_store.dart';
 class WallViewController {
   _WallViewState? _state;
 
-  void place(String habitId) => _state?.placeBrick(habitId);
+  void place() => _state?.placeBrick();
+
+  /// 0..1 while the place button is being held. The wall answers by lighting
+  /// up where the stone is about to land.
+  void setCharge(double v) => _state?.setCharge(v);
+  void clearSelection() => _state?.clearSelection();
   void frameAll() => _state?.frameAll();
   void goToLatest() => _state?.goToLatest();
   void goToX(double x) => _state?.goToX(x);
@@ -39,7 +43,6 @@ class WallView extends StatefulWidget {
     super.key,
     required this.store,
     required this.controller,
-    required this.onEpicFound,
     required this.onMilestoneComplete,
     required this.onStoneTapped,
     required this.onWhisper,
@@ -48,9 +51,8 @@ class WallView extends StatefulWidget {
 
   final WallStore store;
   final WallViewController controller;
-  final void Function(Epic epic) onEpicFound;
   final void Function(PlanSegment seg) onMilestoneComplete;
-  final void Function(Brick brick, Habit? habit, int? epicNumber) onStoneTapped;
+  final void Function(Brick brick) onStoneTapped;
   final void Function(String message) onWhisper;
   final void Function(Palette palette) onPaletteChanged;
 
@@ -76,8 +78,8 @@ class _WallViewState extends State<WallView>
 
   double _displayIntegrity = 1;
   double? _repairSweep;
-  double _revealPulse = 0;
-  V3? _revealAt;
+  int? _selectedBrick;
+  double _charge = 0;
 
   static const int _budgetOverride =
       int.fromEnvironment('BUDGET', defaultValue: -1);
@@ -194,10 +196,6 @@ class _WallViewState extends State<WallView>
           (target - _displayIntegrity) * (1 - math.exp(-dt * 1.4));
     }
 
-    if (_revealPulse > 0) {
-      _revealPulse = math.max(0, _revealPulse - dt * 1.6);
-    }
-
     _spawnAmbient(dt);
 
     final pal = _buildPalette();
@@ -222,11 +220,12 @@ class _WallViewState extends State<WallView>
 
   // --------------------------------------------------------------- placing
 
-  void placeBrick(String habitId) {
+  void placeBrick() {
     final store = widget.store;
     final wasDecaying = store.integrity < 0.995;
     final before = store.integrity;
-    final result = store.placeBrick(habitId);
+    final result = store.placeBrick();
+    _selectedBrick = null;
     _rebuildLayout();
 
     final slot = _layout.slotFor(result.brick.index);
@@ -293,13 +292,6 @@ class _WallViewState extends State<WallView>
       widget.onWhisper('Empieza ${result.milestoneStarted!.type!.name}');
     }
 
-    if (result.epicSeeded != null) {
-      // Seeded, never revealed: the wall now hides something, and finding it is
-      // the player's job.
-      Future.delayed(const Duration(milliseconds: 420), () {
-        if (mounted) widget.onWhisper('Algo quedó escondido entre las piedras');
-      });
-    }
   }
 
   // ---------------------------------------------------------------- camera
@@ -379,44 +371,44 @@ class _WallViewState extends State<WallView>
     for (final t in _picks) {
       final dx = t.cx - pos.dx, dy = t.cy - pos.dy;
       final dist = math.sqrt(dx * dx + dy * dy);
-      // Anything hiding an epic gets a slightly more forgiving target.
-      final reach = t.epicNumber != null ? t.radius * 1.9 + 14 : t.radius;
+      // A stone that already carries a note is a slightly easier target.
+      final reach = t.labelled ? t.radius * 1.4 + 8 : t.radius;
       if (dist < reach && dist < bestD) {
         bestD = dist;
         best = t;
       }
     }
-    if (best == null) return;
-
-    final store = widget.store;
-    final epicNo = best.epicNumber;
-    if (epicNo != null && !store.isFound(epicNo)) {
-      final epic = store.discover(epicNo);
-      if (epic != null) {
-        final slot = _layout.slotFor(best.brickIndex);
-        if (slot != null) {
-          final at = V3(slot.x, slot.y, slot.zCenter + slot.halfDepth);
-          _fx.reveal(at);
-          _revealAt = at;
-          _revealPulse = 1.0;
-          _cam.travelTo(slot.x);
-          _cam.follow = false;
-          _cam.shake = 0.05;
-        }
-        Sensory.instance.epic();
-        widget.onEpicFound(epic);
-        return;
-      }
+    if (best == null) {
+      if (_selectedBrick != null) setState(() => _selectedBrick = null);
+      return;
     }
 
-    if (best.brickIndex < store.bricks.length) {
-      final brick = store.bricks[best.brickIndex];
-      Sensory.instance.tick();
-      widget.onStoneTapped(
-        brick,
-        store.habitById(brick.habitId),
-        epicNo != null && store.isFound(epicNo) ? epicNo : null,
-      );
+    final brick = widget.store.brickAt(best.brickIndex);
+    if (brick == null) return;
+    setState(() => _selectedBrick = brick.index);
+    Sensory.instance.tick();
+    widget.onStoneTapped(brick);
+  }
+
+  void setCharge(double v) {
+    if ((_charge - v).abs() < 0.004) return;
+    _charge = v;
+    // Glide over to where the stone is going while the button is held, so the
+    // landing is always in frame.
+    if (v > 0.05) {
+      final slot = _layout.slotFor(widget.store.total);
+      if (slot != null) {
+        _cam.follow = true;
+        _cam.travelTo(slot.x);
+        _cam.focusYTarget = clampD(slot.y + 0.35, 0.9, 3.4);
+          if (_cam.distanceTarget > 24) _cam.distanceTarget = 18;
+      }
+    }
+  }
+
+  void clearSelection() {
+    if (_selectedBrick != null && mounted) {
+      setState(() => _selectedBrick = null);
     }
   }
 
@@ -425,12 +417,6 @@ class _WallViewState extends State<WallView>
   @override
   Widget build(BuildContext context) {
     final store = widget.store;
-    final epicByBrick = <int, int>{};
-    for (final e in store.seeds.all) {
-      final brickIndex = e.key - 1;
-      if (brickIndex < store.total) epicByBrick[brickIndex] = e.value;
-    }
-
     final scene = WallScene(
       layout: _layout,
       placed: store.total,
@@ -439,16 +425,18 @@ class _WallViewState extends State<WallView>
       integrity: _displayIntegrity,
       time: _time,
       effects: _fx,
-      epicByBrick: epicByBrick,
-      foundEpics: store.discoveries.keys.toSet(),
+      labelledBricks: {
+        for (final b in store.bricks)
+          if (b.hasLabel) b.index,
+      },
       structureNames: {
         for (final s in _layout.structures) s.index: s.type.name,
       },
       fx: _placement,
       repairSweep: _repairSweep,
       detailBudget: _detailBudget,
-      revealPulse: _revealPulse,
-      revealAt: _revealAt,
+      selectedBrick: _selectedBrick,
+      charge: _charge,
     );
 
     return Listener(

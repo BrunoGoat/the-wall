@@ -16,23 +16,39 @@ const server = http.createServer((q,r)=>{let p=decodeURIComponent(q.url.split('?
   await page.goto(`http://127.0.0.1:${port}/`,{waitUntil:'load'});
   await page.waitForTimeout(13000);
   const shot = async n => { await page.screenshot({path: path.join(outDir, n+'.png')}); console.log('shot', n); };
+
+  const BTN = {x: 220, y: 812};
   await shot('a-home');
-  // place a brick: tap the first habit chip
-  await page.mouse.click(120, 800);
-  await page.waitForTimeout(220);
-  await shot('b-falling');
-  await page.waitForTimeout(1400);
+
+  // hold the button: half way, then all the way
+  await page.mouse.move(BTN.x, BTN.y);
+  await page.mouse.down();
+  await page.waitForTimeout(700);
+  await shot('b-charging');
+  await page.waitForTimeout(1200);          // past the 1250ms threshold
   await shot('c-placed');
-  // open the journey sheet from the top bar
-  await page.mouse.click(220, 60);
+  await page.mouse.up();
   await page.waitForTimeout(1600);
-  await shot('d-journey');
-  await page.mouse.click(330, 128);   // ÉPICOS tab
-  await page.waitForTimeout(1200);
-  await shot('e-epics');
-  await page.keyboard.press('Escape');
-  await page.mouse.click(220, 300);
-  await page.waitForTimeout(1200);
-  await shot('f-after');
+  await shot('d-settled');
+
+  // tap a stone to open its card
+  for (const [x,y] of [[150,470],[210,505],[120,520],[260,480]]) {
+    await page.mouse.click(x, y);
+    await page.waitForTimeout(900);
+    const found = await page.screenshot({encoding:'base64'});
+    await shot('e-stone');
+    break;
+  }
+  // open the note editor
+  await page.mouse.click(150, 640);
+  await page.waitForTimeout(1400);
+  await shot('f-editor');
+  await page.keyboard.type('Leí');
+  await page.waitForTimeout(500);
+  await shot('g-typed');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(1600);
+  await shot('h-saved');
+
   await b.close(); server.close();
 })().catch(e=>{console.error(e);process.exit(1);});
