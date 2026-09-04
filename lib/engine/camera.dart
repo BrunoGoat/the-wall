@@ -54,8 +54,15 @@ class OrbitCamera {
     pitchTarget = clampD(pitchTarget + dPitch, minPitch, maxPitch);
   }
 
+  /// How far back it is worth going. Beyond about the wall's own length the
+  /// wall is a thread in the middle of an empty field, so pulling further out
+  /// only loses it: past that the zoom simply stops.
+  double get usefulDistance =>
+      clampD(math.max(wallLength * 0.95, 14.0), minDistance, maxDistance);
+
   void zoomBy(double factor) {
-    distanceTarget = clampD(distanceTarget * factor, minDistance, maxDistance);
+    distanceTarget =
+        clampD(distanceTarget * factor, minDistance, usefulDistance);
   }
 
   void travelBy(double d) {
@@ -72,7 +79,7 @@ class OrbitCamera {
   void frameAll() {
     travelTarget = wallLength / 2;
     distanceTarget =
-        clampD(math.max(wallLength * 0.62, 8.0), minDistance, maxDistance);
+        clampD(math.max(wallLength * 0.62, 8.0), minDistance, usefulDistance);
     pitchTarget = clampD(0.34 + wallLength * 0.002, minPitch, 0.7);
     yawTarget = _nearest(yawTarget, 0.55);
     focusYTarget = 1.6;
