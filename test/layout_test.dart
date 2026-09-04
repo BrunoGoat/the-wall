@@ -131,6 +131,60 @@ void main() {
     });
   });
 
+  group('every stone is a solid', () {
+    /// Signed area of the built front face, in world XY. Its sign is the
+    /// winding direction, and the winding is what every side face's outward
+    /// normal is derived from.
+    double frontWinding(StoneSlot slot, bool mirror) {
+      final mesh = StoneMesh(24);
+      mesh.build(slot, StoneProfiles.instance.forSeed(slot.seed),
+          mirror: mirror);
+      var a = 0.0;
+      for (var i = 0; i < mesh.n; i++) {
+        final j = (i + 1) % mesh.n;
+        a += mesh.front[i * 3] * mesh.front[j * 3 + 1] -
+            mesh.front[j * 3] * mesh.front[i * 3 + 1];
+      }
+      return a;
+    }
+
+    StoneSlot sampleSlot(int i) => StoneSlot(
+          brickIndex: i,
+          x: 1.0,
+          y: 0.5,
+          w: 0.7,
+          h: 0.38,
+          zCenter: 0,
+          halfDepth: 0.33,
+          course: 1,
+          kind: SlotKind.body,
+          structureIndex: -1,
+        );
+
+    test('mirroring a stone does not flip its winding', () {
+      // Negating x reverses a polygon's winding, which inverts every side
+      // face normal: the top face gets culled as though it faced down and you
+      // can see straight into the stone. Half of the wall looked hollow.
+      for (var i = 0; i < 120; i++) {
+        final slot = sampleSlot(i);
+        final plain = frontWinding(slot, false);
+        final mirrored = frontWinding(slot, true);
+        expect(plain.sign, mirrored.sign,
+            reason: 'stone $i winds the other way when mirrored');
+        expect(plain.abs(), greaterThan(1e-4));
+      }
+    });
+
+    test('the front face always winds counter-clockwise', () {
+      // The side-face normals assume it. If this flips, the wall turns inside
+      // out.
+      for (var i = 0; i < 120; i++) {
+        expect(frontWinding(sampleSlot(i), i.isEven), greaterThan(0),
+            reason: 'stone $i is wound backwards');
+      }
+    });
+  });
+
   group('stones are irregular, not one rectangle rescaled', () {
     test('shapes differ from each other', () {
       final profiles = StoneProfiles.instance;

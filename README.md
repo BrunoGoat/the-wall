@@ -87,7 +87,7 @@ ladrillo la repara entera**, con una ola de reparación que recorre el muro.
 
 ```bash
 flutter pub get
-flutter test          # 39 tests
+flutter test          # 41 tests
 flutter analyze
 flutter run
 flutter build apk --release
@@ -111,6 +111,7 @@ Está firmada con la clave de debug, así que se instala directo en el teléfono
 | `HOUR=19` | fija la hora del día |
 | `CAM_YAW/CAM_PITCH/CAM_DIST/CAM_AT` | encuadre fijo |
 | `BUDGET=340` | fija el presupuesto de detalle |
+| `DEBUG_CORE=true` | pinta de magenta el núcleo de mortero, para ver dónde asoma |
 
 ```bash
 dart run tool/inspect.dart        # imprime el ritmo y la geometría

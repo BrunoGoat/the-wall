@@ -1,5 +1,6 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
+import 'dart:ui' as ui show Gradient;
+import 'dart:ui' show lerpDouble;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -127,10 +128,7 @@ class _HoldToPlaceState extends State<HoldToPlace>
   @override
   Widget build(BuildContext context) {
     final t = widget.theme;
-    final scale = (_down ? 0.96 : 1.0) +
-        _charge * 0.05 +
-        Curves.easeOutBack.transform(1 - _punch) * 0 +
-        _punch * 0.10;
+    final scale = (_down ? 0.97 : 1.0) + _punch * 0.06;
 
     // A raw pointer listener rather than a GestureDetector: the tap and
     // long-press recognisers fight each other in the gesture arena, and the
@@ -141,40 +139,42 @@ class _HoldToPlaceState extends State<HoldToPlace>
       onPointerDown: (_) => _press(),
       onPointerUp: (_) => _release(),
       onPointerCancel: (_) => _release(),
-      child: Transform.scale(
-        scale: scale,
-        child: SizedBox(
-          width: 132,
-          height: 132,
-          child: CustomPaint(
-            painter: _HoldPainter(
-              theme: t,
-              charge: _charge,
-              punch: _punch,
-              down: _down,
-            ),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.add,
-                    size: 26,
-                    color: t.fg.withValues(alpha: _charge > 0.02 ? 1.0 : 0.82),
+      child: SizedBox(
+        width: 150,
+        height: 122,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Transform.scale(
+              scale: scale,
+              child: SizedBox(
+                width: 88,
+                height: 88,
+                child: CustomPaint(
+                  painter: _HoldPainter(
+                    theme: t,
+                    charge: _charge,
+                    punch: _punch,
+                    down: _down,
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    _charge > 0.02 ? 'SOSTENÉ' : 'MANTENER',
-                    style: t.label.copyWith(
-                      fontSize: 9,
-                      letterSpacing: 2.2,
-                      color: t.fg.withValues(alpha: 0.72),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
+            const SizedBox(height: 13),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 160),
+              style: TextStyle(
+                fontSize: 8.5,
+                letterSpacing: 2.6,
+                fontWeight: FontWeight.w600,
+                color: _charge > 0.02
+                    ? t.accent
+                    : t.fg.withValues(alpha: 0.45),
+                shadows: t.halo,
+              ),
+              child: Text(_charge > 0.02 ? 'SOSTENÉ' : 'MANTENER'),
+            ),
+          ],
         ),
       ),
     );
@@ -196,72 +196,75 @@ class _HoldPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final c = Offset(size.width / 2, size.height / 2);
-    final r = size.width * 0.34;
+    final r = size.width * 0.42;
+    final fg = theme.fg;
 
-    // The glow builds with the charge, so the button feels like it is loading.
-    if (charge > 0.02 || punch > 0) {
-      final g = math.max(charge, punch);
-      canvas.drawCircle(
-        c,
-        r * (1.6 + g * 1.2),
-        Paint()
-          ..shader = ui.Gradient.radial(c, r * (1.6 + g * 1.2), [
-            theme.accent.withValues(alpha: 0.34 * g),
-            theme.accent.withValues(alpha: 0.0),
-          ]),
-      );
-    }
-
+    // A soft breath of shade so the ring reads over pale stone as well as sky.
     canvas.drawCircle(
       c,
-      r,
+      r * 1.35,
       Paint()
-        ..color = theme.dark
-            ? const Color(0xFF17161A).withValues(alpha: 0.72)
-            : const Color(0xFFFCF8EE).withValues(alpha: 0.80),
+        ..shader = ui.Gradient.radial(c, r * 1.35, [
+          (theme.dark ? Colors.black : const Color(0xFF3A3426))
+              .withValues(alpha: theme.dark ? 0.24 : 0.13),
+          Colors.transparent,
+        ], [0.55, 1.0]),
     );
+
+    // The track.
     canvas.drawCircle(
       c,
       r,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = theme.stroke,
+        ..strokeWidth = 1.4
+        ..color = fg.withValues(alpha: 0.30),
     );
 
-    // The track and the closing ring.
-    canvas.drawCircle(
-      c,
-      r + 7,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..color = theme.fg.withValues(alpha: 0.13),
-    );
+    // The charge closing round it.
     if (charge > 0.001) {
       canvas.drawArc(
-        Rect.fromCircle(center: c, radius: r + 7),
+        Rect.fromCircle(center: c, radius: r),
         -math.pi / 2,
         math.pi * 2 * charge,
         false,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 3.6
+          ..strokeWidth = 2.6
           ..strokeCap = StrokeCap.round
           ..color = theme.accent,
       );
+      canvas.drawCircle(
+        c,
+        r * (1.0 + 0.5 * charge),
+        Paint()
+          ..shader = ui.Gradient.radial(c, r * (1.0 + 0.5 * charge), [
+            theme.accent.withValues(alpha: 0.22 * charge),
+            Colors.transparent,
+          ]),
+      );
     }
+
+    // The stone waiting in the middle: a small mark that swells as the hold
+    // builds, so the gesture has something growing to watch.
+    final inner = lerpDouble(r * 0.13, r * 0.62, Curves.easeOut.transform(charge))!;
+    canvas.drawCircle(
+      c,
+      inner,
+      Paint()
+        ..color = Color.lerp(fg.withValues(alpha: 0.55), theme.accent, charge)!
+            .withValues(alpha: 0.55 + 0.45 * charge),
+    );
 
     // The ring flies outwards as the stone goes up.
     if (punch > 0) {
-      final k = 1 - punch;
       canvas.drawCircle(
         c,
-        (r + 7) + k * 34,
+        r + (1 - punch) * 30,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 3 * punch
-          ..color = theme.accent.withValues(alpha: punch * 0.8),
+          ..strokeWidth = 2.4 * punch
+          ..color = theme.accent.withValues(alpha: punch * 0.75),
       );
     }
   }

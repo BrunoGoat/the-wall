@@ -60,13 +60,13 @@ class StoneProfiles {
 
       if (hash01(s, c, 7) < 0.30) {
         // A knocked-off corner: two vertices instead of one.
-        xs.add(cur[0] + inX * hashRange(0.05, 0.16, s, c, 11));
-        ys.add(cur[1] + inY * hashRange(0.002, 0.012, s, c, 13));
-        xs.add(cur[0] + inX * hashRange(0.004, 0.02, s, c, 14));
-        ys.add(cur[1] + inY * hashRange(0.02, 0.07, s, c, 12));
+        xs.add(cur[0] + inX * hashRange(0.04, 0.11, s, c, 11));
+        ys.add(cur[1] + inY * hashRange(0.002, 0.010, s, c, 13));
+        xs.add(cur[0] + inX * hashRange(0.003, 0.015, s, c, 14));
+        ys.add(cur[1] + inY * hashRange(0.015, 0.045, s, c, 12));
       } else {
-        xs.add(cur[0] + inX * hashRange(0.004, 0.07, s, c, 15));
-        ys.add(cur[1] + inY * hashRange(0.002, 0.024, s, c, 16));
+        xs.add(cur[0] + inX * hashRange(0.003, 0.040, s, c, 15));
+        ys.add(cur[1] + inY * hashRange(0.002, 0.014, s, c, 16));
       }
 
       // Break the straight run between two corners. The next edge runs from
@@ -79,7 +79,7 @@ class StoneProfiles {
         final my = cur[1] + (nxt[1] - cur[1]) * t;
         // Always displaced inwards: a stone that bulged past its slot would
         // overlap its neighbour and fight with it for the same pixels.
-        final amp = horizontal ? 0.018 : 0.062;
+        final amp = horizontal ? 0.010 : 0.038;
         final d = hashRange(-amp, 0.0, s, c, 40 + b);
         final ex = nxt[0] - cur[0];
         final ey = nxt[1] - cur[1];
@@ -126,7 +126,7 @@ class StoneMesh {
     double scaleY = 1,
     double erosion = 0,
     bool mirror = false,
-    double joint = 0.008,
+    double joint = 0.005,
   }) {
     n = profile.count;
     final w = math.max(0.04, slot.w - joint * 2) * scaleX * (1 - erosion * 0.10);
@@ -143,8 +143,14 @@ class StoneMesh {
     const taper = 0.94;
 
     for (var i = 0; i < n; i++) {
-      var px = profile.pts[i * 2].toDouble();
-      final py = profile.pts[i * 2 + 1].toDouble();
+      // Mirroring doubles the number of distinct silhouettes, but negating x
+      // also reverses the polygon's winding — and the side faces derive their
+      // outward normals from that winding. Walking the profile backwards puts
+      // the winding back, so a mirrored stone is still solid instead of having
+      // its top face culled and its underside lit.
+      final src = mirror ? (n - 1 - i) : i;
+      var px = profile.pts[src * 2].toDouble();
+      final py = profile.pts[src * 2 + 1].toDouble();
       if (mirror) px = -px;
       final lx = px * w;
       final ly = py * h;

@@ -595,7 +595,7 @@ class WallPainter extends CustomPainter {
     final decay = 1.0 - scene.integrity;
     final radius = cam.detailRadius;
     final profiles = StoneProfiles.instance;
-    final mortarBase = Color.lerp(pal.mortar, pal.stoneCool, 0.46)!;
+    final mortarBase = Color.lerp(pal.mortar, pal.stone, 0.62)!;
     final fx = scene.fx;
 
     // Nearest-first so the detail budget is spent where the eye is.
@@ -682,19 +682,22 @@ class WallPainter extends CustomPainter {
         if (b > farDepth) farDepth = b;
       }
       farDepth += 0.02;
-      final grow = 0.016 + erosion * 0.02;
+      // Sized to the slot exactly. Slots tile, so the joints are still backed;
+      // growing it even slightly made the core stand proud of the stone along
+      // every exposed edge, and that dark rim is what made each stone read as
+      // an open crate rather than a block set into a wall.
       _emitCore(
         p,
-        x0: slot.x - slot.w / 2 - grow,
-        x1: slot.x + slot.w / 2 + grow,
-        y0: slot.y - slot.h / 2 - grow,
-        y1: slot.y + slot.h / 2 + grow,
-        z0: slot.zCenter - slot.halfDepth + 0.05,
-        z1: slot.zCenter + slot.halfDepth - 0.05,
+        x0: slot.x - slot.w / 2,
+        x1: slot.x + slot.w / 2,
+        y0: slot.y - slot.h / 2,
+        y1: slot.y + slot.h / 2,
+        z0: slot.zCenter - slot.halfDepth + 0.07,
+        z1: slot.zCenter + slot.halfDepth - 0.07,
         albedo: mortarBase,
         light: light,
         pal: pal,
-        ao: ao * 0.80,
+        ao: ao * 0.92,
         repairGlow: repairGlow * 0.4,
         depth: farDepth,
       );
@@ -813,12 +816,15 @@ class WallPainter extends CustomPainter {
       z1 = mid + 0.01;
     }
     final e = p.eye;
-    int col(V3 normal, double k) => _haze(
-          _shade(normal, albedo, light, pal, ao * k, 0, repairGlow),
-          p,
-          (x0 + x1) / 2,
-          pal,
-        ).toARGB32();
+    const debugCore = bool.fromEnvironment('DEBUG_CORE');
+    int col(V3 normal, double k) => debugCore
+        ? const Color(0xFFFF00AA).toARGB32()
+        : _haze(
+            _shade(normal, albedo, light, pal, ao * k, 0, repairGlow),
+            p,
+            (x0 + x1) / 2,
+            pal,
+          ).toARGB32();
 
     if (e.z > z1) {
       _quad(p, V3(x0, y0, z1), V3(x1, y0, z1), V3(x1, y1, z1), V3(x0, y1, z1),
@@ -898,7 +904,7 @@ class WallPainter extends CustomPainter {
     final skyTerm = 0.5 + 0.5 * n.y;
     // Stone in shadow is still stone: the sky term is modulated by the albedo
     // so unlit faces stay pale limestone instead of collapsing to black.
-    final k = (0.32 + 0.68 * ndl + 0.28 * skyTerm) * ao * pal.contrast;
+    final k = (0.44 + 0.58 * ndl + 0.26 * skyTerm) * ao * pal.contrast;
     var r = albedo.r * k + pal.sun.r * ndl * 0.06 + pal.skyLight.r * skyTerm * 0.045;
     var g = albedo.g * k + pal.sun.g * ndl * 0.06 + pal.skyLight.g * skyTerm * 0.045;
     var b = albedo.b * k + pal.sun.b * ndl * 0.06 + pal.skyLight.b * skyTerm * 0.045;
@@ -1062,11 +1068,11 @@ class WallPainter extends CustomPainter {
     if (tp == null || tp.text?.toPlainText() != name) {
       tp = TextPainter(
         text: TextSpan(
-          text: name,
+          text: name.toUpperCase(),
           style: TextStyle(
-            color: scene.palette.ink.withValues(alpha: 0.85),
-            fontSize: 11,
-            letterSpacing: 1.6,
+            color: scene.palette.ink,
+            fontSize: 9.5,
+            letterSpacing: 2.6,
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -1074,22 +1080,52 @@ class WallPainter extends CustomPainter {
       )..layout();
       _labelCache[st.index] = tp;
     }
-    final top = p.project(V3(st.featureX, st.peakY + 0.45, 0));
+    final top = p.project(V3(st.featureX, st.peakY + 0.5, 0));
     if (top == null) return;
     final fade = clampD(1 - (anchor.depth - 24) / 18, 0, 1);
     if (fade <= 0.02) return;
-    final rect = Rect.fromCenter(
-      center: Offset(top.x, top.y),
-      width: tp.width + 16,
-      height: tp.height + 8,
+
+    // Set straight on the sky with a halo, like the rest of the type. A
+    // filled pill here was the last of the heavy white chrome.
+    final dark = _isDarkSky();
+    final origin = Offset(top.x - tp.width / 2, top.y - tp.height / 2);
+    final glow = TextPainter(
+      text: TextSpan(
+        text: name.toUpperCase(),
+        style: TextStyle(
+          color: (dark ? Colors.white : scene.palette.ink)
+              .withValues(alpha: 0.88 * fade),
+          fontSize: 9.5,
+          letterSpacing: 2.6,
+          fontWeight: FontWeight.w600,
+          shadows: [
+            Shadow(
+              color: (dark ? Colors.black : const Color(0xFF3A3426))
+                  .withValues(alpha: (dark ? 0.6 : 0.34) * fade),
+              blurRadius: 10,
+            ),
+          ],
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    glow.paint(canvas, origin);
+
+    // A hairline under it, to tie the name to the thing it names.
+    final w = glow.width * 0.5;
+    canvas.drawLine(
+      Offset(top.x - w / 2, origin.dy + glow.height + 5),
+      Offset(top.x + w / 2, origin.dy + glow.height + 5),
+      Paint()
+        ..strokeWidth = 1
+        ..color = (dark ? Colors.white : scene.palette.ink)
+            .withValues(alpha: 0.30 * fade),
     );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, const Radius.circular(20)),
-      Paint()..color = Colors.white.withValues(alpha: 0.42 * fade),
-    );
-    canvas.saveLayer(rect.inflate(4), Paint()..color = Colors.white.withValues(alpha: fade));
-    tp.paint(canvas, Offset(top.x - tp.width / 2, top.y - tp.height / 2));
-    canvas.restore();
+  }
+
+  bool _isDarkSky() {
+    final c = scene.palette.skyHorizon;
+    return (c.r * 0.3 + c.g * 0.55 + c.b * 0.15) < 0.45;
   }
 
   // ---------------------------------------------------------- stone marks

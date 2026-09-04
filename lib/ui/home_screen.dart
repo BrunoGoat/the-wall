@@ -121,35 +121,53 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          // --- top: the numbers that matter
+          // --- top: the numbers, set straight on the scene
           Positioned(
-            top: media.padding.top + 10,
-            left: 14,
+            top: 0,
+            left: 0,
+            right: 0,
+            child: IgnorePointer(
+              child: Container(
+                height: media.padding.top + 130,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      t.palette.ink.withValues(alpha: t.dark ? 0.34 : 0.14),
+                      t.palette.ink.withValues(alpha: 0),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: media.padding.top + 12,
+            left: 22,
             right: 14,
             child: _TopBar(theme: t, store: store, onJourney: _openJourney),
           ),
 
           // --- right: camera controls
           Positioned(
-            right: 14,
-            top: media.padding.top + 96,
+            right: 10,
+            top: media.padding.top + 92,
             child: Column(
               children: [
-                RoundButton(
+                GhostButton(
                   icon: Icons.zoom_out_map,
                   theme: t,
                   tooltip: 'Ver toda la muralla',
                   onTap: _wall.frameAll,
                 ),
-                const SizedBox(height: 10),
-                RoundButton(
+                GhostButton(
                   icon: Icons.center_focus_strong,
                   theme: t,
                   tooltip: 'Ir al último ladrillo',
                   onTap: _wall.goToLatest,
                 ),
-                const SizedBox(height: 10),
-                RoundButton(
+                GhostButton(
                   icon: Icons.threesixty,
                   theme: t,
                   tooltip: 'Reiniciar la vista',
@@ -259,12 +277,12 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = theme;
     final decaying = store.isDecaying;
-    return Frosted(
-      theme: t,
-      radius: 24,
-      padding: const EdgeInsets.fromLTRB(18, 13, 14, 13),
+    final days = store.streak;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onJourney,
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: Column(
@@ -275,23 +293,30 @@ class _TopBar extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
                   children: [
-                    Text('${store.total}', style: t.number),
-                    const SizedBox(width: 7),
-                    Text('LADRILLOS',
-                        style:
-                            t.label.copyWith(fontSize: 9, letterSpacing: 1.6)),
-                    if (store.streak > 0) ...[
-                      const SizedBox(width: 12),
-                      Text('${store.streak}',
-                          style: t.number.copyWith(fontSize: 18)),
-                      const SizedBox(width: 5),
-                      Text('DÍAS',
-                          style:
-                              t.label.copyWith(fontSize: 9, letterSpacing: 1.6)),
+                    Text('${store.total}',
+                        style: t.number.copyWith(shadows: t.halo)),
+                    const SizedBox(width: 8),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Text('LADRILLOS',
+                          style: t.label.copyWith(shadows: t.halo)),
+                    ),
+                    if (days > 0) ...[
+                      const SizedBox(width: 14),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 1),
+                        child: Text(
+                          '$days ${days == 1 ? 'DÍA' : 'DÍAS'}',
+                          style: t.label.copyWith(
+                            shadows: t.halo,
+                            color: t.fg.withValues(alpha: 0.44),
+                          ),
+                        ),
+                      ),
                     ],
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 5),
                 Text(
                   decaying
                       ? 'La muralla se deteriora · un ladrillo la repara'
@@ -300,16 +325,23 @@ class _TopBar extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: decaying
-                        ? const Color(0xFFD98E3B)
-                        : t.fg.withValues(alpha: 0.55),
-                    fontSize: 11.5,
+                        ? const Color(0xFFE0A055)
+                        : t.fg.withValues(alpha: 0.50),
+                    fontSize: 12,
+                    letterSpacing: 0.1,
+                    shadows: t.halo,
                   ),
                 ),
               ],
             ),
           ),
-          Icon(Icons.chevron_right,
-              size: 20, color: t.fg.withValues(alpha: 0.45)),
+          Padding(
+            padding: const EdgeInsets.only(top: 6, left: 6),
+            child: Icon(Icons.chevron_right,
+                size: 20,
+                color: t.fg.withValues(alpha: 0.40),
+                shadows: t.halo),
+          ),
         ],
       ),
     );
@@ -333,14 +365,14 @@ class _BottomDeck extends StatelessWidget {
     final bottom = MediaQuery.of(context).padding.bottom;
 
     return Container(
-      padding: EdgeInsets.fromLTRB(14, 10, 14, bottom + 6),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, bottom + 4),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
             t.palette.ink.withValues(alpha: 0),
-            t.palette.ink.withValues(alpha: t.dark ? 0.44 : 0.22),
+            t.palette.ink.withValues(alpha: t.dark ? 0.30 : 0.13),
           ],
         ),
       ),

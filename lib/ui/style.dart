@@ -13,13 +13,15 @@ class UiTheme {
     fg = dark ? const Color(0xFFF3EEE3) : const Color(0xFF221D14);
     fgSoft = fg.withValues(alpha: 0.62);
     fgFaint = fg.withValues(alpha: 0.34);
+    // Deliberately faint. A panel here should read as a change in the air,
+    // not as a card sitting on top of the scene.
     panel = dark
-        ? const Color(0xFF17161A).withValues(alpha: 0.58)
-        : const Color(0xFFFCF8EE).withValues(alpha: 0.62);
+        ? const Color(0xFF14131A).withValues(alpha: 0.40)
+        : const Color(0xFFFBF7ED).withValues(alpha: 0.42);
     panelStrong = dark
-        ? const Color(0xFF17161A).withValues(alpha: 0.90)
-        : const Color(0xFFFCF8EE).withValues(alpha: 0.94);
-    stroke = fg.withValues(alpha: 0.12);
+        ? const Color(0xFF14131A).withValues(alpha: 0.92)
+        : const Color(0xFFFBF7ED).withValues(alpha: 0.95);
+    stroke = fg.withValues(alpha: 0.07);
     accent = palette.accent;
   }
 
@@ -29,17 +31,27 @@ class UiTheme {
 
   TextStyle get label => TextStyle(
         color: fgSoft,
-        fontSize: 10.5,
-        letterSpacing: 2.0,
+        fontSize: 9.5,
+        letterSpacing: 2.4,
         fontWeight: FontWeight.w600,
       );
 
+  /// A soft halo so type can sit straight on the scene without a card behind
+  /// it and still be legible over stone, grass or sky.
+  List<Shadow> get halo => [
+        Shadow(
+          color: (dark ? Colors.black : const Color(0xFF3A3426))
+              .withValues(alpha: dark ? 0.55 : 0.30),
+          blurRadius: 12,
+        ),
+      ];
+
   TextStyle get number => TextStyle(
         color: fg,
-        fontSize: 26,
+        fontSize: 30,
         height: 1.0,
-        fontWeight: FontWeight.w300,
-        letterSpacing: -0.5,
+        fontWeight: FontWeight.w200,
+        letterSpacing: -0.8,
         fontFeatures: const [ui.FontFeature.tabularFigures()],
       );
 
@@ -97,44 +109,57 @@ class Frosted extends StatelessWidget {
   }
 }
 
-/// A small circular control, used for the camera buttons.
-class RoundButton extends StatelessWidget {
-  const RoundButton({
+/// A camera control: just the glyph, with a breath of shade behind it so it
+/// stays readable over stone or sky. No disc, no border.
+class GhostButton extends StatefulWidget {
+  const GhostButton({
     super.key,
     required this.icon,
     required this.theme,
     required this.onTap,
     this.tooltip,
-    this.active = false,
   });
 
   final IconData icon;
   final UiTheme theme;
   final VoidCallback onTap;
   final String? tooltip;
-  final bool active;
+
+  @override
+  State<GhostButton> createState() => _GhostButtonState();
+}
+
+class _GhostButtonState extends State<GhostButton> {
+  bool _down = false;
 
   @override
   Widget build(BuildContext context) {
+    final t = widget.theme;
     final b = GestureDetector(
-      onTap: onTap,
-      child: ClipOval(
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: active ? theme.accent.withValues(alpha: 0.85) : theme.panel,
-              border: Border.all(color: theme.stroke),
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) => setState(() => _down = true),
+      onTapUp: (_) => setState(() => _down = false),
+      onTapCancel: () => setState(() => _down = false),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _down ? 0.88 : 1.0,
+        duration: const Duration(milliseconds: 110),
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Center(
+            child: Icon(
+              widget.icon,
+              size: 20,
+              color: t.fg.withValues(alpha: _down ? 0.95 : 0.62),
+              shadows: t.halo,
             ),
-            child: Icon(icon,
-                size: 19, color: active ? Colors.white : theme.fg.withValues(alpha: 0.85)),
           ),
         ),
       ),
     );
-    return tooltip == null ? b : Tooltip(message: tooltip!, child: b);
+    return widget.tooltip == null
+        ? b
+        : Tooltip(message: widget.tooltip!, child: b);
   }
 }
