@@ -76,19 +76,21 @@ class MortarLook {
       recess: 0.02,
       relief: 0.5,
     ),
-    MortarLook(
-      style: MortarStyle.seca,
-      name: 'Piedra seca',
-      blurb: 'Sin mortero. Las piedras se calzan unas contra otras.',
-      joint: 0.001,
-      tint: 1.0,
-      recess: 0.01,
-      relief: 1.1,
-    ),
+    seca,
   ];
 
+  static const MortarLook seca = MortarLook(
+    style: MortarStyle.seca,
+    name: 'Piedra seca',
+    blurb: 'Sin mortero. Las piedras se calzan unas contra otras.',
+    joint: 0.001,
+    tint: 1.0,
+    recess: 0.01,
+    relief: 1.1,
+  );
+
   static MortarLook of(MortarStyle s) =>
-      all.firstWhere((l) => l.style == s, orElse: () => all.first);
+      all.firstWhere((l) => l.style == s, orElse: () => seca);
 }
 
 /// What the wall looks like. Kept apart from what the wall *is*: changing any
@@ -98,11 +100,19 @@ class Appearance extends ChangeNotifier {
   static final Appearance instance = Appearance._();
 
   static const String _key = 'muralla_mortar_v1';
+  static const String _rapidKey = 'muralla_rapid_v1';
 
-  MortarStyle _mortar = MortarStyle.viva;
+  MortarStyle _mortar = MortarStyle.seca;
+  bool _rapid = false;
 
   MortarStyle get mortar => _mortar;
   MortarLook get look => MortarLook.of(_mortar);
+
+  /// Testing aid: holding the button keeps laying stones instead of stopping
+  /// at one, so a wall long enough to judge can be built in a minute. Off by
+  /// default and deliberately awkward to leave on — a brick is an achievement,
+  /// and this is the one place in the app where that is not true.
+  bool get rapid => _rapid;
 
   Future<void> load() async {
     try {
@@ -113,10 +123,21 @@ class Appearance extends ChangeNotifier {
           if (l.style.name == saved) _mortar = l.style;
         }
       }
+      _rapid = prefs.getBool(_rapidKey) ?? false;
     } catch (_) {
       // A phone that will not give us its preferences still gets a wall.
     }
     notifyListeners();
+  }
+
+  Future<void> setRapid(bool v) async {
+    if (v == _rapid) return;
+    _rapid = v;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_rapidKey, v);
+    } catch (_) {}
   }
 
   Future<void> setMortar(MortarStyle s) async {

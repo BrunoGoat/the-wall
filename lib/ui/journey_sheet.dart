@@ -233,6 +233,7 @@ class _Summary extends StatelessWidget {
           trailing: MortarLook.of(Appearance.instance.mortar).name,
           open: (nav) => AppearanceSheet(theme: t),
         ),
+        _RapidToggle(theme: t),
         _SheetRow(
           theme: t,
           icon: Icons.tune,
@@ -315,6 +316,39 @@ class _TierBar extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// The one switch in the app that breaks its own rule, kept for testing.
+class _RapidToggle extends StatefulWidget {
+  const _RapidToggle({required this.theme});
+  final UiTheme theme;
+
+  @override
+  State<_RapidToggle> createState() => _RapidToggleState();
+}
+
+class _RapidToggleState extends State<_RapidToggle> {
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.theme;
+    return SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      value: Appearance.instance.rapid,
+      activeThumbColor: t.accent,
+      title: Text('Obra rápida', style: t.body),
+      subtitle: Text(
+        'Para probar: dejá el botón apretado y las piedras siguen cayendo, '
+        'cada vez más rápido, hasta que lo sueltes.',
+        style: t.bodySoft.copyWith(fontSize: 11.5),
+      ),
+      onChanged: (v) async {
+        Sensory.instance.tick();
+        await Appearance.instance.setRapid(v);
+        if (mounted) setState(() {});
+      },
     );
   }
 }

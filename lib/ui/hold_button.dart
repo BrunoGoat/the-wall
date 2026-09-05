@@ -22,6 +22,7 @@ class HoldToPlace extends StatefulWidget {
     required this.onPlace,
     required this.onCharge,
     this.enabled = true,
+    this.rapid = false,
   });
 
   final UiTheme theme;
@@ -31,7 +32,18 @@ class HoldToPlace extends StatefulWidget {
   final void Function(double charge) onCharge;
   final bool enabled;
 
+  /// Testing aid: keep laying stones for as long as the button is held,
+  /// quickening as it goes.
+  final bool rapid;
+
   static const Duration hold = Duration(milliseconds: 1250);
+
+  /// The wait between stones in [rapid] mode: it starts here, shortens by a
+  /// seventh each time and never goes below the floor, so a held button
+  /// accelerates into a run of masonry rather than a burst of confetti.
+  static const double rapidFirst = 0.40;
+  static const double rapidFloor = 0.075;
+  static const double rapidEase = 0.86;
 
   @override
   State<HoldToPlace> createState() => _HoldToPlaceState();
@@ -55,6 +67,10 @@ class _HoldToPlaceState extends State<HoldToPlace>
   /// Punch animation after a stone goes up.
   double _punch = 0;
   int _ticksDone = 0;
+
+  /// Rapid mode: how long until the next stone, and how long since the last.
+  double _repeatWait = HoldToPlace.rapidFirst;
+  double _sinceFire = 0;
 
   @override
   void initState() {
@@ -89,8 +105,24 @@ class _HoldToPlaceState extends State<HoldToPlace>
         _charge = 1;
         _fired = true;
         _punch = 1;
+        _repeatWait = HoldToPlace.rapidFirst;
+        _sinceFire = 0;
         widget.onPlace();
       }
+    } else if (_down && _fired && widget.rapid) {
+      // Still held after the first stone: keep going, quicker each time.
+      _sinceFire += dt;
+      if (_sinceFire >= _repeatWait) {
+        _sinceFire = 0;
+        _repeatWait = math.max(
+          HoldToPlace.rapidFloor,
+          _repeatWait * HoldToPlace.rapidEase,
+        );
+        _punch = 1;
+        widget.onPlace();
+      }
+      // The ring runs round again between stones, so the quickening is visible.
+      _charge = (_sinceFire / _repeatWait).clamp(0.0, 1.0);
     } else if (_charge > 0) {
       // Letting go early drains it quickly, and visibly.
       _charge = math.max(0, _charge - dt * 3.4);
@@ -122,6 +154,10 @@ class _HoldToPlaceState extends State<HoldToPlace>
     _down = false;
     _fired = false;
     _pressedAt = null;
+    _charge = 0;
+    _repeatWait = HoldToPlace.rapidFirst;
+    _sinceFire = 0;
+    widget.onCharge(0);
     setState(() {});
   }
 
@@ -172,7 +208,9 @@ class _HoldToPlaceState extends State<HoldToPlace>
                     : t.fg.withValues(alpha: 0.45),
                 shadows: t.halo,
               ),
-              child: Text(_charge > 0.02 ? 'SOSTENÉ' : 'MANTENER'),
+              child: Text(_down && _fired && widget.rapid
+                  ? 'EN OBRA'
+                  : (_charge > 0.02 ? 'SOSTENÉ' : 'MANTENER')),
             ),
           ],
         ),

@@ -55,12 +55,14 @@ siguen a los 350 y a los 900, y ahí la muralla deja de crecer en alto y sigue
 creciendo a lo largo. Las almenas que quedan enterradas se ciegan con
 mampostería a medida que la banda nueva las alcanza.
 
-Los hitos son la excepción a la regla de que nada se mueve: cuando la muralla
-sube de nivel, el hito se rehace más alto **con las mismas piedras**, porque si
-no cada hito viejo terminaría siendo un hueco en el perfil de una muralla que lo
-dejó atrás. Su presupuesto de ladrillos se reparte por lo que cada parte es: la
-corona se paga primero, la masa después y las molduras al final, así un hito
-corto de ladrillos pierde el adorno y nunca la cabeza.
+Los hitos también son append-only: cada uno se construye contra la muralla **del
+día en que se empezó**, con piedras del tamaño de las de esa muralla, y no se
+vuelve a tocar nunca. Cuando la muralla se levanta por encima de uno viejo, lo
+que cierra el perfil es la muralla misma: las hiladas de los niveles nuevos
+pasan por encima del hito y sólo lo que sigue sobresaliendo —sus torres, su
+garita— asoma. Es lo que le pasa a una muralla de verdad cuando la recrecen, y
+evita lo contrario, que era rehacer un hito de veintidós ladrillos contra una
+muralla tres veces más alta y tener que pagarlo con bloques de un metro.
 
 **El frente de obra.** Cada piedra nueva va a la hilada *más alta* donde entre
 legalmente, lo que produce el borde escalonado de una muralla realmente en
@@ -104,7 +106,7 @@ silueta almenada perdiéndose en la calina, como la Gran Muralla.
 
 **El mortero.** En *Ajustes → Mortero y juntas* hay cinco maneras de rejuntar
 la muralla, y se cambian en vivo, con la muralla a la vista: junta viva, junta
-rehundida, junta fina, junta enrasada y piedra seca. Cambian el ancho de la
+rehundida, junta fina, junta enrasada y piedra seca —que es la de fábrica—. Cambian el ancho de la
 junta, cuánto se mete el mortero hacia adentro, su tono respecto de la piedra y
 cuánto sobresale cada piedra de sus vecinas. No tocan ningún ladrillo.
 
@@ -132,7 +134,7 @@ ladrillo la repara entera**, con una ola de reparación que recorre el muro.
 
 ```bash
 flutter pub get
-flutter test          # 55 tests
+flutter test          # 57 tests
 flutter analyze
 flutter run
 flutter build apk --release
@@ -157,6 +159,11 @@ Está firmada con la clave de debug, así que se instala directo en el teléfono
 | `CAM_YAW/CAM_PITCH/CAM_DIST/CAM_AT` | encuadre fijo |
 | `BUDGET=340` | fija el presupuesto de detalle |
 | `MORTAR=seca` | fija el rejuntado, para comparar los cinco |
+
+Y en *Ajustes → Obra rápida*: con eso activado, dejar el botón apretado sigue
+colocando piedras, cada vez más rápido hasta un tope, hasta que se suelta. Es la
+única cosa de la app que rompe la regla de un ladrillo por logro, existe sólo
+para poder mirar una muralla larga sin esperar un año, y viene apagada.
 | `DEBUG_CORE=true` | pinta de magenta el núcleo de mortero, para ver dónde asoma |
 
 Y dentro de la app, en *La Muralla → Ajustes → Ver la muralla a futuro*: un

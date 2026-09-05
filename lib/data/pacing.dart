@@ -33,6 +33,20 @@ class Pacing {
 
   static int _milestoneGap(int i) => 33 + 8 * i;
 
+  /// How much taller the wall is at brick [index] than it was at the start.
+  ///
+  /// Set by the renderer's tier ladder; kept here as a plain table so the plan
+  /// does not depend on the geometry engine and stays trivially inspectable.
+  static double wallGrowthAt(int index) {
+    const thresholds = [100, 350, 900];
+    const growth = [1.0, 1.93, 2.64, 3.13];
+    var k = 0;
+    for (final t in thresholds) {
+      if (index >= t) k++;
+    }
+    return growth[k];
+  }
+
   /// Grace period before the wall starts to suffer, in days.
   static const double decayGraceDays = 1.6;
 
@@ -73,7 +87,13 @@ class WallPlan {
         ));
         cursor = start;
       }
-      final type = MilestoneCatalog.typeFor(milestoneNo);
+      // Priced for the wall it will stand in, which depends only on where it
+      // starts — a fixed function of its number. The plan is therefore the same
+      // on the first day as on the thousandth.
+      final type = MilestoneCatalog.typeFor(
+        milestoneNo,
+        wallGrowth: Pacing.wallGrowthAt(cursor),
+      );
       segments.add(PlanSegment.milestone(
         firstBrick: cursor,
         length: type.brickCost,

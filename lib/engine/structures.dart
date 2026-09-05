@@ -219,8 +219,8 @@ class StructureShapes {
     double y, {
     double height = 0.17,
     double depth = 0.42,
-    double period = 0.24,
-    double duty = 0.52,
+    double period = 0.40,
+    double duty = 0.62,
     double z = 0,
     int order = corbelOrder,
   }) {
@@ -380,7 +380,7 @@ class StructureShapes {
         order: 1,
       ),
       _stringCourse(x0 + ta - 0.05, x0 + tb + 0.05, wallTop + 0.42, depth: 0.60),
-      _corbels(x0 + ta - 0.1, x0 + tb + 0.1, top, depth: 0.64, period: 0.22),
+      _corbels(x0 + ta - 0.1, x0 + tb + 0.1, top, depth: 0.64, period: 0.40),
       _crenellation(x0 + ta - 0.1, x0 + tb + 0.1, top + 0.17, 0.42, 0.60,
           period: 0.52),
       _crenellation(x0, x0 + ta, wallTop, crown, 0.272, period: 0.5, order: 21),
@@ -415,11 +415,11 @@ class StructureShapes {
       ),
       // The voussoir ring around the arch head.
       Slab(
-        x0: x0 + cx - r - 0.16, x1: x0 + cx + r + 0.16,
-        y0: spring - 0.1, y1: spring + r + 0.16,
+        x0: x0 + cx - r - 0.28, x1: x0 + cx + r + 0.28,
+        y0: spring - 0.1, y1: spring + r + 0.28,
         solid: (x, y) {
           final u = x - x0;
-          return _archHole(u, y, cx, r + 0.16, spring) &&
+          return _archHole(u, y, cx, r + 0.28, spring) &&
               !_archHole(u, y, cx, r, spring);
         },
         zCenter: (x) => 0.06,
@@ -467,7 +467,7 @@ class StructureShapes {
       ),
       _stringCourse(x0 + ta - 0.05, x0 + tb + 0.05, wallTop + 0.55, depth: 0.82),
       _stringCourse(x0 + ta - 0.05, x0 + tb + 0.05, wallTop + 1.62, depth: 0.82),
-      _corbels(x0 + ta - 0.14, x0 + tb + 0.14, top, depth: 0.90, period: 0.23),
+      _corbels(x0 + ta - 0.14, x0 + tb + 0.14, top, depth: 0.90, period: 0.40),
       _crenellation(x0 + ta - 0.14, x0 + tb + 0.14, top + 0.17, 0.5, 0.88,
           period: 0.58),
       _crenellation(x0, x0 + ta, wallTop, crown, 0.272, period: 0.5, order: 21),
@@ -810,7 +810,7 @@ class StructureShapes {
         ornament: true,
         order: 84,
       ),
-      _corbels(x0 + lb, x0 + ra, curtainTop - 0.14, depth: 0.42, period: 0.22),
+      _corbels(x0 + lb, x0 + ra, curtainTop - 0.14, depth: 0.42, period: 0.40),
       _crenellation(x0 + lb, x0 + ra, curtainTop, 0.4, 0.352, period: 0.54, order: 19),
       _crenellation(x0 + la, x0 + lb, ttop, 0.44, 0.56, period: 0.5, order: 20),
       _crenellation(x0 + ra, x0 + rb, ttop, 0.44, 0.56, period: 0.5, order: 21),
@@ -1264,7 +1264,7 @@ class StructureShapes {
       ),
       _stringCourse(x0 + ta - 0.06, x0 + tb + 0.06, wallTop + 0.36, depth: 0.62),
       _stringCourse(x0 + ta - 0.06, x0 + tb + 0.06, dialY + dialR + 0.12, depth: 0.62),
-      _corbels(x0 + ta - 0.12, x0 + tb + 0.12, top, depth: 0.68, period: 0.22),
+      _corbels(x0 + ta - 0.12, x0 + tb + 0.12, top, depth: 0.68, period: 0.40),
       // A short spire.
       Slab(
         x0: x0 + ta - 0.06, x1: x0 + tb + 0.06, y0: top + 0.17, y1: top + 0.95,
@@ -1607,8 +1607,10 @@ class StructureShapes {
         ornament: true,
         order: 84,
       ),
+      // The cornice belongs to the crown, not the trim: the attic sits on it,
+      // and giving it up first left the attic floating over the gap.
       _stringCourse(x0, x0 + len, cornice, height: 0.18,
-          depth: _wallHalf + 0.24, z: 0.06, order: 85),
+          depth: _wallHalf + 0.24, z: 0.06, order: crownOrder + 5),
       // The attic: a plain block carrying the inscription.
       Slab(
         x0: x0 + 0.3, x1: x0 + len - 0.3, y0: cornice + 0.18, y1: cornice + 0.86,
@@ -1825,7 +1827,7 @@ class StructureShapes {
       ),
       _stringCourse(x0 + cx - r - 0.04, x0 + cx + r + 0.04, 0.48, depth: r + 0.04),
       _corbels(x0 + cx - r - 0.06, x0 + cx + r + 0.06, top,
-          depth: r + 0.14, period: 0.19),
+          depth: r + 0.14, period: 0.40),
       // A shallow conical cap.
       Slab(
         x0: x0 + cx - r - 0.06, x1: x0 + cx + r + 0.06,
@@ -1863,7 +1865,7 @@ class StructureShapes {
       _drum(x0 + cx, 0.62, s1 + 0.12, s2, order: 2),
       _stringCourse(x0 + cx - 0.66, x0 + cx + 0.66, s2, depth: 0.66, order: 85),
       _drum(x0 + cx, 0.44, s2 + 0.12, s3, order: 3),
-      _corbels(x0 + cx - 0.5, x0 + cx + 0.5, s3, depth: 0.56, period: 0.18),
+      _corbels(x0 + cx - 0.5, x0 + cx + 0.5, s3, depth: 0.56, period: 0.40),
       // The lantern: an open cage of piers with a fire inside.
       Slab(
         x0: x0 + cx - 0.42, x1: x0 + cx + 0.42, y0: s3 + 0.17, y1: s3 + 0.78,

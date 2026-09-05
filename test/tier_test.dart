@@ -61,22 +61,42 @@ void main() {
       expect(checked, greaterThan(25));
     });
 
-    test('a landmark keeps its stones and its stretch when the wall grows', () {
+    test('a landmark is not touched again once it is built', () {
+      // A landmark belongs to the day it was begun: same shape, same stones,
+      // same stretch of ground, however tall the wall around it later becomes.
+      // The wall closes over the top of it instead of it being rebuilt.
       final before = WallLayout(99);
-      final after = WallLayout(600);
+      final after = WallLayout(1400);
       final a = before.structures.first;
       final b = after.structures.first;
       expect(b.type.kind, a.type.kind);
       expect(b.firstBrick, a.firstBrick);
       expect(b.brickCount, a.brickCount, reason: 'a landmark changed its cost');
       expect(b.x0, closeTo(a.x0, 1e-9), reason: 'a landmark slid along the wall');
-      expect(b.peakY, greaterThan(a.peakY),
-          reason: 'a landmark should rise with the wall it stands on');
+      expect(b.peakY, closeTo(a.peakY, 1e-9),
+          reason: 'a landmark was rebuilt under the wall that grew past it');
+      for (var i = 0; i < a.brickCount; i++) {
+        final p = before.slots[a.firstBrick + i];
+        final q = after.slots[a.firstBrick + i];
+        expect(q.x, closeTo(p.x, 1e-9));
+        expect(q.y, closeTo(p.y, 1e-9));
+      }
     });
 
     test('the wall gets taller, not just longer', () {
-      final small = peakOf(WallLayout(90));
-      final big = peakOf(WallLayout(600));
+      // Measured on the rampart, not on the tallest tower: a watchtower on a
+      // ninety-brick wall is already tall, and that says nothing about whether
+      // the wall itself has grown.
+      double rampart(WallLayout l) {
+        var top = 0.0;
+        for (final s in l.slots) {
+          if (s.structureIndex < 0 && s.top > top) top = s.top;
+        }
+        return top;
+      }
+
+      final small = rampart(WallLayout(90));
+      final big = rampart(WallLayout(600));
       expect(big, greaterThan(small * 1.4),
           reason: 'a levelled wall should stand clearly higher');
       expect(WallDims.crownOf(1), greaterThan(WallDims.crownOf(0)));
@@ -147,18 +167,19 @@ void main() {
       }
     });
 
-    test('a landmark always stands at least as tall as the wall it is in', () {
-      // A landmark that cannot afford its own parapet reads as a hole in the
-      // wall rather than a monument in it, which is worse than no landmark.
+    test('a landmark stands above the wall of its own day', () {
+      // Each landmark is built to the wall as it stood when it was begun. It
+      // must clear *that* wall — a landmark that cannot even reach the parapet
+      // it was built against reads as a hole rather than a monument. The wall
+      // may later be heightened past it, and then it sits low, the way the
+      // oldest stretch of a real wall does.
       for (final n in [200, 600, 1200, 3000]) {
         final l = WallLayout(n);
-        var rampart = 0.0;
-        for (final s in l.slots) {
-          if (s.structureIndex < 0 && s.top > rampart) rampart = s.top;
-        }
         for (final st in l.structures) {
-          expect(st.peakY, greaterThan(rampart - 0.1),
-              reason: '${st.type.name} sank into the wall at $n bricks');
+          final era = WallTiers.tierAt(st.firstBrick);
+          expect(st.peakY, greaterThan(WallDims.walkTopOf(era) + 0.2),
+              reason: '${st.type.name} did not reach the wall it was built '
+                  'against, at $n bricks');
         }
       }
     });

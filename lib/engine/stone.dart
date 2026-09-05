@@ -59,11 +59,32 @@ class StoneProfiles {
       final inY = cur[1] > 0 ? -1.0 : 1.0;
 
       if (hash01(s, c, 7) < 0.30) {
-        // A knocked-off corner: two vertices instead of one.
-        xs.add(cur[0] + inX * hashRange(0.04, 0.11, s, c, 11));
-        ys.add(cur[1] + inY * hashRange(0.002, 0.010, s, c, 13));
-        xs.add(cur[0] + inX * hashRange(0.003, 0.015, s, c, 14));
-        ys.add(cur[1] + inY * hashRange(0.015, 0.045, s, c, 12));
+        // A knocked-off corner: two vertices instead of one, one on the edge
+        // arriving at this corner and one on the edge leaving it.
+        //
+        // The order matters and is not the same at every corner. Corners 1 and
+        // 3 are arrived at along a bed joint and left up a side; corners 0 and
+        // 2 are the other way round. Emitted in the wrong order the two points
+        // double back on each other and the silhouette crosses itself — and a
+        // polygon that crosses itself extrudes into a prism whose faces face
+        // inwards along the crossing. That is what left the odd stone looking
+        // like an open crate with no lid: it was not a shading fault or a
+        // sorting fault, the top of the stone genuinely faced the wrong way.
+        final alongEdge = cur[0] + inX * hashRange(0.04, 0.11, s, c, 11);
+        final nearEdge = cur[1] + inY * hashRange(0.002, 0.010, s, c, 13);
+        final alongSide = cur[1] + inY * hashRange(0.015, 0.045, s, c, 12);
+        final nearSide = cur[0] + inX * hashRange(0.003, 0.015, s, c, 14);
+        if (c == 1 || c == 3) {
+          xs.add(alongEdge);
+          ys.add(nearEdge);
+          xs.add(nearSide);
+          ys.add(alongSide);
+        } else {
+          xs.add(nearSide);
+          ys.add(alongSide);
+          xs.add(alongEdge);
+          ys.add(nearEdge);
+        }
       } else {
         xs.add(cur[0] + inX * hashRange(0.003, 0.040, s, c, 15));
         ys.add(cur[1] + inY * hashRange(0.002, 0.014, s, c, 16));

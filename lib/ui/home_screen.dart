@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../data/milestones.dart';
 import '../engine/palette.dart';
 import '../fx/sensory.dart';
+import '../model/appearance.dart';
 import '../model/models.dart';
 import '../model/wall_store.dart';
 import 'hold_button.dart';
@@ -34,12 +35,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     widget.store.addListener(_onStore);
+    Appearance.instance.addListener(_onStore);
     WidgetsBinding.instance.addPostFrameCallback((_) => _greet());
   }
 
   @override
   void dispose() {
     widget.store.removeListener(_onStore);
+    Appearance.instance.removeListener(_onStore);
     _whisperTimer?.cancel();
     super.dispose();
   }
@@ -104,10 +107,15 @@ class _HomeScreenState extends State<HomeScreen> {
             child: WallView(
               store: store,
               controller: _wall,
-              onMilestoneComplete: (seg) => setState(() {
-                _revealMilestone =
-                    MilestoneReveal(seg.type!, seg.milestoneNo + 1);
-              }),
+              onMilestoneComplete: (seg) {
+                // In the testing mode the stones come far too fast for a
+                // full-screen announcement to be anything but in the way.
+                if (Appearance.instance.rapid) return;
+                setState(() {
+                  _revealMilestone =
+                      MilestoneReveal(seg.type!, seg.milestoneNo + 1);
+                });
+              },
               onStoneTapped: (brick) => setState(() => _selected = brick),
               onWhisper: _showWhisper,
               onPaletteChanged: (p) {
@@ -406,6 +414,7 @@ class _BottomDeck extends StatelessWidget {
             theme: t,
             onPlace: onPlace,
             onCharge: wall.setCharge,
+            rapid: Appearance.instance.rapid,
           ),
         ],
       ),

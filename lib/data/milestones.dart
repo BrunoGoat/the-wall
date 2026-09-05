@@ -317,18 +317,21 @@ class MilestoneCatalog {
   /// A landmark is built to the height of the wall it stands in, and the wall
   /// levels up. Without this the later, much taller landmarks would have to be
   /// built out of the same handful of stones, and each one would end up a pile
-  /// of boulders instead of masonry. It is a function of the landmark's number
-  /// alone, never of how many bricks exist, so the plan of the whole wall is
-  /// fixed from the first day and nothing ever shifts under a stone already
-  /// laid. The first landmark is untouched: the opening month is the one piece
-  /// of pacing that cannot move.
-  static double growth(int n) => 1 + 0.9 * (n < 18 ? n / 18 : 1);
+  /// of boulders instead of masonry.
+  ///
+  /// [wallGrowth] is how much taller the wall is where this landmark begins,
+  /// which is a function of the landmark's number alone — never of how many
+  /// bricks exist — so the plan of the whole wall is fixed from the first day
+  /// and nothing ever shifts under a stone already laid. The first landmarks
+  /// are untouched: the opening month is the one piece of pacing that cannot
+  /// move.
+  static double growth(int n, double wallGrowth) => 1 + 0.62 * (wallGrowth - 1);
 
-  static MilestoneType typeFor(int n) {
+  static MilestoneType typeFor(int n, {double wallGrowth = 1.0}) {
     final kind = order[n % order.length];
     final lap = n ~/ order.length;
     final b = base[kind]!;
-    final cost = ((b.brickCost + 6 * lap) * growth(n)).round();
+    final cost = ((b.brickCost + 6 * lap) * growth(n, wallGrowth)).round();
     if (lap == 0 && cost == b.brickCost) return b;
     return MilestoneType(
       kind: kind,

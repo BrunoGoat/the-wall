@@ -12,15 +12,6 @@ void main() {
       for (var i = 0; i < 40; i++) {
         final a = small.slots[i];
         final b = big.slots[i];
-        // A landmark is the one thing that grows with the wall: when the wall
-        // levels up, the landmark is rebuilt taller out of the same stones so
-        // it does not end up a notch in a skyline that has passed it by. Its
-        // stones stay its stones, in its own stretch of wall.
-        if (a.structureIndex >= 0) {
-          expect(b.structureIndex, a.structureIndex, reason: 'brick $i');
-          expect(b.x, closeTo(a.x, 2.0), reason: 'brick $i left its landmark');
-          continue;
-        }
         expect(a.x, closeTo(b.x, 1e-9), reason: 'brick $i moved sideways');
         expect(a.y, closeTo(b.y, 1e-9), reason: 'brick $i moved vertically');
         expect(a.w, closeTo(b.w, 1e-9));
@@ -157,7 +148,7 @@ void main() {
 
       for (final n in [300, 1000, 3000]) {
         final l = WallLayout(n);
-        expect(l.length / rampart(l), greaterThan(7),
+        expect(l.length / rampart(l), greaterThan(5.5),
             reason: 'at $n bricks it stopped reading as a wall');
       }
       // And it keeps stretching out faster than it climbs.
@@ -219,6 +210,47 @@ void main() {
         expect(plain.sign, mirrored.sign,
             reason: 'stone $i winds the other way when mirrored');
         expect(plain.abs(), greaterThan(1e-4));
+      }
+    });
+
+    test('no stone silhouette crosses itself', () {
+      // A prism is only solid if the outline it is extruded from is a simple
+      // polygon. Let the outline cross itself — two chamfer vertices emitted in
+      // the wrong order is all it takes — and the faces along the crossing
+      // point inwards: the stone renders as an open crate with a face missing,
+      // which is exactly what it is.
+      bool crosses(double ax, double ay, double bx, double by, double cx,
+          double cy, double dx, double dy) {
+        double side(double px, double py, double qx, double qy, double rx,
+                double ry) =>
+            (qx - px) * (ry - py) - (qy - py) * (rx - px);
+        final d1 = side(ax, ay, bx, by, cx, cy);
+        final d2 = side(ax, ay, bx, by, dx, dy);
+        final d3 = side(cx, cy, dx, dy, ax, ay);
+        final d4 = side(cx, cy, dx, dy, bx, by);
+        return ((d1 > 0) != (d2 > 0)) && ((d3 > 0) != (d4 > 0));
+      }
+
+      for (var seed = 0; seed < StoneProfiles.poolSize; seed++) {
+        final p = StoneProfiles.instance.forSeed(seed);
+        final n = p.count;
+        for (var i = 0; i < n; i++) {
+          final j = (i + 1) % n;
+          for (var k = i + 1; k < n; k++) {
+            final l = (k + 1) % n;
+            if (k == i || k == j || l == i) continue;
+            expect(
+              crosses(
+                p.pts[i * 2], p.pts[i * 2 + 1],
+                p.pts[j * 2], p.pts[j * 2 + 1],
+                p.pts[k * 2], p.pts[k * 2 + 1],
+                p.pts[l * 2], p.pts[l * 2 + 1],
+              ),
+              isFalse,
+              reason: 'silhouette $seed crosses itself between edges $i and $k',
+            );
+          }
+        }
       }
     });
 

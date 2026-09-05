@@ -46,7 +46,7 @@ class WallScene {
     this.repairSweep,
     this.detailBudget = 300,
     this.coarseBudget = 2600,
-    this.mortar = MortarLook.viva,
+    this.mortar = MortarLook.seca,
     this.selectedBrick,
     this.charge = 0,
   });
@@ -343,9 +343,11 @@ class WallPainter extends CustomPainter {
       var litSide = false;
       var startX = 0.0, lastX = 0.0, crest = size.height;
 
-      // Each range fades into the ground colour where it meets the horizon,
-      // the way distance actually works. Without it the clip line reads as the
-      // mountains having been cut off with scissors.
+      // Each range fades into the haze where it meets the horizon, the way
+      // distance actually works. Into the haze and not into the ground: fading
+      // to the ground's own colour made the two indistinguishable exactly where
+      // they meet, and the skyline dissolved instead of standing against the
+      // field.
       Paint fill(bool isLit) {
         final c = isLit ? lit : body;
         final top = math.min(crest, cut - 1);
@@ -353,7 +355,7 @@ class WallPainter extends CustomPainter {
           ..shader = ui.Gradient.linear(
             Offset(0, top),
             Offset(0, cut),
-            [c, Color.lerp(c, pal.groundFar, 0.55 + 0.2 * (2 - li) / 2)!],
+            [c, Color.lerp(c, pal.haze, 0.42 + 0.12 * (2 - li) / 2)!],
           );
       }
 

@@ -300,7 +300,7 @@ class WallLayout {
         // stretch of wall behind can still be finished — and, once a tier
         // opens, raised — instead of being abandoned at whatever height it had
         // reached the day the landmark was begun.
-        _spans.add((built.instance.x0, endX));
+        _spans.add(_Span.of(built.instance.x0, endX, built.slots));
         if (endX > _spanEnd) _spanEnd = endX;
         if (built.truncated) break;
       } else {
@@ -323,30 +323,46 @@ class WallLayout {
     _buildProfile();
   }
 
-  /// The stretches of wall a landmark is standing on. A course opened by a
-  /// later tier has to climb past them rather than through them.
-  final List<(double, double)> _spans = [];
+  /// The stretches of wall the landmarks stand on, each with the coarse
+  /// profile of its own top.
+  ///
+  /// A landmark is built to the wall of its own day, so once the wall has been
+  /// heightened it is shorter than its neighbours. What closes that gap is the
+  /// wall itself: courses opened by a later tier run straight over the top of
+  /// an old landmark, and only the parts that still stand higher — its towers,
+  /// its turret — keep pushing through. That is what happens to a real wall
+  /// that gets raised, and it means the skyline stays whole without anyone
+  /// having to pay for an old landmark twice.
+  final List<_Span> _spans = [];
   double _spanEnd = 0;
 
-  /// Makes room for the landmarks in the way of a stone of width [w] at [xs].
+  /// Makes room for the landmarks in the way of a stone of width [w] at [xs],
+  /// at the height [yBottom] the stone would sit at.
   ///
   /// A stone that would run into a landmark is first narrowed to close the gap
   /// up against it, and only steps over it when what is left is too small to
   /// be a stone at all. Stepping over without narrowing left a slot beside
   /// every landmark, and once tiers stacked those slots became a chimney
   /// running the whole height of the wall.
-  (double, double) _fitSpans(double xs, double w) {
+  (double, double) _fitSpans(double xs, double w, double yBottom) {
     if (_spans.isEmpty || xs >= _spanEnd) return (xs, w);
-    for (final sp in _spans) {
-      if (sp.$2 <= xs) continue;
-      if (sp.$1 >= xs + w) break;
-      if (xs >= sp.$1) {
-        xs = sp.$2;
-        continue;
+    for (var pass = 0; pass < 6; pass++) {
+      var moved = false;
+      for (final sp in _spans) {
+        if (sp.x1 <= xs || sp.x0 >= xs + w) continue;
+        final block = sp.blockedAt(yBottom, xs, xs + w);
+        if (block == null) continue;
+        if (xs >= block.$1) {
+          xs = block.$2;
+          moved = true;
+          continue;
+        }
+        final room = block.$1 - xs;
+        if (room >= WallDims.minStoneW) return (xs, room);
+        xs = block.$2;
+        moved = true;
       }
-      final room = sp.$1 - xs;
-      if (room >= WallDims.minStoneW) return (xs, room);
-      xs = sp.$2;
+      if (!moved) break;
     }
     return (xs, w);
   }
@@ -425,7 +441,7 @@ class WallLayout {
 
   /// Returns (startX, width) if course [c] can take a stone, else null.
   (double, double)? _tryCourse(List<double> fill, int c, double w, int index) {
-    final fitted = _fitSpans(fill[c], w);
+    final fitted = _fitSpans(fill[c], w, WallDims.courseBottom(c));
     var xs = fitted.$1;
     w = fitted.$2;
     final support = WallTiers.supportOf(c);
@@ -474,13 +490,19 @@ class WallLayout {
     int remaining,
   ) {
     final type = seg.type!;
-    // Built to the tier the wall is at *now*, not the tier it was at the day
-    // the landmark was begun. A wall that levelled up twice would otherwise
-    // leave every old landmark as a notch in its own skyline. A landmark keeps
-    // its stretch of wall and its stone count either way — it grows upward
-    // with the wall, and its stones grow with it.
-    final spec = StructureShapes(WallDims.walkTopOf(currentTier))
-        .build(type.kind, startX);
+    // Built to the wall of its own day, and paid for at that day's rate.
+    //
+    // Rebuilding old landmarks to the wall's current height kept the skyline
+    // even, but it did so by handing a twenty-two brick watchtower a tower
+    // three times as tall to pay for, and the only way to pay was with blocks a
+    // metre across. A landmark built out of six boulders is not a landmark. So
+    // each one is built to the wall as it stood when it was begun, out of
+    // stones the size of that wall's stones — and where the wall has since been
+    // heightened, the oldest landmarks sit a little below its top, which is
+    // what happens to real ones.
+    final spec = StructureShapes(
+      WallDims.walkTopOf(WallTiers.tierAt(seg.firstBrick)),
+    ).build(type.kind, startX);
     final want = seg.length;
     final generated = _fillSlabs(spec.slabs, want, firstIndex, seg.milestoneNo);
 
@@ -520,46 +542,22 @@ class WallLayout {
 
   /// Fills a set of slabs with exactly [target] stones.
   ///
-  /// Two things have to hold at once, and they pull against each other.
-  ///
-  /// The landmark must cost precisely the bricks the pacing promised, so the
-  /// stone size is searched for rather than fixed. And a landmark standing on a
-  /// wall that has levelled up has a great deal of mass to pay for: filled in
-  /// one pass, that mass swallowed every brick and the thing was left headless,
-  /// a stump of curtain with no parapet, reading as a gap in the wall rather
-  /// than a monument in it.
-  ///
-  /// So the mass is built first and built *whole* — at whatever stone size lets
-  /// it fit inside its share — and everything that finishes it is paid for out
-  /// of what is left. Whole is the important word: an unfinished mass leaves its
-  /// own crown hanging in the air above the hole where the rest of the tower
-  /// should have been. What gets given up when a landmark cannot afford
-  /// everything is the mouldings, then the parapet, in that order — never the
-  /// thing they sit on.
-  List<_RawStone> _fillSlabs(List<Slab> slabs, int target, int seedA, int seedB) {
-    final mass = <Slab>[], finish = <Slab>[];
-    for (final s in slabs) {
-      (s.order < 15 ? mass : finish).add(s);
-    }
-    if (finish.isEmpty || mass.isEmpty) {
-      return _capped(_searchFill(slabs, target, seedA, seedB), target);
-    }
-
-    final share = math.max(1, (target * 0.74).round());
-    final m = _searchAtMost(mass, share, seedA, seedB);
-    if (m.length > share || m.length >= target) {
-      return _capped(_searchFill(slabs, target, seedA, seedB), target);
-    }
-
-    final rest = target - m.length;
-    final f = _searchFill(finish, rest, seedA, seedB);
-    if (m.length + f.length < target) {
-      return _capped(_searchFill(slabs, target, seedA, seedB), target);
-    }
-    // Ordered mass first, so what the cap takes off the end is the trim, then
-    // the parapet — and the mass is never touched.
-    return _capped([...m, ...f], target);
-  }
+  /// One stone size for the whole landmark. It was tempting to give each part
+  /// of it its own budget and its own size — that is how the parapet stopped
+  /// being the first thing given up when the bricks ran short — but a landmark
+  /// whose body is a stack of slabs a metre across and whose cornice is a
+  /// handful of gravel is not a landmark, it is a pile. Sizing every part
+  /// together is what keeps it reading as one piece of masonry. The parapet is
+  /// kept instead by building it *before* the mouldings (see the order
+  /// constants in StructureShapes), and the body is stopped from swallowing the
+  /// budget in giant blocks by the size bounds in [_generate].
+  List<_RawStone> _fillSlabs(
+    List<Slab> slabs,
+    int target,
+    int seedA,
+    int seedB,
+  ) =>
+      _capped(_searchFill(slabs, target, seedA, seedB), target);
 
   /// Trims a landmark to the bricks it is allowed, giving up whatever is
   /// furthest from being the landmark itself.
@@ -576,35 +574,6 @@ class WallLayout {
       return c != 0 ? c : a.compareTo(b);
     });
     return [for (var i = 0; i < target; i++) stones[order[i]]];
-  }
-
-  /// The finest stone size whose count still fits inside [budget].
-  ///
-  /// The mirror of [_searchFill]: that one guarantees *at least* a count, this
-  /// one guarantees at most, which is what makes it safe to build a part of a
-  /// landmark in full without it eating the rest of the landmark's bricks.
-  List<_RawStone> _searchAtMost(
-    List<Slab> slabs,
-    int budget,
-    int seedA,
-    int seedB,
-  ) {
-    if (slabs.isEmpty || budget <= 0) return const [];
-    var lo = 0.06, hi = 1.60;
-    var best = _generate(slabs, hi, seedA, seedB);
-    // Even at its coarsest the mass does not fit: the caller falls back.
-    if (best.length > budget) return best;
-    for (var i = 0; i < 20; i++) {
-      final mid = (lo + hi) / 2;
-      final g = _generate(slabs, mid, seedA, seedB);
-      if (g.length <= budget) {
-        hi = mid;
-        best = g;
-      } else {
-        lo = mid;
-      }
-    }
-    return best;
   }
 
   /// The largest stone size that still yields at least [target] stones.
@@ -631,6 +600,13 @@ class WallLayout {
     return best;
   }
 
+  /// How big a landmark's stones are allowed to get, and how small its chips
+  /// are allowed to get. Both are expressed against the rampart's own stones,
+  /// because looking like the wall it stands in is the whole job.
+  static const double _maxCourse = 0.74;
+  static const double _maxStoneW = 1.06;
+  static const double _minStoneW = 0.40;
+
   List<_RawStone> _generate(List<Slab> slabs, double scale, int seedA, int seedB) {
     final out = <_RawStone>[];
     final ordered = [...slabs]..sort((a, b) => a.order.compareTo(b.order));
@@ -640,8 +616,18 @@ class WallLayout {
       if (want < 0.04) continue;
       // Divide the mass into a whole number of courses so it finishes exactly
       // at its own top: a leftover sliver leaves the crenellation floating.
-      final courses = math.max(1, ((slab.y1 - slab.y0) / want).round());
-      final ch = (slab.y1 - slab.y0) / courses;
+      //
+      // Bounded, though. A landmark on a wall that has levelled up has enough
+      // mass to pay for that the search would happily build its tower out of
+      // four blocks a metre tall, and no arrangement of four blocks a metre
+      // tall reads as a tower. Nothing here may be more than a couple of the
+      // rampart's own courses high.
+      final tall = slab.y1 - slab.y0;
+      final courses = math.max(
+        math.max(1, (tall / want).round()),
+        (tall / _maxCourse).ceil(),
+      );
+      final ch = tall / courses;
       if (ch < 0.04) continue;
       for (var ci = 0; ci < courses; ci++) {
         final yb = slab.y0 + ci * ch;
@@ -691,10 +677,19 @@ class WallLayout {
     int salt,
   ) {
     final span = b - a;
-    if (span < ch * 0.55) return;
-    final targetW = ch * 1.75;
+    // A feature narrower than this is not worth a stone: cut into pieces it
+    // reads as gravel caught in the wall rather than as the moulding it is
+    // meant to be, so it is left out altogether.
+    if (span < ch * 0.55 || span < 0.21) return;
+    // The same bounds sideways: never a block wider than the widest stone in
+    // the rampart, and never a chip narrower than the narrowest — a moulding
+    // made of gravel reads as rubble caught in the wall, not as a moulding.
+    final targetW = clampD(ch * 1.75, _minStoneW, _maxStoneW);
     var n = (span / targetW).round();
     if (n < 1) n = 1;
+    // Rounding can leave one block spanning the lot: a run of 1.35 over a
+    // target of 1.06 rounds to a single stone. The cap is a cap.
+    if (span / n > _maxStoneW) n = (span / _maxStoneW).ceil();
     final base = span / n;
     var cursor = a;
     for (var i = 0; i < n; i++) {
@@ -751,6 +746,31 @@ class WallLayout {
           ));
         }
       }
+    }
+
+    // And the same for a landmark the wall has been built over: its own
+    // crenellations are now inside the mass, and their gaps would be daylight
+    // through the middle of a solid wall.
+    for (final sp in _spans) {
+      final peak = sp.peak;
+      if (peak <= 0.1) continue;
+      var covered = false;
+      for (final s in _laid) {
+        if (s.structureIndex >= 0) continue;
+        if (s.right <= sp.x0 || s.left >= sp.x1) continue;
+        if (s.y - s.h / 2 >= peak - 0.06) {
+          covered = true;
+          break;
+        }
+      }
+      if (!covered) continue;
+      buried.add(BuriedBand(
+        math.max(0, peak - 0.55),
+        peak,
+        sp.x0,
+        sp.x1,
+        WallDims.halfDepthAtY(peak) - 0.06,
+      ));
     }
   }
 
@@ -816,6 +836,65 @@ class WallLayout {
 class BuriedBand {
   BuriedBand(this.y0, this.y1, this.x0, this.x1, this.halfDepth);
   final double y0, y1, x0, x1, halfDepth;
+}
+
+/// One landmark's footprint, with the coarse profile of its own top.
+class _Span {
+  _Span(this.x0, this.x1, this.step, this.tops);
+
+  factory _Span.of(double x0, double x1, List<StoneSlot> stones) {
+    const step = 0.22;
+    final n = math.max(1, ((x1 - x0) / step).ceil());
+    final tops = List<double>.filled(n, 0.0);
+    for (final s in stones) {
+      final i0 = ((s.left - x0) / step).floor().clamp(0, n - 1);
+      final i1 = ((s.right - x0) / step).ceil().clamp(0, n - 1);
+      for (var i = i0; i <= i1; i++) {
+        if (s.top > tops[i]) tops[i] = s.top;
+      }
+    }
+    return _Span(x0, x1, step, tops);
+  }
+
+  final double x0, x1, step;
+
+  /// Highest stone of the landmark in each slice of its footprint.
+  final List<double> tops;
+
+  double get peak {
+    var m = 0.0;
+    for (final t in tops) {
+      if (t > m) m = t;
+    }
+    return m;
+  }
+
+  /// The first stretch of this footprint that a course sitting at [yBottom]
+  /// cannot pass through, searched between [from] and [to].
+  ///
+  /// Null when the course clears the landmark everywhere it would touch it —
+  /// which is how a heightened wall runs over the top of an old one.
+  (double, double)? blockedAt(double yBottom, double from, double to) {
+    final n = tops.length;
+    final i0 = ((from - x0) / step).floor().clamp(0, n - 1);
+    final i1 = ((to - x0) / step).ceil().clamp(0, n - 1);
+    var start = -1;
+    for (var i = i0; i <= i1; i++) {
+      final blocked = tops[i] > yBottom + 0.02;
+      if (blocked && start < 0) start = i;
+      if (!blocked && start >= 0) {
+        return (x0 + start * step, x0 + i * step);
+      }
+    }
+    if (start < 0) return null;
+    // Blocked to the end of the searched stretch: extend to the far side of
+    // whatever is actually in the way, so the course steps clear of it.
+    var end = i1;
+    while (end + 1 < n && tops[end + 1] > yBottom + 0.02) {
+      end++;
+    }
+    return (x0 + start * step, math.min(x1, x0 + (end + 1) * step));
+  }
 }
 
 class _BuiltStructure {
