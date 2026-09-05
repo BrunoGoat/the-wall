@@ -229,7 +229,7 @@ final List<Landmark> landmarks = [
     m.floor(1.75, 1.5, 1.0);
     m.roof(2.0, 1.75, 0.55);
     m.dome(1.0, 1.0, 0.8, dx: 1.45, at: 0);
-    m.chimney(0.22, 0.4, dx: 1.45);
+    m.box(PieceKind.chimney, 0.22, 0.22, 0.4, dx: 1.45, ridge: true, at: 0.6);
     m.door(0.6, 0.8, dz: 0.8);
     m.water(0.9, 0.9, dx: -1.4, dz: 0.8);
     m.post(0.16, 0.9, dx: -1.4, dz: -0.7);
@@ -344,8 +344,7 @@ final List<Landmark> landmarks = [
     m.beam(1.8, 0.18, 0.14, dz: -1.1, at: 1.6);
     m.box(PieceKind.porch, 1.5, 0.6, 0.3, dz: 0.7, at: 0.02);
     m.post(0.14, 1.2, dz: 0.7, at: 0.32);
-    m.floor(1.2, 1.0, 0.85, dx: 1.5, dz: -1.2);
-    m.roof(1.4, 1.2, 0.4, dx: 1.5, dz: -1.2);
+    m.outbuilding(1.2, 1.0, 0.85, 0.4, dx: 1.5, dz: -1.2);
   }),
 
   Landmark('atalaya', 'Atalaya', 9, 0, (m) {
@@ -411,8 +410,7 @@ final List<Landmark> landmarks = [
     m.sails(3.4, dz: -1.0, at: 4.3);
     m.door(0.55, 0.85, dz: 1.0);
     m.stair(0.9, 0.4, 0.8, dz: 1.5);
-    m.floor(1.2, 1.0, 0.8, dx: 2.0, dz: 1.4);
-    m.roof(1.4, 1.2, 0.45, dx: 2.0, dz: 1.4);
+    m.outbuilding(1.2, 1.0, 0.8, 0.45, dx: 2.0, dz: 1.4);
     m.palisade(3.0, 0.6, dz: -3.0);
     m.tree(1.0, 1.8, dx: 2.4, dz: -1.6);
   }),
@@ -526,7 +524,7 @@ final List<Landmark> landmarks = [
     m.floor(2.25, 1.8, 0.95);
     m.roof(2.65, 2.2, 0.8);
     m.dome(1.1, 1.1, 0.85, dx: 1.75, at: 0);
-    m.chimney(0.26, 0.5, dx: 1.75);
+    m.box(PieceKind.chimney, 0.26, 0.26, 0.5, dx: 1.75, ridge: true, at: 0.65);
     m.chimney(0.34, 1.0, dx: -0.7);
     m.door(0.7, 0.9, dz: 1.0);
     m.dormer(0.6, 0.55, dz: 0.5);
@@ -542,7 +540,7 @@ final List<Landmark> landmarks = [
     m.floor(2.15, 1.7, 0.95);
     m.roof(2.55, 2.1, 0.75);
     m.dome(1.2, 1.1, 0.75, dx: -1.75, at: 0);
-    m.chimney(0.24, 0.45, dx: -1.75);
+    m.box(PieceKind.chimney, 0.24, 0.24, 0.45, dx: -1.75, ridge: true, at: 0.55);
     m.chimney(0.3, 0.9, dx: 0.7);
     m.door(0.7, 0.9, dz: 0.95);
     m.box(PieceKind.porch, 1.4, 0.5, 0.35, dz: 1.2, at: 1.0);
@@ -745,8 +743,7 @@ final List<Landmark> landmarks = [
     m.chimney(0.3, 0.9, dx: 1.1);
     m.door(0.8, 1.0, dz: 1.2);
     m.banner(1.0, dx: 1.2, dz: 1.35, at: 1.6);
-    m.floor(1.6, 1.3, 0.9, dx: 2.3, dz: -0.8);
-    m.roof(1.85, 1.55, 0.5, dx: 2.3, dz: -0.8);
+    m.outbuilding(1.6, 1.3, 0.9, 0.5, dx: 2.3, dz: -0.8);
     m.water(0.9, 0.8, dx: -2.2, dz: 1.2);
     m.tree(1.1, 2.1, dx: -2.2, dz: -1.2);
   }),
@@ -854,16 +851,16 @@ final List<Landmark> landmarks = [
     m.plinth(2.4, 3.2, 0.34);
     m.floor(2.1, 2.9, 1.35);
     m.roof(2.45, 3.25, 1.0, along: false);
-    m.floor(1.0, 1.0, 2.6, dz: -2.1);
-    m.parapet(1.2, 1.2, 0.3, dz: -2.1);
-    m.spire(1.05, 1.05, 1.0, dz: -2.1);
+    m.box(PieceKind.floor, 1.0, 1.0, 2.6, dz: -2.1, ridge: true, at: 0);
+    m.box(PieceKind.parapet, 1.2, 1.2, 0.3, dz: -2.1, ridge: true, at: 2.6);
+    m.spire(1.05, 1.05, 1.0, dz: -2.1, at: 2.9);
     m.door(0.65, 0.95, dz: 1.5);
     m.box(PieceKind.parapet, 0.6, 0.26, 0.5, at: 1.69);
     m.arcade(2.0, 0.9, 0.4, dz: 1.5, at: 0.34);
     m.tree(1.2, 2.3, dx: 1.9, dz: 1.4);
     m.palisade(2.6, 0.55, dx: -1.7, along: false);
     m.stair(1.2, 0.34, 0.6, dz: 1.85);
-    m.banner(0.7, dz: -2.1, at: 4.5);
+    m.banner(0.7, dz: -2.1, at: 3.75);
   }),
 
   Landmark('campanario', 'Campanario exento', 14, 1, (m) {
@@ -936,13 +933,13 @@ final List<Landmark> landmarks = [
   Landmark('silos', 'Silos de grano', 14, 1, (m) {
     m.plinth(3.6, 2.2, 0.3);
     for (var i = 0; i < 3; i++) {
-      m.floor(1.0, 1.0, 1.5, dx: -1.15 + i * 1.15, dz: -0.2);
+      m.box(PieceKind.floor, 1.0, 1.0, 1.8,
+          dx: -1.15 + i * 1.15, dz: -0.2, ridge: true, at: 0.3);
     }
     for (var i = 0; i < 3; i++) {
-      m.dome(1.05, 1.05, 0.75, dx: -1.15 + i * 1.15, dz: -0.2, at: 1.8);
+      m.dome(1.05, 1.05, 0.75, dx: -1.15 + i * 1.15, dz: -0.2, at: 2.1);
     }
-    m.floor(1.5, 1.2, 1.0, dz: 1.3);
-    m.roof(1.75, 1.45, 0.5, dz: 1.3);
+    m.outbuilding(1.5, 1.2, 1.0, 0.5, dz: 1.3);
     m.door(0.6, 0.85, dz: 1.9);
     m.beam(3.4, 0.3, 0.2, dz: 0.55, at: 1.6);
     m.field(3.0, 1.0, dz: -1.6);
@@ -973,8 +970,7 @@ final List<Landmark> landmarks = [
     m.stair(1.1, 0.42, 0.7, dz: 1.45);
     m.banner(1.0, at: 7.24);
     m.arcade(1.5, 0.8, 0.4, dz: 0.95, at: 4.9);
-    m.floor(1.2, 1.1, 0.9, dx: 2.0, dz: -0.9);
-    m.roof(1.45, 1.35, 0.5, dx: 2.0, dz: -0.9);
+    m.outbuilding(1.2, 1.1, 0.9, 0.5, dx: 2.0, dz: -0.9);
   }),
 
   Landmark('faro', 'Faro', 18, 1, (m) {
@@ -988,8 +984,7 @@ final List<Landmark> landmarks = [
     m.banner(0.9);
     m.door(0.55, 0.85, dz: 1.15);
     m.stair(1.1, 0.5, 0.8, dz: 1.7);
-    m.floor(1.3, 1.1, 0.9, dx: 2.2, dz: -1.2);
-    m.roof(1.55, 1.35, 0.5, dx: 2.2, dz: -1.2);
+    m.outbuilding(1.3, 1.1, 0.9, 0.5, dx: 2.2, dz: -1.2);
     m.post(0.2, 1.4, dx: -1.9, dz: 1.9);
   }),
 
@@ -1038,8 +1033,7 @@ final List<Landmark> landmarks = [
     m.post(0.4, 1.4, dx: -2.0, dz: 0.2, at: 1.3);
     m.post(0.4, 1.4, dx: 2.0, dz: 0.2, at: 1.3);
     m.beam(4.6, 0.3, 0.2, dz: 0.2, at: 2.7);
-    m.floor(1.4, 1.2, 0.95, dx: 2.6, dz: -1.4);
-    m.roof(1.65, 1.45, 0.5, dx: 2.6, dz: -1.4);
+    m.outbuilding(1.4, 1.2, 0.95, 0.5, dx: 2.6, dz: -1.4);
     m.wheel(1.3, dx: -2.4, dz: 0.9, along: false);
     m.tree(1.1, 2.0, dx: -2.8, dz: -2.0);
     m.field(2.6, 1.0, dz: 2.5);
@@ -1072,8 +1066,7 @@ final List<Landmark> landmarks = [
     m.roof(3.9, 2.4, 0.7, dz: -0.4, at: 2.22);
     m.box(PieceKind.porch, 2.4, 0.8, 0.45, dz: 0.9, at: 0.3);
     m.post(0.2, 1.5, dz: 0.9, at: 0.75);
-    m.floor(1.3, 1.1, 0.9, dx: 2.4, dz: -1.4);
-    m.roof(1.55, 1.35, 0.5, dx: 2.4, dz: -1.4);
+    m.outbuilding(1.3, 1.1, 0.9, 0.5, dx: 2.4, dz: -1.4);
     m.beam(0.4, 3.0, 0.2, dx: -2.3, at: 0.9);
     m.tree(1.1, 2.1, dx: -2.6, dz: -1.8);
     m.palisade(3.0, 0.6, dz: -1.9);
@@ -1437,11 +1430,11 @@ final List<Landmark> landmarks = [
     m.roof(4.35, 3.0, 1.0, at: 4.39, along: true);
     m.box(PieceKind.dormer, 0.8, 0.7, 0.65, dx: -1.2, dz: 1.0, at: 4.39);
     m.box(PieceKind.dormer, 0.8, 0.7, 0.65, dx: 1.2, dz: 1.0, at: 4.39);
-    m.box(PieceKind.floor, 1.2, 1.2, 6.2, dz: -1.9, at: 0.45);
-    m.box(PieceKind.parapet, 1.45, 1.45, 0.4, dz: -1.9, at: 6.65);
-    m.spire(1.25, 1.25, 1.2, dz: -1.9, at: 7.05);
-    m.banner(1.0, dz: -1.9, at: 8.25);
-    m.box(PieceKind.dormer, 0.55, 0.16, 0.55, dz: -2.55, at: 5.4);
+    m.box(PieceKind.floor, 1.2, 1.2, 6.2, dz: -1.9, at: 0);
+    m.box(PieceKind.parapet, 1.45, 1.45, 0.4, dz: -1.9, at: 6.2);
+    m.spire(1.25, 1.25, 1.2, dz: -1.9, at: 6.6);
+    m.banner(1.0, dz: -1.9, at: 7.8);
+    m.box(PieceKind.dormer, 0.55, 0.16, 0.55, dz: -2.55, at: 4.95);
     m.chimney(0.38, 1.1, dx: -1.5);
     m.chimney(0.34, 1.0, dx: 1.5);
     m.stair(2.0, 0.45, 1.2, dz: 1.9);
@@ -1449,7 +1442,7 @@ final List<Landmark> landmarks = [
     m.banner(1.0, dx: 1.6, dz: 1.5, at: 2.3);
     m.tree(1.2, 2.2, dx: -3.0, dz: 1.6);
     m.tree(1.2, 2.1, dx: 3.0, dz: 1.6);
-    m.plinth(0.9, 0.9, 0.3, dx: 2.6, dz: -1.6);
+    m.box(PieceKind.plinth, 0.9, 0.9, 0.3, dx: 2.6, dz: -1.6, ridge: true, at: 0);
   }),
 
   Landmark('lonja', 'Lonja de mercaderes', 22, 2, (m) {
@@ -1469,7 +1462,7 @@ final List<Landmark> landmarks = [
     m.door(1.0, 1.3, dz: 1.85);
     m.stair(2.2, 0.4, 1.2, dz: 2.3);
     m.chimney(0.36, 1.1, dx: -1.0);
-    m.plinth(1.0, 1.0, 0.3, dx: 3.0, dz: 1.8);
+    m.box(PieceKind.plinth, 1.0, 1.0, 0.3, dx: 3.0, dz: 1.8, ridge: true, at: 0);
     m.post(0.3, 1.3, dx: 3.0, dz: 1.8, at: 0.3);
     m.tree(1.2, 2.2, dx: -3.2, dz: 1.8);
   }),
@@ -1483,16 +1476,16 @@ final List<Landmark> landmarks = [
       m.roof(1.2, 4.2, 0.55, dx: s * 1.9, at: 1.5, along: false);
       m.arcade(3.6, 0.95, 0.5, dx: s * 1.9, along: false, at: 0.4);
     }
-    m.box(PieceKind.floor, 1.6, 1.6, 5.4, dz: -3.0, at: 0.4);
-    m.box(PieceKind.parapet, 1.85, 1.85, 0.4, dz: -3.0, at: 5.8);
-    m.spire(1.65, 1.65, 1.8, dz: -3.0, at: 6.2);
-    m.banner(0.9, dz: -3.0, at: 8.0);
-    m.box(PieceKind.dormer, 0.6, 0.18, 0.6, dz: -3.85, at: 4.4);
+    m.box(PieceKind.floor, 1.6, 1.6, 5.4, dz: -3.0, at: 0);
+    m.box(PieceKind.parapet, 1.85, 1.85, 0.4, dz: -3.0, at: 5.4);
+    m.spire(1.65, 1.65, 1.8, dz: -3.0, at: 5.8);
+    m.banner(0.9, dz: -3.0, at: 7.6);
+    m.box(PieceKind.dormer, 0.6, 0.18, 0.6, dz: -3.85, at: 4.0);
     m.box(PieceKind.floor, 1.6, 1.2, 1.5, dz: 2.8, at: 0.4);
     m.roof(1.8, 1.4, 0.7, dz: 2.8, at: 1.9, along: true);
     m.door(0.9, 1.2, dz: 2.5);
     m.stair(1.6, 0.4, 0.9, dz: 3.6);
-    m.plinth(0.8, 0.8, 0.3, dx: 2.9, dz: 1.4);
+    m.box(PieceKind.plinth, 0.8, 0.8, 0.3, dx: 2.9, dz: 1.4, ridge: true, at: 0);
     m.post(0.24, 1.4, dx: 2.9, dz: 1.4, at: 0.3);
     m.tree(1.3, 2.6, dx: -2.9, dz: 1.6);
     m.tree(1.2, 2.3, dx: 2.9, dz: -1.4);
@@ -1514,11 +1507,11 @@ final List<Landmark> landmarks = [
             dx: s * 3.15, dz: -1.6 + i * 1.6, at: 2.0);
       }
       // The pair of west towers.
-      m.box(PieceKind.floor, 1.7, 1.7, 6.4, dx: s * 1.5, dz: -3.9, at: 0.5);
-      m.box(PieceKind.parapet, 1.95, 1.95, 0.45, dx: s * 1.5, dz: -3.9, at: 6.9);
-      m.spire(1.75, 1.75, 2.2, dx: s * 1.5, dz: -3.9, at: 7.35);
-      m.banner(0.9, dx: s * 1.5, dz: -3.9, at: 9.55);
-      m.box(PieceKind.dormer, 0.55, 0.18, 0.55, dx: s * 1.5, dz: -4.75, at: 5.2);
+      m.box(PieceKind.floor, 1.7, 1.7, 6.4, dx: s * 1.5, dz: -3.9, at: 0);
+      m.box(PieceKind.parapet, 1.95, 1.95, 0.45, dx: s * 1.5, dz: -3.9, at: 6.4);
+      m.spire(1.75, 1.75, 2.2, dx: s * 1.5, dz: -3.9, at: 6.85);
+      m.banner(0.9, dx: s * 1.5, dz: -3.9, at: 9.05);
+      m.box(PieceKind.dormer, 0.55, 0.18, 0.55, dx: s * 1.5, dz: -4.75, at: 4.7);
     }
     m.box(PieceKind.floor, 1.4, 1.4, 1.6, at: 5.5);
     m.spire(1.3, 1.3, 2.4, at: 7.1);
@@ -1527,7 +1520,7 @@ final List<Landmark> landmarks = [
     m.box(PieceKind.arcade, 1.6, 0.6, 2.2, dz: -3.05, at: 0.5);
     m.door(1.1, 1.4, dz: 3.2);
     m.stair(2.4, 0.5, 1.1, dz: 4.6);
-    m.plinth(0.9, 0.9, 0.34, dx: 3.4, dz: 2.0);
+    m.box(PieceKind.plinth, 0.9, 0.9, 0.34, dx: 3.4, dz: 2.0, ridge: true, at: 0);
     m.tree(1.3, 2.6, dx: -3.6, dz: 2.2);
   }),
 
@@ -1536,10 +1529,10 @@ final List<Landmark> landmarks = [
     m.plinth(2.6, 5.4, 0.4, dx: -1.9);
     m.box(PieceKind.floor, 2.3, 5.0, 1.9, dx: -1.9, at: 0.4);
     m.roof(2.6, 5.4, 1.2, dx: -1.9, at: 2.3, along: false);
-    m.box(PieceKind.floor, 1.3, 1.3, 4.6, dx: -1.9, dz: -3.3, at: 0.4);
-    m.box(PieceKind.parapet, 1.55, 1.55, 0.4, dx: -1.9, dz: -3.3, at: 5.0);
-    m.spire(1.35, 1.35, 1.5, dx: -1.9, dz: -3.3, at: 5.4);
-    m.banner(0.8, dx: -1.9, dz: -3.3, at: 6.9);
+    m.box(PieceKind.floor, 1.3, 1.3, 4.6, dx: -1.9, dz: -3.3, at: 0);
+    m.box(PieceKind.parapet, 1.55, 1.55, 0.4, dx: -1.9, dz: -3.3, at: 4.6);
+    m.spire(1.35, 1.35, 1.5, dx: -1.9, dz: -3.3, at: 5.0);
+    m.banner(0.8, dx: -1.9, dz: -3.3, at: 6.5);
     m.door(0.7, 1.0, dx: -1.9, dz: 2.7);
     m.plinth(4.4, 4.4, 0.26, dx: 1.9);
     for (final s in [-1.0, 1.0]) {
@@ -1568,9 +1561,9 @@ final List<Landmark> landmarks = [
       m.box(PieceKind.floor, 1.1, 4.4, 1.2, dx: s * 2.05, at: 0.45);
       m.roof(1.3, 4.6, 0.6, dx: s * 2.05, at: 1.65, along: false);
       m.arcade(4.0, 1.0, 0.55, dx: s * 2.05, along: false, at: 0.45);
-      m.box(PieceKind.floor, 1.4, 1.4, 4.8, dx: s * 1.1, dz: -3.4, at: 0.45);
-      m.box(PieceKind.parapet, 1.65, 1.65, 0.4, dx: s * 1.1, dz: -3.4, at: 5.25);
-      m.spire(1.45, 1.45, 1.6, dx: s * 1.1, dz: -3.4, at: 5.65);
+      m.box(PieceKind.floor, 1.4, 1.4, 4.8, dx: s * 1.1, dz: -3.4, at: 0);
+      m.box(PieceKind.parapet, 1.65, 1.65, 0.4, dx: s * 1.1, dz: -3.4, at: 4.8);
+      m.spire(1.45, 1.45, 1.6, dx: s * 1.1, dz: -3.4, at: 5.2);
     }
     m.box(PieceKind.floor, 1.2, 1.2, 1.3, at: 3.95);
     m.spire(1.1, 1.1, 1.9, at: 5.25);
@@ -1639,11 +1632,11 @@ final List<Landmark> landmarks = [
     m.dome(1.3, 1.3, 0.8, dx: 1.3, dz: -1.3, at: 2.42);
     m.dome(1.3, 1.3, 0.8, dx: -1.3, dz: 1.3, at: 2.42);
     m.dome(1.3, 1.3, 0.8, dx: 1.3, dz: 1.3, at: 2.42);
-    m.box(PieceKind.floor, 1.0, 1.0, 6.2, dx: -2.7, dz: -2.0, at: 0.42);
-    m.arcade(0.8, 0.8, 0.8, dx: -2.7, dz: -2.0, at: 5.4);
-    m.box(PieceKind.parapet, 1.25, 1.25, 0.34, dx: -2.7, dz: -2.0, at: 6.62);
-    m.dome(1.05, 1.05, 0.8, dx: -2.7, dz: -2.0, at: 6.96);
-    m.banner(0.8, dx: -2.7, dz: -2.0, at: 7.76);
+    m.box(PieceKind.floor, 1.0, 1.0, 6.2, dx: -2.7, dz: -2.0, at: 0);
+    m.arcade(0.8, 0.8, 0.8, dx: -2.7, dz: -2.0, at: 5.0);
+    m.box(PieceKind.parapet, 1.25, 1.25, 0.34, dx: -2.7, dz: -2.0, at: 6.2);
+    m.dome(1.05, 1.05, 0.8, dx: -2.7, dz: -2.0, at: 6.54);
+    m.banner(0.8, dx: -2.7, dz: -2.0, at: 7.34);
     m.arcade(4.0, 1.3, 0.6, dz: 2.4, at: 0.42, along: true);
     m.beam(4.2, 0.7, 0.22, dz: 2.4, at: 1.72);
     m.roof(4.4, 1.1, 0.5, dz: 2.5, at: 1.94, along: true);
@@ -1692,10 +1685,10 @@ final List<Landmark> landmarks = [
     }
     m.chimney(0.38, 1.1, dx: -2.0);
     m.chimney(0.34, 1.0, dx: 2.0);
-    m.box(PieceKind.floor, 1.4, 1.4, 4.6, dx: -3.0, dz: -0.8, at: 0.44);
-    m.box(PieceKind.parapet, 1.65, 1.65, 0.4, dx: -3.0, dz: -0.8, at: 5.04);
-    m.spire(1.45, 1.45, 1.4, dx: -3.0, dz: -0.8, at: 5.44);
-    m.banner(0.9, dx: -3.0, dz: -0.8, at: 6.84);
+    m.box(PieceKind.floor, 1.4, 1.4, 4.6, dx: -3.0, dz: -0.8, at: 0);
+    m.box(PieceKind.parapet, 1.65, 1.65, 0.4, dx: -3.0, dz: -0.8, at: 4.6);
+    m.spire(1.45, 1.45, 1.4, dx: -3.0, dz: -0.8, at: 5.0);
+    m.banner(0.9, dx: -3.0, dz: -0.8, at: 6.4);
     m.box(PieceKind.parapet, 0.7, 0.3, 0.55, at: 4.09);
     m.door(0.9, 1.2, dz: 1.9);
     m.stair(2.0, 0.44, 1.0, dz: 2.4);
@@ -1836,8 +1829,8 @@ final List<Landmark> landmarks = [
     m.banner(1.2, dx: -1.0, at: 4.9);
     m.banner(1.2, dx: 1.0, at: 4.9);
     m.box(PieceKind.dormer, 1.0, 0.2, 0.7, dz: -0.9, at: 3.6);
-    m.plinth(0.8, 0.8, 0.3, dx: -2.9, dz: 1.0);
-    m.plinth(0.8, 0.8, 0.3, dx: 2.9, dz: 1.0);
+    m.box(PieceKind.plinth, 0.8, 0.8, 0.3, dx: -2.9, dz: 1.0, ridge: true, at: 0);
+    m.box(PieceKind.plinth, 0.8, 0.8, 0.3, dx: 2.9, dz: 1.0, ridge: true, at: 0);
     m.stair(2.0, 0.5, 1.0, dz: 1.4);
     m.tree(1.2, 2.2, dx: -3.2, dz: -1.4);
   }),
@@ -1861,7 +1854,7 @@ final List<Landmark> landmarks = [
     m.tree(1.3, 2.6, dx: -2.8, dz: 2.4);
     m.tree(1.3, 2.5, dx: 2.8, dz: 2.4);
     m.palisade(4.4, 0.6, dz: 3.4);
-    m.plinth(0.7, 0.7, 0.28, dx: -2.6, dz: -1.8);
+    m.box(PieceKind.plinth, 0.7, 0.7, 0.28, dx: -2.6, dz: -1.8, ridge: true, at: 0);
   }),
 
   Landmark('aljibe', 'Aljibe mayor', 24, 2, (m) {

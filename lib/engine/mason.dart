@@ -249,6 +249,20 @@ class Mason {
     }
   }
 
+  /// A small building standing on the ground beside the main one: the miller's
+  /// cottage, the lodge at the gate, the bakehouse behind the inn.
+  ///
+  /// It never touches the course line, in either direction. Written as an
+  /// ordinary [floor] and [roof] with an offset it would inherit whatever
+  /// height the main mass had reached, which is how a cottage ends up perched
+  /// on top of a bell tower.
+  void outbuilding(double w, double d, double ht, double rise,
+      {double dx = 0, double dz = 0, bool? along}) {
+    box(PieceKind.floor, w, d, ht, dx: dx, dz: dz, ridge: true, at: 0);
+    box(PieceKind.roof, w + 0.25, d + 0.25, rise,
+        dx: dx, dz: dz, ridge: true, at: ht, along: along);
+  }
+
   /// A long low body: the nave of a church, the hall of a market.
   void hall(double w, double d, double ht, double rise,
       {double dx = 0, double dz = 0, bool? along}) {

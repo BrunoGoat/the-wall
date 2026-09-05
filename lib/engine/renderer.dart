@@ -1559,19 +1559,22 @@ class WallPainter extends CustomPainter {
     final ht = y1 - y0;
     final s = piece.seed;
     final leaf = Color.lerp(
-      const Color(0xFF5A6E42),
-      const Color(0xFF87904E),
+      const Color(0xFF4E5C3C),
+      const Color(0xFF6E7448),
       hash01(s, 11),
     )!;
-    final autumn = Color.lerp(leaf, const Color(0xFF9A7A44), decay * 0.6)!;
+    // Pulled towards the ground's own tone so a tree reads as part of the
+    // landscape rather than as a green block dropped onto it.
+    final settled = Color.lerp(leaf, pal.ground, 0.28)!;
+    final autumn = Color.lerp(settled, const Color(0xFF8A6E42), decay * 0.6)!;
     final bark = const Color(0xFF6B573F);
     final trunk = piece.w * 0.16;
     _emitSlab(p, piece.cx, piece.cz, trunk, trunk, y0, y0 + ht * 0.42, bark,
         light, pal, 0.85, flash);
-    _emitSlab(p, piece.cx, piece.cz, piece.w * 0.92, piece.d * 0.92,
-        y0 + ht * 0.34, y0 + ht * 0.78, autumn, light, pal, 1.0, flash);
-    _emitSlab(p, piece.cx, piece.cz, piece.w * 0.6, piece.d * 0.6,
-        y0 + ht * 0.74, y1, autumn, light, pal, 1.06, flash);
+    _emitSlab(p, piece.cx, piece.cz, piece.w * 0.82, piece.d * 0.82,
+        y0 + ht * 0.36, y0 + ht * 0.74, autumn, light, pal, 0.98, flash);
+    _emitSlab(p, piece.cx, piece.cz, piece.w * 0.52, piece.d * 0.52,
+        y0 + ht * 0.70, y1, autumn, light, pal, 1.08, flash);
   }
 
   /// A run of stakes.
@@ -1661,28 +1664,52 @@ class WallPainter extends CustomPainter {
     // The wheel turns across its short side: along a wall running east-west it
     // stands in the east-west plane.
     final flat = piece.alongX;
-    const spokes = 10;
-    final thick = r * 0.18;
+    const spokes = 12;
+    final thick = r * 0.16;
+    // The rim first, as a closed ring of short chords, so it reads as a wheel
+    // and not as a scatter of blocks floating in a circle.
     for (var i = 0; i < spokes; i++) {
-      final a = i * 2 * math.pi / spokes;
-      final px = math.cos(a) * r * 0.86, py = math.sin(a) * r * 0.86;
+      final a = (i + 0.5) * 2 * math.pi / spokes;
+      final px = math.cos(a) * r * 0.88, py = math.sin(a) * r * 0.88;
+      final tangential = math.max(r * 2 * math.pi / spokes * 0.62, 0.08);
+      final horiz = math.sin(a).abs() * tangential + math.cos(a).abs() * r * 0.16;
+      final vert = math.cos(a).abs() * tangential + math.sin(a).abs() * r * 0.16;
       _emitSlab(
         p,
         flat ? cx + px : cx,
         flat ? cz : cz + px,
-        flat ? r * 0.2 : thick,
-        flat ? thick : r * 0.2,
-        cy + py - r * 0.12,
-        cy + py + r * 0.12,
-        i.isEven ? rim : wood,
+        flat ? horiz : thick,
+        flat ? thick : horiz,
+        cy + py - vert / 2,
+        cy + py + vert / 2,
+        rim,
         light,
         pal,
-        0.95,
+        0.98,
         flash,
       );
     }
-    _emitSlab(p, cx, cz, flat ? r * 0.3 : thick * 1.2,
-        flat ? thick * 1.2 : r * 0.3, cy - r * 0.16, cy + r * 0.16, wood, light,
+    // The paddles, standing out from the rim.
+    for (var i = 0; i < spokes ~/ 2; i++) {
+      final a = i * 4 * math.pi / spokes;
+      final px = math.cos(a) * r * 0.62, py = math.sin(a) * r * 0.62;
+      _emitSlab(
+        p,
+        flat ? cx + px : cx,
+        flat ? cz : cz + px,
+        flat ? r * 0.5 : thick * 1.5,
+        flat ? thick * 1.5 : r * 0.5,
+        cy + py - r * 0.09,
+        cy + py + r * 0.09,
+        wood,
+        light,
+        pal,
+        0.9,
+        flash,
+      );
+    }
+    _emitSlab(p, cx, cz, flat ? r * 0.3 : thick * 1.4,
+        flat ? thick * 1.4 : r * 0.3, cy - r * 0.15, cy + r * 0.15, wood, light,
         pal, 0.88, flash);
   }
 

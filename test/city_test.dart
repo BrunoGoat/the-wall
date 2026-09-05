@@ -210,6 +210,43 @@ void main() {
       }
     });
 
+    test('nothing heavy is left standing on thin air', () {
+      // The rule the eye actually applies: a wall, a roof or a chimney has to
+      // have something under it that it is really sitting on, not merely some
+      // other part of the same building that happens to be as tall. This is
+      // what stops a miller's cottage ending up perched on a bell tower.
+      const mass = {
+        PieceKind.floor,
+        PieceKind.plinth,
+        PieceKind.dome,
+        PieceKind.roof,
+        PieceKind.spire,
+        PieceKind.chimney,
+      };
+      bool over(Spec a, Spec b) =>
+          (a.cx - b.cx).abs() < (a.w + b.w) * 0.45 &&
+          (a.cz - b.cz).abs() < (a.d + b.d) * 0.45;
+
+      for (final l in landmarks) {
+        final m = Mason(0, 0, 999, true);
+        l.build(m);
+        final built = m.finish(l.cost);
+        for (var i = 0; i < built.length; i++) {
+          final s = built[i];
+          if (s.y0 < 0.02 || !mass.contains(s.kind)) continue;
+          var held = false;
+          for (var j = 0; j < built.length && !held; j++) {
+            if (i == j) continue;
+            final u = built[j];
+            held = u.y0 <= s.y0 + 0.03 && u.y1 > s.y0 - 0.03 && over(s, u);
+          }
+          expect(held, isTrue,
+              reason: '\${l.name}: a \${s.kind.name} at \${s.y0.toStringAsFixed(2)} '
+                  'has nothing under it');
+        }
+      }
+    });
+
     test('a long life meets a hundred landmarks without repeating one', () {
       final seen = <String>[];
       for (var b = 0; b < 12000; b++) {
