@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import '../core/math3.dart';
 import '../core/rng.dart';
 
-enum ParticleKind { dust, chip, spark, gold, ember, moteRepair }
+enum ParticleKind { dust, chip, spark, gold, ember, moteRepair, smoke, glint }
 
 class Particle {
   double x = 0, y = 0, z = 0;
@@ -23,7 +23,7 @@ class Particle {
 /// thrown up by a landing stone stays where it was thrown even while the camera
 /// keeps orbiting.
 class EffectSystem {
-  EffectSystem({this.capacity = 420}) {
+  EffectSystem({this.capacity = 900}) {
     _pool = List.generate(capacity, (_) => Particle());
   }
 
@@ -125,26 +125,30 @@ class EffectSystem {
     }
   }
 
-  /// Gold motes for a completed landmark.
-  void celebrate(V3 at, double radius, {int count = 60}) {
+  /// Gold motes for a finished building.
+  ///
+  /// They rise from around its feet rather than out of its middle, so the thing
+  /// being celebrated stays visible instead of disappearing behind the
+  /// celebration. Small and few: this fires several times a week for years.
+  void celebrate(V3 at, double radius, {int count = 34}) {
     for (var i = 0; i < count; i++) {
       final p = _take();
       final a = _rnd.range(0, math.pi * 2);
-      final r = _rnd.range(0, radius);
+      final r = radius * _rnd.range(0.75, 1.25);
       p
         ..alive = true
         ..kind = ParticleKind.gold
         ..x = at.x + math.cos(a) * r
-        ..y = at.y + _rnd.range(-radius * 0.5, radius * 0.6)
-        ..z = at.z + math.sin(a) * r * 0.5
-        ..vx = math.cos(a) * _rnd.range(0.3, 1.5)
-        ..vz = math.sin(a) * _rnd.range(0.2, 0.9)
-        ..vy = _rnd.range(0.9, 2.8)
-        ..drag = 1.4
-        ..gravity = 0.6
-        ..maxLife = _rnd.range(1.2, 2.4)
+        ..y = _rnd.range(0.05, radius * 0.35)
+        ..z = at.z + math.sin(a) * r * 0.7
+        ..vx = math.cos(a) * _rnd.range(0.15, 0.7)
+        ..vz = math.sin(a) * _rnd.range(0.1, 0.5)
+        ..vy = _rnd.range(1.3, 3.0)
+        ..drag = 1.1
+        ..gravity = 0.35
+        ..maxLife = _rnd.range(1.0, 2.0)
         ..life = p.maxLife
-        ..size = _rnd.range(0.03, 0.085)
+        ..size = _rnd.range(0.016, 0.042)
         ..spin = _rnd.jitter(5.0)
         ..angle = _rnd.range(0, 6.28);
     }
@@ -193,6 +197,52 @@ class EffectSystem {
       ..maxLife = _rnd.range(0.7, 1.5)
       ..life = p.maxLife
       ..size = _rnd.range(0.02, 0.05)
+      ..spin = 0
+      ..angle = 0;
+  }
+
+  /// A puff from a chimney.
+  ///
+  /// Nothing else says "somebody lives here" as cheaply as smoke. It rises
+  /// slowly, spreads as it goes, and drifts with whatever the wind is doing, so
+  /// the whole town leans the same way.
+  void smoke(double x, double y, double z, double windX, double windZ) {
+    final p = _take();
+    p
+      ..alive = true
+      ..kind = ParticleKind.smoke
+      ..x = x + _rnd.jitter(0.07)
+      ..y = y
+      ..z = z + _rnd.jitter(0.07)
+      ..vx = windX * _rnd.range(0.6, 1.3) + _rnd.jitter(0.12)
+      ..vz = windZ * _rnd.range(0.6, 1.3) + _rnd.jitter(0.12)
+      ..vy = _rnd.range(0.42, 0.78)
+      ..drag = 0.28
+      ..gravity = 0.30
+      ..maxLife = _rnd.range(2.6, 4.6)
+      ..life = p.maxLife
+      ..size = _rnd.range(0.10, 0.20)
+      ..spin = _rnd.jitter(0.5)
+      ..angle = _rnd.range(0, 6.28);
+  }
+
+  /// A glint of sun on moving water.
+  void glint(double x, double y, double z) {
+    final p = _take();
+    p
+      ..alive = true
+      ..kind = ParticleKind.glint
+      ..x = x
+      ..y = y
+      ..z = z
+      ..vx = 0
+      ..vz = 0
+      ..vy = 0
+      ..drag = 8
+      ..gravity = 0
+      ..maxLife = _rnd.range(0.5, 1.1)
+      ..life = p.maxLife
+      ..size = _rnd.range(0.025, 0.06)
       ..spin = 0
       ..angle = 0;
   }

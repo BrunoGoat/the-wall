@@ -80,6 +80,10 @@ class _WallViewState extends State<WallView>
   double _time = 0;
   Duration _last = Duration.zero;
 
+  /// The building that has just been finished, and how long since.
+  int? _finished;
+  double _finishedAge = 99;
+
   double _displayIntegrity = 1;
   double? _repairSweep;
   int? _selectedBrick;
@@ -217,6 +221,10 @@ class _WallViewState extends State<WallView>
 
     _cam.step(dt);
     _fx.update(dt);
+    if (_finished != null) {
+      _finishedAge += dt;
+      if (_finishedAge > 2.6) _finished = null;
+    }
 
     final p = _placement;
     if (p != null) {
@@ -258,8 +266,63 @@ class _WallViewState extends State<WallView>
 
   int _ambientCounter = 0;
 
+  /// The town smoking away on its own.
+  ///
+  /// A chimney with smoke coming out of it is the cheapest thing in the whole
+  /// app and the one that most makes the place look lived in: it turns a model
+  /// of a town into a town where somebody has just lit a fire.
+  void _spawnCityAmbient(double dt) {
+    final city = _city;
+    if (city == null) return;
+    _ambientCounter++;
+
+    final take = math.min(widget.store.shownTotal, city.pieces.length);
+    if (take <= 0) return;
+
+    // The same gust the renderer leans everything else with.
+    final wx = math.sin(_time * 0.31) * 0.34 + 0.12;
+    final wz = math.cos(_time * 0.23) * 0.26 - 0.08;
+
+    // A handful of chimneys per frame, chosen round-robin so every one of them
+    // gets its turn without the cost of walking the whole town.
+    var found = 0;
+    for (var k = 0; k < 40 && found < 3; k++) {
+      final i = (_ambientCounter * 7 + k * 131) % take;
+      final piece = city.pieces[i];
+      if (piece.kind != PieceKind.chimney) continue;
+      final dx = piece.cx - _cam.travel, dz = piece.cz - _cam.focusZ;
+      if (dx * dx + dz * dz > 26 * 26) continue;
+      // Not every hearth is lit, and the same ones stay lit.
+      if (hash01(piece.seed, 91) > 0.62) continue;
+      found++;
+      if (_ambientCounter % 4 != 0) continue;
+      _fx.smoke(piece.cx, piece.y1 + 0.06, piece.cz, wx, wz);
+    }
+
+    // Sun on the water.
+    if (_palette.isDaylight && _ambientCounter % 5 == 0) {
+      for (var k = 0; k < 26; k++) {
+        final i = (_ambientCounter * 13 + k * 97) % take;
+        final piece = city.pieces[i];
+        if (piece.kind != PieceKind.water) continue;
+        final dx = piece.cx - _cam.travel, dz = piece.cz - _cam.focusZ;
+        if (dx * dx + dz * dz > 20 * 20) continue;
+        _fx.glint(
+          piece.cx + hashJitter(piece.w * 0.42, _ambientCounter, k, 1),
+          0.07,
+          piece.cz + hashJitter(piece.d * 0.42, _ambientCounter, k, 2),
+        );
+        break;
+      }
+    }
+  }
+
   /// Fires on completed beacons keep licking upwards on their own.
   void _spawnAmbient(double dt) {
+    if (_city != null) {
+      _spawnCityAmbient(dt);
+      return;
+    }
     _ambientCounter++;
     if (_ambientCounter % 3 != 0) return;
     for (final st in _layout.structures) {
@@ -384,11 +447,20 @@ class _WallViewState extends State<WallView>
     final building = city.buildings[piece.building];
     final done = piece.index == building.firstPiece + building.cost - 1;
     if (done) {
+      _finished = building.index;
+      _finishedAge = 0;
       _fx.celebrate(
-        V3(building.cx, building.peakY * 0.7, building.cz),
-        1.6,
-        count: building.isLandmark ? 110 : 60,
+        V3(building.cx, 0, building.cz),
+        (building.isLandmark ? 1.9 : 1.15),
+        count: building.isLandmark ? 52 : 30,
       );
+      // Step back far enough to see the whole of what was just finished. The
+      // point of the moment is the building, not the confetti.
+      _cam.follow = false;
+      _cam.travelTo(building.cx);
+      _cam.focusZTarget = building.cz;
+      _cam.focusYTarget = clampD(building.peakY * 0.5, 1.0, 5.0);
+      _cam.distanceTarget = clampD(building.peakY * 2.8 + 4.5, 10, 30);
       Future.delayed(const Duration(milliseconds: 220), () {
         Sensory.instance.milestone();
       });
@@ -551,6 +623,8 @@ class _WallViewState extends State<WallView>
       coarseBudget: _coarseBudget,
       mortar: Appearance.instance.look,
       city: _city,
+      finished: _finished,
+      finishedAge: _finishedAge,
       selectedBrick: _selectedBrick,
       charge: _charge,
     );

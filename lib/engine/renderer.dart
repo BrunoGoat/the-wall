@@ -49,6 +49,8 @@ class WallScene {
     this.coarseBudget = 2600,
     this.mortar = MortarLook.seca,
     this.city,
+    this.finished,
+    this.finishedAge = 99,
     this.selectedBrick,
     this.charge = 0,
   });
@@ -83,6 +85,11 @@ class WallScene {
 
   /// When set, the achievements are drawn as a town rather than as a wall.
   final CityLayout? city;
+
+  /// The building that has just been finished, and how long ago in seconds.
+  /// A house takes days to build and a second to celebrate.
+  final int? finished;
+  final double finishedAge;
 
   /// The stone the person just tapped, ringed so it is obvious which one the
   /// note belongs to.
@@ -151,8 +158,12 @@ class WallPainter extends CustomPainter {
       _drawRanges(canvas, p, size, horizonY);
       _drawCityGround(canvas, p, city);
       _drawMeadow(p, size, city);
+      _drawRings(canvas, p, city, overlay: false);
       _collectCity(p, size, city);
       _flush(canvas);
+      _drawBirds(canvas, p, size, city);
+      _drawRings(canvas, p, city, overlay: true);
+      _drawCityGhost(canvas, p, size, city);
       _drawCityLabels(canvas, p, size, city);
       _drawParticles(canvas, p);
       _drawAtmosphere(canvas, size, horizonY);
@@ -1199,27 +1210,42 @@ class WallPainter extends CustomPainter {
   /// The lanes between the blocks, and the shadow each building sits in.
   void _drawCityGround(Canvas canvas, Projector p, CityLayout city) {
     final pal = scene.palette;
-    // A packed-earth pad under each plot that has been built on. Neighbouring
-    // plots touch, so a block reads as one yard with streets around it, and the
-    // edge of the town stays as ragged as the houses themselves.
-    final pad = Color.lerp(pal.ground, pal.stoneWarm, 0.20)!;
-    const half = CityLayout.plotPitch * 0.5;
+    // A yard of packed earth around each house: the ground people walk on,
+    // worn bare by the door and ragged at the edges where the grass wins.
+    // A tidy square of grey reads as a concrete slab, which is the one thing a
+    // medieval town must never look like.
+    final pad = Color.lerp(pal.ground, const Color(0xFF9A7B55), 0.42)!;
+    const half = CityLayout.plotPitch * 0.46;
     for (final b in city.buildings) {
       if (b.placedPieces <= 0) continue;
-      final a = p.project(V3(b.cx - half, 0.004, b.cz - half));
-      final c = p.project(V3(b.cx + half, 0.004, b.cz - half));
-      final d = p.project(V3(b.cx + half, 0.004, b.cz + half));
-      final e = p.project(V3(b.cx - half, 0.004, b.cz + half));
-      if (a == null || c == null || d == null || e == null) continue;
-      final path = Path()
-        ..moveTo(a.x, a.y)
-        ..lineTo(c.x, c.y)
-        ..lineTo(d.x, d.y)
-        ..lineTo(e.x, e.y)
-        ..close();
+      final s = b.seed;
+      // Eight points round the edge, each pulled in or out a little, so no two
+      // yards are the same shape and none of them has a drawn corner.
+      final path = Path();
+      var started = false;
+      for (var i = 0; i < 8; i++) {
+        final a = i * math.pi / 4;
+        final r = half * hashRange(0.78, 1.12, s, 40, i);
+        final at = p.project(
+            V3(b.cx + math.cos(a) * r * 1.32, 0.004, b.cz + math.sin(a) * r * 1.32));
+        if (at == null) {
+          started = false;
+          break;
+        }
+        if (!started) {
+          path.moveTo(at.x, at.y);
+          started = true;
+        } else {
+          path.lineTo(at.x, at.y);
+        }
+      }
+      if (!started) continue;
+      path.close();
       canvas.drawPath(
         path,
-        Paint()..color = _hazeAt(pad, p, b.cx, b.cz, pal),
+        Paint()
+          ..color = _hazeAt(pad, p, b.cx, b.cz, pal)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2),
       );
     }
 
@@ -1248,6 +1274,194 @@ class WallPainter extends CustomPainter {
             pal.ink.withValues(alpha: 0),
           ]),
       );
+    }
+  }
+
+  /// A ghost of the piece that is about to be laid.
+  ///
+  /// The town always shows you the next thing it is waiting for: an outline
+  /// standing where the piece will go, breathing on its own and firming up as
+  /// the button is held. It is the difference between pressing a button and
+  /// finishing something you can already see.
+  void _drawCityGhost(Canvas canvas, Projector p, Size size, CityLayout city) {
+    if (scene.fx != null) return; // one is already in flight
+    final piece = city.pieceFor(scene.placed);
+    if (piece == null) return;
+    final pal = scene.palette;
+    final charge = scene.charge;
+
+    // A slow breath when idle, and a firm hold while the button is down.
+    final breath = 0.5 + 0.5 * math.sin(scene.time * 2.1);
+    final alpha = 0.16 + breath * 0.10 + charge * 0.55;
+
+    final y0 = piece.y0, y1 = piece.y1;
+    final x0 = piece.x0, x1 = piece.x1, z0 = piece.z0, z1 = piece.z1;
+    if (p.cameraOf(V3(piece.cx, (y0 + y1) / 2, piece.cz)).z <= p.near) return;
+
+    Offset? at(double x, double y, double z) {
+      final q = p.project(V3(x, y, z));
+      return q == null ? null : Offset(q.x, q.y);
+    }
+
+    final lo = [
+      at(x0, y0, z0), at(x1, y0, z0), at(x1, y0, z1), at(x0, y0, z1),
+    ];
+    final hi = [
+      at(x0, y1, z0), at(x1, y1, z0), at(x1, y1, z1), at(x0, y1, z1),
+    ];
+    if (lo.contains(null) || hi.contains(null)) return;
+
+    final line = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1 + charge * 1.6
+      ..strokeCap = StrokeCap.round
+      ..color = Color.lerp(pal.accent, Colors.white, 0.35 + charge * 0.4)!
+          .withValues(alpha: alpha);
+
+    // Only the uprights and the top: a full cage reads as a bug report.
+    final path = Path();
+    for (var i = 0; i < 4; i++) {
+      path
+        ..moveTo(hi[i]!.dx, hi[i]!.dy)
+        ..lineTo(hi[(i + 1) % 4]!.dx, hi[(i + 1) % 4]!.dy);
+      // The corner posts, drawn as short ticks up from the ground.
+      final a = lo[i]!, b = hi[i]!;
+      path
+        ..moveTo(a.dx, a.dy)
+        ..lineTo(a.dx + (b.dx - a.dx) * 0.28, a.dy + (b.dy - a.dy) * 0.28)
+        ..moveTo(b.dx - (b.dx - a.dx) * 0.28, b.dy - (b.dy - a.dy) * 0.28)
+        ..lineTo(b.dx, b.dy);
+    }
+    canvas.drawPath(path, line);
+
+    // A patch of light on the ground where it will land, so the eye knows
+    // where to look even when the piece itself is a chimney on a far roof.
+    final foot = at(piece.cx, math.max(0.02, y0), piece.cz);
+    if (foot != null) {
+      final q = p.cameraOf(V3(piece.cx, y0, piece.cz));
+      final r = p.focal / q.z * math.max(piece.w, piece.d) * (0.7 + charge * 0.3);
+      if (r > 2) {
+        canvas.drawCircle(
+          foot,
+          r,
+          Paint()
+            ..shader = ui.Gradient.radial(foot, r, [
+              Color.lerp(pal.accent, Colors.white, 0.5)!
+                  .withValues(alpha: 0.10 + charge * 0.30),
+              const Color(0x00000000),
+            ]),
+        );
+      }
+    }
+  }
+
+  /// The ring that runs out across the ground when something lands or is
+  /// finished. Two lines and it is the thing the eye actually follows.
+  void _drawRings(Canvas canvas, Projector p, CityLayout city,
+      {required bool overlay}) {
+    final pal = scene.palette;
+
+    void ring(double cx, double cz, double r, double alpha, Color c,
+        double width) {
+      if (alpha <= 0.01 || r <= 0.02) return;
+      const steps = 28;
+      final path = Path();
+      for (var i = 0; i <= steps; i++) {
+        final a = i * 2 * math.pi / steps;
+        final at = p.project(V3(cx + math.cos(a) * r, 0.02, cz + math.sin(a) * r));
+        if (at == null) return;
+        if (i == 0) {
+          path.moveTo(at.x, at.y);
+        } else {
+          path.lineTo(at.x, at.y);
+        }
+      }
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = width
+          ..color = c.withValues(alpha: alpha)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.6),
+      );
+    }
+
+    // The dust ring under a piece that has just landed. Drawn before the
+    // masonry, because dust goes behind a wall; the gold below is light, and
+    // light goes in front.
+    final fx = scene.fx;
+    if (!overlay && fx != null && fx.landed) {
+      final piece = city.pieceFor(fx.brickIndex);
+      if (piece != null) {
+        final t = clampD(fx.sinceImpact / 0.55, 0, 1);
+        ring(piece.cx, piece.cz, 0.25 + t * 2.1, (1 - t) * (1 - t) * 0.55,
+            Color.lerp(pal.stoneWarm, Colors.white, 0.4)!, 2.4);
+      }
+    }
+
+    if (!overlay) return;
+
+    // Two rings out from a building that has just been finished.
+    final justDone = scene.finished;
+    if (justDone != null && justDone < city.buildings.length) {
+      final b = city.buildings[justDone];
+      for (var i = 0; i < 2; i++) {
+        final t = clampD((scene.finishedAge - i * 0.22) / 1.5, 0, 1);
+        if (t <= 0) continue;
+        final ease = 1 - math.pow(1 - t, 3).toDouble();
+        ring(b.cx, b.cz, 0.4 + ease * (b.isLandmark ? 7.5 : 4.4),
+            (1 - t) * (1 - t) * (b.isLandmark ? 0.85 : 0.6),
+            const Color(0xFFF2C25B), b.isLandmark ? 3.0 : 2.2);
+      }
+    }
+  }
+
+  /// A few birds turning over the town.
+  ///
+  /// They cost almost nothing and they do something no amount of masonry can:
+  /// they make the sky part of the place. A town with birds over it is somewhere
+  /// you are looking at; a town without them is a model on a table.
+  void _drawBirds(Canvas canvas, Projector p, Size size, CityLayout city) {
+    final pal = scene.palette;
+    if (!pal.isDaylight) return;
+    final t = scene.time;
+    final ink = pal.ink.withValues(alpha: 0.42);
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..color = ink;
+
+    // Two loose flocks on wide circles at different heights and speeds.
+    for (var flock = 0; flock < 2; flock++) {
+      final n = flock == 0 ? 5 : 3;
+      final radius = city.radius * (flock == 0 ? 0.55 : 0.85) + 4;
+      final height = 7.0 + flock * 4.5;
+      final speed = (flock == 0 ? 0.085 : -0.062);
+      final drift = hash01(flock, 7) * 6.28;
+      for (var i = 0; i < n; i++) {
+        final a = t * speed + drift + i * 0.34 + hash01(flock, i, 3) * 0.5;
+        final wobble = math.sin(t * 0.7 + i * 1.3) * 0.9;
+        final x = math.cos(a) * (radius + wobble);
+        final z = math.sin(a) * (radius + wobble) * 0.8;
+        final y = height + math.sin(t * 0.55 + i * 0.9) * 0.7;
+        final at = p.project(V3(x, y, z));
+        if (at == null) continue;
+        if (at.x < -40 || at.x > size.width + 40) continue;
+        if (at.y < -40 || at.y > size.height + 40) continue;
+        final s = clampD(p.focal / at.depth * 0.16, 1.4, 9.0);
+        // The beat of the wings, which is the whole animation.
+        final beat = math.sin(t * 7.5 + i * 2.1);
+        final lift = s * 0.55 * beat;
+        paint
+          ..strokeWidth = math.max(0.9, s * 0.20)
+          ..color = ink.withValues(alpha: clampD(s / 6, 0.12, 0.42));
+        final path = Path()
+          ..moveTo(at.x - s, at.y - lift * 0.4)
+          ..quadraticBezierTo(at.x - s * 0.4, at.y - lift, at.x, at.y)
+          ..quadraticBezierTo(
+              at.x + s * 0.4, at.y - lift, at.x + s, at.y - lift * 0.4);
+        canvas.drawPath(path, paint);
+      }
     }
   }
 
@@ -1339,6 +1553,20 @@ class WallPainter extends CustomPainter {
     final fx = scene.fx;
     final night = !pal.isDaylight;
 
+    // How high the finishing wave has climbed, and how bright it still is.
+    var sweep = -1.0;
+    var sweepFade = 0.0;
+    final justDone = scene.finished;
+    if (justDone != null && justDone < city.buildings.length) {
+      final b = city.buildings[justDone];
+      const rise = 0.85; // seconds from footings to ridge
+      final t = scene.finishedAge / rise;
+      if (t < 1.7) {
+        sweep = (b.peakY + 0.6) * t;
+        sweepFade = t <= 1 ? 1.0 : clampD(1 - (t - 1) / 0.7, 0, 1);
+      }
+    }
+
     final take = math.min(scene.placed, city.pieces.length);
     // Nearest first, so the detail budget is spent where the eye is.
     final order = <int>[];
@@ -1359,11 +1587,26 @@ class WallPainter extends CustomPainter {
       final piece = city.pieces[order[k]];
       var lift = 0.0;
       var flash = 0.0;
+      var squash = 1.0;
+      // A finished building lights up from its footings to its ridge, one
+      // course at a time. Not a flat flash: a wave you can watch climb, which
+      // is the difference between being told it is done and seeing it finish.
+      if (sweep >= 0 && piece.building == scene.finished) {
+        final d = (piece.y0 - sweep).abs();
+        if (d < 0.9) {
+          flash = (1 - d / 0.9) * (1 - d / 0.9) * sweepFade;
+        }
+      }
       if (fx != null && fx.brickIndex == piece.index) {
         lift = fx.yOffset;
         flash = fx.flash;
+        // Squash on landing: the piece spreads as it takes the weight and then
+        // springs back. It is a tenth of a second long and it is most of what
+        // makes putting one down feel like anything at all.
+        squash = fx.squash.$2;
       }
-      _emitPiece(p, piece, pal, light, decay, night, lift, flash, size);
+      _emitPiece(p, piece, pal, light, decay, night, lift, flash, size,
+          squash: squash);
     }
   }
 
@@ -1376,14 +1619,16 @@ class WallPainter extends CustomPainter {
     bool night,
     double lift,
     double flash,
-    Size size,
-  ) {
+    Size size, {
+    double squash = 1.0,
+  }) {
     final s = piece.seed;
     // Colour belongs to the house, not to the piece: a wall that changes tone
     // halfway up, or a dormer that does not match its own roof, is the fastest
     // way to make a town look like a pile of blocks.
     final h = hash32(piece.building, 0x51ed, 3);
-    final y0 = piece.y0 + lift, y1 = piece.y1 + lift;
+    final y0 = piece.y0 + lift;
+    final y1 = y0 + (piece.y1 - piece.y0) * squash;
     // A house is plaster over stone: pale walls, a stone base, a warm roof.
     // Plaster takes a limewash, and in a town every house picks its own: warm
     // white mostly, but enough ochre, rose and pale blue among them that the
@@ -2276,19 +2521,25 @@ class WallPainter extends CustomPainter {
   ) {
     // Nearest first, so when two names collide it is the one further away that
     // gives up its place.
-    final show = <(double, Offset2, String)>[];
+    final show = <(double, Offset2, String, double)>[];
     for (final b in city.buildings) {
       if (!b.isLandmark || !b.finished) continue;
       if (scene.placed < b.firstPiece + b.cost) continue;
       final at = p.project(V3(b.cx, b.peakY + 0.5, b.cz));
       if (at == null) continue;
       if (at.x < -120 || at.x > size.width + 120) continue;
-      show.add((at.depth, at, b.name.toUpperCase()));
+      // The one just finished comes in last so nothing can push it aside, and
+      // rises into place rather than blinking on.
+      final pop = b.index == scene.finished
+          ? clampD(scene.finishedAge / 0.55, 0, 1)
+          : 1.0;
+      show.add((b.index == scene.finished ? -1.0 : at.depth, at,
+          b.name.toUpperCase(), pop));
     }
     show.sort((a, b) => a.$1.compareTo(b.$1));
     final taken = <Rect>[];
     for (final row in show) {
-      _drawLabel(canvas, row.$2, row.$3, size, taken: taken);
+      _drawLabel(canvas, row.$2, row.$3, size, taken: taken, pop: row.$4);
     }
   }
 
@@ -2495,12 +2746,13 @@ class WallPainter extends CustomPainter {
     Size size, {
     double? at,
     List<Rect>? taken,
+    double pop = 1,
   }) {
     final depth = at ?? top.depth;
     // How far a name carries depends on how far back the camera has gone: from
     // across the valley the town should still say what its landmarks are.
     final far = math.max(24.0, scene.camera.distance * 1.15);
-    final fade = clampD(1 - (depth - far) / (far * 0.75), 0, 1);
+    final fade = clampD(1 - (depth - far) / (far * 0.75), 0, 1) * pop;
     if (fade <= 0.02) return;
     final dark = _isDarkSky();
     final glow = TextPainter(
@@ -2531,7 +2783,9 @@ class WallPainter extends CustomPainter {
     final left = 6 + glow.width / 2;
     if (right > left) cx = clampD(cx, left, right);
 
-    final origin = Offset(cx - glow.width / 2, top.y - glow.height / 2);
+    // A name that has just been earned rises into place instead of appearing.
+    final lift = (1 - pop) * 16;
+    final origin = Offset(cx - glow.width / 2, top.y - glow.height / 2 + lift);
 
     // A town has a lot of names in it. Two of them written across each other
     // are worth less than one of them alone, so a name that would land on one
@@ -2638,8 +2892,9 @@ class WallPainter extends CustomPainter {
               .withValues(alpha: life);
           canvas.drawCircle(Offset(pt.x, pt.y), r * 1.3, paint);
         case ParticleKind.gold:
-          paint.color = const Color(0xFFF2C25B).withValues(alpha: life * 0.95);
-          canvas.drawCircle(Offset(pt.x, pt.y), r * 1.2, paint);
+          paint.color = const Color(0xFFF2C25B)
+              .withValues(alpha: life * life * 0.85);
+          canvas.drawCircle(Offset(pt.x, pt.y), r * 0.9, paint);
         case ParticleKind.ember:
           paint.color = Color.lerp(const Color(0xFFFF8A3D), const Color(0xFFFFD79A), life)!
               .withValues(alpha: life);
@@ -2647,6 +2902,26 @@ class WallPainter extends CustomPainter {
         case ParticleKind.moteRepair:
           paint.color = const Color(0xFFBFE8D0).withValues(alpha: life * 0.8);
           canvas.drawCircle(Offset(pt.x, pt.y), r, paint);
+        case ParticleKind.smoke:
+          // Thickest just after it leaves the flue, then thinning as it spreads
+          // and takes the colour of the air it is drifting through.
+          final age = 1 - life;
+          final puff = Color.lerp(
+              Color.lerp(pal.stoneCool, pal.ink, 0.22)!, pal.haze, age * 0.8)!;
+          paint
+            ..color = puff.withValues(alpha: life * life * 0.30)
+            ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2 + age * 6);
+          canvas.drawCircle(
+              Offset(pt.x, pt.y), r * (1.0 + age * 3.2), paint);
+          paint.maskFilter = null;
+        case ParticleKind.glint:
+          final k = math.sin(life * math.pi);
+          paint
+            ..color = Color.lerp(pal.sun, Colors.white, 0.5)!
+                .withValues(alpha: k * 0.85)
+            ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
+          canvas.drawCircle(Offset(pt.x, pt.y), r * (0.8 + k), paint);
+          paint.maskFilter = null;
       }
     }
   }
