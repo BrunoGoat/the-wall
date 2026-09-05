@@ -110,10 +110,9 @@ class CityBuilding {
   String get name => landmark?.name ?? buildingName[kind]!;
   bool get isLandmark => landmark != null;
 
-  /// How much room it needs around its own middle, for keeping neighbours off.
-  /// A house wants its plot; a landmark wants as much as its recipe reaches,
-  /// and a little more so it is not wearing somebody's washing line.
-  double get reach => landmark == null ? 1.3 : landmark!.reach + 0.5;
+  /// How much room it keeps clear around its own middle. A house wants its
+  /// plot; a landmark wants the room its tier is given.
+  double get reach => landmark?.room ?? 1.3;
 
   /// Filled in as the pieces are generated.
   double peakY = 0;
@@ -429,7 +428,7 @@ class CityLayout {
     final reaches = <double>[];
     var from = 0;
     for (var b = 0; b < want; b++) {
-      final r = isMark[b] ? CityPlan.landmarkFor(b).reach + 0.5 : 1.3;
+      final r = isMark[b] ? CityPlan.landmarkFor(b).room : 1.3;
       var placedIt = false;
       for (var i = from; i < all.length; i++) {
         if (used[i]) continue;

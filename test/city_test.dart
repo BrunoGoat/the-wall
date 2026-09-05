@@ -203,10 +203,13 @@ void main() {
         }
         expect(reach, closeTo(l.reach, 1e-9),
             reason: '${l.name} does not know how far it reaches');
-        // Nothing may be so big the town has to be laid out around it.
-        final allowed = l.tier >= 2 ? 7.0 : 4.0;
-        expect(reach, lessThanOrEqualTo(allowed),
-            reason: '${l.name} sprawls ${reach.toStringAsFixed(2)}');
+        // The town keeps a fixed amount of room clear per tier. A recipe that
+        // grows past it would be standing in its neighbours' plots — and the
+        // room cannot simply be widened, because the spacing is what decides
+        // where every later building goes.
+        expect(reach, lessThanOrEqualTo(l.room),
+            reason: '${l.name} sprawls ${reach.toStringAsFixed(2)}, past the '
+                '${l.room} its tier is given');
       }
     });
 
@@ -244,6 +247,15 @@ void main() {
               reason: '\${l.name}: a \${s.kind.name} at \${s.y0.toStringAsFixed(2)} '
                   'has nothing under it');
         }
+      }
+    });
+
+    test('the room a landmark is given never depends on its recipe', () {
+      // The spacing decides where every later building stands, so it must not
+      // move when a recipe is edited: a town that rearranges itself on an app
+      // update is not a record of anything.
+      for (final l in landmarks) {
+        expect(l.room, const [2.6, 4.0, 6.4][l.tier]);
       }
     });
 

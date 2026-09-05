@@ -24,10 +24,18 @@ class Landmark {
 
   final void Function(Mason m) build;
 
+  /// How much room the town keeps clear around this landmark.
+  ///
+  /// Fixed per tier, deliberately, rather than measured from the recipe. The
+  /// spacing decides where every later building goes, so if it moved when a
+  /// recipe was edited then widening a mill's sails would shuffle the whole
+  /// town — and a town that rearranges itself when the app updates is not a
+  /// record of anything. Tiers never change; recipes may.
+  double get room => const [2.6, 4.0, 6.4][tier];
+
   /// How far the recipe actually reaches from its own middle, measured by
-  /// building it once. The town uses this to keep neighbours off, so a
-  /// landmark's elbow room is never a guess that goes stale when the recipe
-  /// changes.
+  /// building it once. Used for framing the camera and for the test that keeps
+  /// a recipe inside the room its tier is given — never for the layout.
   double get reach => _reach ??= _measure();
   double? _reach;
 
