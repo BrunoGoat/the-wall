@@ -11,6 +11,7 @@ import '../model/store.dart';
 import 'habit_bar.dart';
 import 'habits_sheet.dart';
 import 'hold_button.dart';
+import 'placed_note.dart';
 import 'journey_sheet.dart';
 import 'overlays.dart';
 import 'style.dart';
@@ -31,6 +32,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// A landmark of the town, and which number it is, waiting to be shown.
   (Landmark, int)? _revealTown;
+
+  /// The piece just laid, while its card is still up.
+  Piece? _justPlaced;
   String? _whisper;
   Timer? _whisperTimer;
   Piece? _selected;
@@ -114,6 +118,12 @@ class _HomeScreenState extends State<HomeScreen> {
               onTownLandmark: (mark, ordinal) {
                 if (Appearance.instance.rapid) return;
                 setState(() => _revealTown = (mark, ordinal));
+              },
+              onPlaced: (piece) {
+                // In the testing mode the pieces come far too fast for a card
+                // to be anything but in the way.
+                if (Appearance.instance.rapid) return;
+                setState(() => _justPlaced = piece);
               },
               onStoneTapped: (brick) => setState(() => _selected = brick),
               onWhisper: _showWhisper,
@@ -232,6 +242,25 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
 
           // --- bottom: travel, then the one button
+          // The card for the piece just laid, riding above the deck and out of
+          // the way of the keyboard when it comes up.
+          if (_justPlaced != null)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: MediaQuery.of(context).viewInsets.bottom > 0
+                  ? MediaQuery.of(context).viewInsets.bottom + 10
+                  : 208 + media.padding.bottom,
+              child: PlacedNote(
+                key: ValueKey(_justPlaced!.index),
+                habit: store.habit,
+                ordinal: _justPlaced!.index + 1,
+                theme: t,
+                onWrite: (text) => store.setLabel(_justPlaced!.index, text),
+                onDismiss: () => setState(() => _justPlaced = null),
+              ),
+            ),
+
           Positioned(
             left: 0,
             right: 0,

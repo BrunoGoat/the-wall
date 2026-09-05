@@ -50,7 +50,10 @@ class Habit {
   /// two towns of thirty thousand achievements still would not touch.
   static (double, double) centreOf(int slot) {
     if (slot <= 0) return (0.0, 0.0);
-    const ring = 132.0;
+    // Close enough that the whole valley fits in one frame and the towns can
+    // be compared, far enough that two towns of thirty thousand achievements
+    // still have meadow between them.
+    const ring = 78.0;
     final k = (slot - 1) % (maxSlots - 1);
     final a = -math.pi / 2 + k * 2 * math.pi / (maxSlots - 1);
     return (math.cos(a) * ring, math.sin(a) * ring);

@@ -48,6 +48,27 @@ class _PuebloAppState extends State<PuebloApp> {
     if (seed > 0 && store.total == 0) {
       store.debugFill(seed, endedDaysAgo: idleDays);
     }
+    // A whole valley, for looking at several habits side by side without
+    // keeping four of them for a year first. Off unless compiled in.
+    const valley = String.fromEnvironment('VALLEY');
+    if (valley.isNotEmpty && store.habits.length == 1) {
+      const names = ['Leer', 'Correr', 'Estudiar', 'Guitarra', 'Nadar'];
+      const symbols = ['📖', '🏃', '🧠', '🎸', '🏊'];
+      final parts = valley.split(',');
+      for (var i = 0; i < parts.length && i < names.length; i++) {
+        final bits = parts[i].split(':');
+        final n = int.tryParse(bits.first) ?? 0;
+        final idle = bits.length > 1 ? (int.tryParse(bits[1]) ?? 0) : 0;
+        if (i == 0) {
+          store.renameHabit(0, name: names[0], symbol: symbols[0]);
+          if (n > 0) store.debugFill(n, endedDaysAgo: idle, into: 0);
+        } else {
+          store.addHabit(names[i], symbols[i]);
+          if (n > 0) store.debugFill(n, endedDaysAgo: idle);
+        }
+      }
+      store.select(0);
+    }
 
     if (mounted) setState(() {});
     Sensory.instance.init();

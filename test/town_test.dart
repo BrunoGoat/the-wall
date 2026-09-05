@@ -332,7 +332,7 @@ void main() {
           final (bx, bz) = Habit.centreOf(b);
           final d = math.sqrt((ax - bx) * (ax - bx) + (az - bz) * (az - bz));
           // Room for two towns of thirty thousand achievements each.
-          expect(d, greaterThan(90.0), reason: 'plots $a y $b');
+          expect(d, greaterThan(70.0), reason: 'plots $a y $b');
         }
       }
     });

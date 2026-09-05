@@ -51,6 +51,7 @@ class TownView extends StatefulWidget {
     required this.store,
     required this.controller,
     required this.onTownLandmark,
+    required this.onPlaced,
     required this.onStoneTapped,
     required this.onWhisper,
     required this.onPaletteChanged,
@@ -61,6 +62,9 @@ class TownView extends StatefulWidget {
 
   /// A landmark of the town finished, and which number it is.
   final void Function(Landmark mark, int ordinal) onTownLandmark;
+
+  /// A piece has just been laid, and which one it is.
+  final void Function(Piece piece) onPlaced;
   final void Function(Piece piece) onStoneTapped;
   final void Function(String message) onWhisper;
   final void Function(Palette palette) onPaletteChanged;
@@ -390,8 +394,8 @@ class _TownViewState extends State<TownView>
     // In the town a piece is set down, not dropped from a crane: from high up
     // it reads as a bug, and the anticipation is in the shadow closing under
     // it rather than in the height it falls from.
-    _placement = PlacementFx(result.piece.index,
-        dropHeight: 2.3);
+    _placement = PlacementFx(result.piece.index, dropHeight: 2.3);
+    widget.onPlaced(result.piece);
     setState(() {});
   }
 
@@ -468,8 +472,12 @@ class _TownViewState extends State<TownView>
     _cam.focusZTarget = 0;
     _cam.focusYTarget = 2.0;
     _cam.wallLength = far * 2;
-    _cam.distanceTarget = clampD(far * 1.5, 20, OrbitCamera.maxDistance);
-    _cam.pitchTarget = 0.62;
+    // Three times the reach: the towns sit on a wide ring, and the lens is
+    // narrow enough that fitting them all needs real distance.
+    _cam.distanceTarget = clampD(far * 2.4, 20, OrbitCamera.maxDistance);
+    // Low enough to keep the sky and the hills in it. Straight down is a map;
+    // the point of the valley is that it is a place.
+    _cam.pitchTarget = 0.40;
     _cam.follow = false;
     Sensory.instance.tick();
   }

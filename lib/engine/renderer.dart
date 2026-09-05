@@ -513,9 +513,12 @@ class TownPainter extends CustomPainter {
     final dist = math.sqrt(dx * dx + dz * dz);
     // The town is meant to be looked at, not squinted through: it keeps most
     // of its colour all the way to the far side of the valley.
-    final t = 1 - math.exp(-dist * 0.0052);
+    // Capped: from across the valley a town must still be a town and not a
+    // smudge the colour of the grass. Distance says "further away", never
+    // "gone".
+    final t = 1 - math.exp(-dist * 0.0040);
     if (t < 0.004) return c;
-    return Color.lerp(c, pal.haze, t * 0.55)!;
+    return Color.lerp(c, pal.haze, math.min(t * 0.5, 0.30))!;
   }
 
   /// The lanes between the blocks, and the shadow each building sits in.
@@ -843,7 +846,8 @@ class TownPainter extends CustomPainter {
       )..layout();
 
       final w = math.max(tp.width, 76.0);
-      final box = Rect.fromLTWH(at.x - w / 2 - 10, at.y - 14, w + 20, 46);
+      final cx = clampD(at.x, w / 2 + 14, size.width - w / 2 - 14);
+      final box = Rect.fromLTWH(cx - w / 2 - 10, at.y - 14, w + 20, 46);
       if (taken.any(box.overlaps)) continue;
       taken.add(box);
 
@@ -863,13 +867,13 @@ class TownPainter extends CustomPainter {
             ..color = pal.accent.withValues(alpha: 0.75 * near),
         );
       }
-      tp.paint(canvas, Offset(at.x - tp.width / 2, at.y - 9));
+      tp.paint(canvas, Offset(cx - tp.width / 2, at.y - 9));
 
       // Under the name: how much town there is, and how much of it is lit.
       // Two towns side by side become two bars of different length, which is
       // the comparison without a single number being read.
       const bw = 62.0;
-      final bar = Rect.fromLTWH(at.x - bw / 2, at.y + 16, bw, 4);
+      final bar = Rect.fromLTWH(cx - bw / 2, at.y + 16, bw, 4);
       canvas.drawRRect(
         RRect.fromRectAndRadius(bar, const Radius.circular(2)),
         Paint()..color = ink.withValues(alpha: 0.16 * near),
@@ -2068,6 +2072,9 @@ class TownPainter extends CustomPainter {
     Size size,
     TownLayout town,
   ) {
+    // From far enough back the valley is about which town is which, not which
+    // building is which. The landmark names stand down for the town signs.
+    if (scene.towns.length > 1 && scene.camera.distance > 95) return;
     // Nearest first, so when two names collide it is the one further away that
     // gives up its place.
     final show = <(double, Offset2, String, double)>[];
