@@ -1810,14 +1810,22 @@ class WallPainter extends CustomPainter {
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    final origin = Offset(top.x - glow.width / 2, top.y - glow.height / 2);
+    // The camera buttons live down the right-hand edge; a name that lands
+    // under them is unreadable, so it slides left far enough to clear them.
+    var cx = top.x;
+    final inButtons = top.y > 80 && top.y < 250;
+    final right = size.width - (inButtons ? 74 : 6) - glow.width / 2;
+    final left = 6 + glow.width / 2;
+    if (right > left) cx = clampD(cx, left, right);
+
+    final origin = Offset(cx - glow.width / 2, top.y - glow.height / 2);
     glow.paint(canvas, origin);
 
     // A hairline under it, to tie the name to the thing it names.
     final w = glow.width * 0.5;
     canvas.drawLine(
-      Offset(top.x - w / 2, origin.dy + glow.height + 5),
-      Offset(top.x + w / 2, origin.dy + glow.height + 5),
+      Offset(cx - w / 2, origin.dy + glow.height + 5),
+      Offset(cx + w / 2, origin.dy + glow.height + 5),
       Paint()
         ..strokeWidth = 1
         ..color = (dark ? Colors.white : scene.palette.ink)
