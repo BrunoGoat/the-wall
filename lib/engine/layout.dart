@@ -840,7 +840,7 @@ class BuriedBand {
 
 /// One landmark's footprint, with the coarse profile of its own top.
 class _Span {
-  _Span(this.x0, this.x1, this.step, this.tops);
+  _Span(this.x0, this.x1, this.step, this.tops, this.peak);
 
   factory _Span.of(double x0, double x1, List<StoneSlot> stones) {
     const step = 0.22;
@@ -853,7 +853,18 @@ class _Span {
         if (s.top > tops[i]) tops[i] = s.top;
       }
     }
-    return _Span(x0, x1, step, tops);
+    var peak = 0.0;
+    for (final t in tops) {
+      if (t > peak) peak = t;
+    }
+    // Only what still stands higher than the course being laid blocks it.
+    // Making a landmark's tower block at *every* height sounded right — the
+    // tower would always stand out of the wall — but a tower shorter than the
+    // wall that has grown past it then leaves a tower-shaped hole in the top of
+    // that wall, which is worse than being built over. The wall closes over
+    // whatever it has outgrown, and only what is genuinely taller comes
+    // through, which is what happens to a wall that gets heightened.
+    return _Span(x0, x1, step, tops, peak);
   }
 
   final double x0, x1, step;
@@ -861,13 +872,7 @@ class _Span {
   /// Highest stone of the landmark in each slice of its footprint.
   final List<double> tops;
 
-  double get peak {
-    var m = 0.0;
-    for (final t in tops) {
-      if (t > m) m = t;
-    }
-    return m;
-  }
+  final double peak;
 
   /// The first stretch of this footprint that a course sitting at [yBottom]
   /// cannot pass through, searched between [from] and [to].
