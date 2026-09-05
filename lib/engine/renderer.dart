@@ -1462,13 +1462,13 @@ class WallPainter extends CustomPainter {
     final paint = Paint()..blendMode = BlendMode.plus;
     for (var i = 0; i < _lamps.length; i += 4) {
       final x = _lamps[i], y = _lamps[i + 1];
-      final r = _lamps[i + 2] * 3.4, k = _lamps[i + 3];
+      final r = _lamps[i + 2] * 3.0, k = _lamps[i + 3];
       if (x < -r || x > size.width + r || y < -r || y > size.height + r) {
         continue;
       }
       paint.shader = ui.Gradient.radial(Offset(x, y), r, [
-        warm.withValues(alpha: 0.20 * k),
-        warm.withValues(alpha: 0.07 * k),
+        warm.withValues(alpha: 0.16 * k),
+        warm.withValues(alpha: 0.055 * k),
         const Color(0x00000000),
       ], [
         0.0,
