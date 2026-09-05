@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Scratch scripts for inspecting a layout by hand.
+tool/tmp/
