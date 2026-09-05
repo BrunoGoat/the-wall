@@ -46,6 +46,11 @@ class _LaMurallaAppState extends State<LaMurallaApp> {
         if (l.style.name == mortar) await Appearance.instance.setMortar(l.style);
       }
     }
+    // Development shortcut for looking at the town prototype.
+    const world = String.fromEnvironment('WORLD');
+    for (final w in World.values) {
+      if (w.name == world) await Appearance.instance.setWorld(w);
+    }
     await store.load();
 
     // Development shortcut for inspecting how the wall reads after weeks or a

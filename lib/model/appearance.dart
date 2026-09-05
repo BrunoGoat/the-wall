@@ -93,6 +93,13 @@ class MortarLook {
       all.firstWhere((l) => l.style == s, orElse: () => seca);
 }
 
+/// Which world the achievements build.
+///
+/// The same store, read two ways: as a wall that grows along the ground, or as
+/// a town that grows outward from its plaza. Nothing about the achievements
+/// themselves changes — only what they are made into.
+enum World { wall, city }
+
 /// What the wall looks like. Kept apart from what the wall *is*: changing any
 /// of this never touches a brick.
 class Appearance extends ChangeNotifier {
@@ -101,9 +108,11 @@ class Appearance extends ChangeNotifier {
 
   static const String _key = 'muralla_mortar_v1';
   static const String _rapidKey = 'muralla_rapid_v1';
+  static const String _worldKey = 'muralla_world_v1';
 
   MortarStyle _mortar = MortarStyle.seca;
   bool _rapid = false;
+  World _world = World.wall;
 
   MortarStyle get mortar => _mortar;
   MortarLook get look => MortarLook.of(_mortar);
@@ -113,6 +122,9 @@ class Appearance extends ChangeNotifier {
   /// default and deliberately awkward to leave on — a brick is an achievement,
   /// and this is the one place in the app where that is not true.
   bool get rapid => _rapid;
+
+  /// Wall or town. A prototype switch while we decide which one the app is.
+  World get world => _world;
 
   Future<void> load() async {
     try {
@@ -124,6 +136,10 @@ class Appearance extends ChangeNotifier {
         }
       }
       _rapid = prefs.getBool(_rapidKey) ?? false;
+      final world = prefs.getString(_worldKey);
+      for (final w in World.values) {
+        if (w.name == world) _world = w;
+      }
     } catch (_) {
       // A phone that will not give us its preferences still gets a wall.
     }
@@ -137,6 +153,16 @@ class Appearance extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_rapidKey, v);
+    } catch (_) {}
+  }
+
+  Future<void> setWorld(World w) async {
+    if (w == _world) return;
+    _world = w;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_worldKey, w.name);
     } catch (_) {}
   }
 

@@ -234,6 +234,7 @@ class _Summary extends StatelessWidget {
           open: (nav) => AppearanceSheet(theme: t),
         ),
         _RapidToggle(theme: t),
+        _WorldToggle(theme: t),
         _SheetRow(
           theme: t,
           icon: Icons.tune,
@@ -347,6 +348,40 @@ class _RapidToggleState extends State<_RapidToggle> {
       onChanged: (v) async {
         Sensory.instance.tick();
         await Appearance.instance.setRapid(v);
+        if (mounted) setState(() {});
+      },
+    );
+  }
+}
+
+/// The prototype switch between the two worlds the same achievements can
+/// build. Temporary: one of the two will end up being the app.
+class _WorldToggle extends StatefulWidget {
+  const _WorldToggle({required this.theme});
+  final UiTheme theme;
+
+  @override
+  State<_WorldToggle> createState() => _WorldToggleState();
+}
+
+class _WorldToggleState extends State<_WorldToggle> {
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.theme;
+    return SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      value: Appearance.instance.world == World.city,
+      activeThumbColor: t.accent,
+      title: Text('Construir un pueblo', style: t.body),
+      subtitle: Text(
+        'Los mismos logros, casa por casa en vez de piedra por piedra. '
+        'No se pierde nada: es la misma cuenta leída de otra manera.',
+        style: t.bodySoft.copyWith(fontSize: 11.5),
+      ),
+      onChanged: (v) async {
+        Sensory.instance.tick();
+        await Appearance.instance.setWorld(v ? World.city : World.wall);
         if (mounted) setState(() {});
       },
     );

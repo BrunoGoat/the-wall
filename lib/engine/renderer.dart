@@ -10,6 +10,7 @@ import '../data/milestones.dart';
 import '../fx/effects.dart';
 import '../model/appearance.dart';
 import 'camera.dart';
+import 'city.dart';
 import 'layout.dart';
 import 'landscape.dart';
 import 'palette.dart';
@@ -47,6 +48,7 @@ class WallScene {
     this.detailBudget = 300,
     this.coarseBudget = 2600,
     this.mortar = MortarLook.seca,
+    this.city,
     this.selectedBrick,
     this.charge = 0,
   });
@@ -79,6 +81,9 @@ class WallScene {
   /// How the masonry is pointed.
   final MortarLook mortar;
 
+  /// When set, the achievements are drawn as a town rather than as a wall.
+  final CityLayout? city;
+
   /// The stone the person just tapped, ringed so it is obvious which one the
   /// note belongs to.
   final int? selectedBrick;
@@ -108,7 +113,6 @@ class WallPainter extends CustomPainter {
   static final Float64List _clipA = Float64List(96);
   static final Float64List _clipB = Float64List(96);
   static final Path _scratch = Path();
-  static final Map<int, TextPainter> _labelCache = {};
 
   int _faceCount = 0;
 
@@ -139,6 +143,20 @@ class WallPainter extends CustomPainter {
     );
     final p = cam.projector(size.width, size.height, scene.time);
     final horizonY = _horizonY(p, size);
+
+    final city = scene.city;
+    if (city != null) {
+      _drawSky(canvas, size, p, horizonY);
+      _drawGround(canvas, size, horizonY);
+      _drawRanges(canvas, p, size, horizonY);
+      _drawCityGround(canvas, p, city);
+      _collectCity(p, size, city);
+      _flush(canvas);
+      _drawCityLabels(canvas, p, size, city);
+      _drawParticles(canvas, p);
+      _drawAtmosphere(canvas, size, horizonY);
+      return;
+    }
 
     _drawSky(canvas, size, p, horizonY);
     _drawGround(canvas, size, horizonY);
@@ -1154,6 +1172,417 @@ class WallPainter extends CustomPainter {
     return c;
   }
 
+  // ------------------------------------------------------------------ town
+
+  /// Haze by real distance rather than by distance along one axis.
+  ///
+  /// The wall runs east to west, so fading it by how far it is along x is
+  /// close enough. A town spreads in both directions, and fading it by x alone
+  /// leaves the north end of a street crisp and the west end of it lost.
+  Color _hazeAt(Color c, Projector p, double x, double z, Palette pal) {
+    final dx = x - p.eye.x, dz = z - p.eye.z;
+    final dist = math.sqrt(dx * dx + dz * dz);
+    final t = 1 - math.exp(-dist * 0.0125);
+    if (t < 0.004) return c;
+    return Color.lerp(c, pal.haze, t * 0.85)!;
+  }
+
+  /// The lanes between the blocks, and the shadow each building sits in.
+  void _drawCityGround(Canvas canvas, Projector p, CityLayout city) {
+    final pal = scene.palette;
+    // A packed-earth pad under each plot that has been built on. Neighbouring
+    // plots touch, so a block reads as one yard with streets around it, and the
+    // edge of the town stays as ragged as the houses themselves.
+    final pad = Color.lerp(pal.ground, pal.stoneWarm, 0.20)!;
+    const half = CityLayout.plotPitch * 0.5;
+    for (final b in city.buildings) {
+      if (b.placedPieces <= 0) continue;
+      final a = p.project(V3(b.cx - half, 0.004, b.cz - half));
+      final c = p.project(V3(b.cx + half, 0.004, b.cz - half));
+      final d = p.project(V3(b.cx + half, 0.004, b.cz + half));
+      final e = p.project(V3(b.cx - half, 0.004, b.cz + half));
+      if (a == null || c == null || d == null || e == null) continue;
+      final path = Path()
+        ..moveTo(a.x, a.y)
+        ..lineTo(c.x, c.y)
+        ..lineTo(d.x, d.y)
+        ..lineTo(e.x, e.y)
+        ..close();
+      canvas.drawPath(
+        path,
+        Paint()..color = _hazeAt(pad, p, b.cx, b.cz, pal),
+      );
+    }
+
+    // A soft pool of shade under each building. The wall gets a real projected
+    // shadow; a hundred and fifty houses would cost far too much for that, and
+    // at this size a contact shadow is what stops them floating anyway.
+    final light = pal.lightDir;
+    final drop = clampD(1.0 / math.max(0.25, light.y), 0.8, 2.4);
+    for (final b in city.buildings) {
+      if (b.placedPieces <= 0 || b.peakY <= 0.05) continue;
+      final h = b.peakY;
+      final at = p.project(V3(
+        b.cx - light.x * drop * h * 0.35,
+        0.006,
+        b.cz - light.z * drop * h * 0.35,
+      ));
+      if (at == null) continue;
+      final r = p.focal / at.depth * (1.3 + h * 0.18);
+      if (r < 2) continue;
+      canvas.drawCircle(
+        Offset(at.x, at.y),
+        r,
+        Paint()
+          ..shader = ui.Gradient.radial(Offset(at.x, at.y), r, [
+            pal.ink.withValues(alpha: 0.26 * scene.integrity.clamp(0.5, 1.0)),
+            pal.ink.withValues(alpha: 0),
+          ]),
+      );
+    }
+  }
+
+  /// The town itself.
+  void _collectCity(Projector p, Size size, CityLayout city) {
+    final pal = scene.palette;
+    final light = pal.lightDir;
+    final decay = 1.0 - scene.integrity;
+    final fx = scene.fx;
+    final night = !pal.isDaylight;
+
+    final take = math.min(scene.placed, city.pieces.length);
+    // Nearest first, so the detail budget is spent where the eye is.
+    final order = <int>[];
+    for (var i = 0; i < take; i++) {
+      order.add(i);
+    }
+    order.sort((a, b) {
+      double d(CityPiece q) {
+        final dx = q.cx - p.eye.x, dz = q.cz - p.eye.z;
+        return dx * dx + dz * dz;
+      }
+
+      return d(city.pieces[a]).compareTo(d(city.pieces[b]));
+    });
+
+    final budget = scene.detailBudget + scene.coarseBudget;
+    for (var k = 0; k < order.length && k < budget; k++) {
+      final piece = city.pieces[order[k]];
+      var lift = 0.0;
+      var flash = 0.0;
+      if (fx != null && fx.brickIndex == piece.index) {
+        lift = fx.yOffset;
+        flash = fx.flash;
+      }
+      _emitPiece(p, piece, pal, light, decay, night, lift, flash, size);
+    }
+  }
+
+  void _emitPiece(
+    Projector p,
+    CityPiece piece,
+    Palette pal,
+    V3 light,
+    double decay,
+    bool night,
+    double lift,
+    double flash,
+    Size size,
+  ) {
+    final s = piece.seed;
+    // Colour belongs to the house, not to the piece: a wall that changes tone
+    // halfway up, or a dormer that does not match its own roof, is the fastest
+    // way to make a town look like a pile of blocks.
+    final h = hash32(piece.building, 0x51ed, 3);
+    final y0 = piece.y0 + lift, y1 = piece.y1 + lift;
+    // A house is plaster over stone: pale walls, a stone base, a warm roof.
+    Color wall() {
+      final warm = hash01(h, 1);
+      var c = Color.lerp(pal.stoneCool, pal.stoneWarm, 0.35 + warm * 0.55)!;
+      if (hash01(h, 2) < 0.22) {
+        c = Color.lerp(c, const Color(0xFF9A7C55), 0.35)!;
+      }
+      return _weather(c, decay, s);
+    }
+
+    Color roofColour() {
+      final t = hash01(h, 3);
+      final base = t < 0.45
+          ? const Color(0xFF9A5B44)
+          : (t < 0.78 ? const Color(0xFF6E6A63) : const Color(0xFF8A7448));
+      return _weather(Color.lerp(base, pal.stone, 0.18)!, decay, s);
+    }
+
+    switch (piece.kind) {
+      case PieceKind.roof:
+        _emitGable(p, piece, y0, y1, roofColour(), light, pal, 1.0, flash);
+      case PieceKind.spire:
+        _emitPyramid(p, piece, y0, y1, roofColour(), light, pal, flash);
+      case PieceKind.plinth:
+        _emitBox(p, piece, y0, y1,
+            _weather(Color.lerp(pal.stoneCool, pal.stone, 0.5)!, decay, s),
+            light, pal, 0.86, flash, size);
+      case PieceKind.chimney:
+        _emitBox(p, piece, y0, y1,
+            _weather(const Color(0xFF8C6A52), decay, s), light, pal, 0.92,
+            flash, size);
+      case PieceKind.parapet:
+        _emitBox(p, piece, y0, y1,
+            _weather(Color.lerp(pal.stoneCool, pal.stone, 0.62)!, decay, s),
+            light, pal, 0.95, flash, size);
+      case PieceKind.dormer:
+        _emitBox(p, piece, y0, y1, roofColour(), light, pal, 1.0, flash, size);
+      case PieceKind.porch:
+        _emitBox(p, piece, y0, y1, wall(), light, pal, 0.9, flash, size);
+      case PieceKind.floor:
+        _emitBox(p, piece, y0, y1, wall(), light, pal, 1.0, flash, size,
+            windows: true, night: night, decay: decay);
+    }
+  }
+
+  Color _weather(Color c, double decay, int seed) {
+    if (decay < 0.02) return c;
+    final moss = hash01(seed, 61) < decay * 0.55;
+    final t = decay * (moss ? 0.42 : 0.22);
+    return Color.lerp(c, const Color(0xFF5C6B4A), t)!;
+  }
+
+  /// A box, with only the faces turned towards the camera drawn.
+  void _emitBox(
+    Projector p,
+    CityPiece piece,
+    double y0,
+    double y1,
+    Color albedo,
+    V3 light,
+    Palette pal,
+    double ao,
+    double flash,
+    Size size, {
+    bool windows = false,
+    bool night = false,
+    double decay = 0,
+  }) {
+    final x0 = piece.x0, x1 = piece.x1, z0 = piece.z0, z1 = piece.z1;
+    final e = p.eye;
+    final mid = V3((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+    if (p.cameraOf(mid).z <= p.near) return;
+
+    Color face(V3 n, double k) => _hazeAt(
+          _shade(n, albedo, light, pal, ao * k, flash, 0),
+          p,
+          mid.x,
+          mid.z,
+          pal,
+        );
+
+    final before = _faceCount;
+    if (e.z > z1) {
+      _quad(p, V3(x0, y0, z1), V3(x1, y0, z1), V3(x1, y1, z1), V3(x0, y1, z1),
+          face(const V3(0, 0, 1), 1.0).toARGB32());
+    } else if (e.z < z0) {
+      _quad(p, V3(x1, y0, z0), V3(x0, y0, z0), V3(x0, y1, z0), V3(x1, y1, z0),
+          face(const V3(0, 0, -1), 1.0).toARGB32());
+    }
+    if (e.x > x1) {
+      _quad(p, V3(x1, y0, z1), V3(x1, y0, z0), V3(x1, y1, z0), V3(x1, y1, z1),
+          face(const V3(1, 0, 0), 0.94).toARGB32());
+    } else if (e.x < x0) {
+      _quad(p, V3(x0, y0, z0), V3(x0, y0, z1), V3(x0, y1, z1), V3(x0, y1, z0),
+          face(const V3(-1, 0, 0), 0.94).toARGB32());
+    }
+    if (e.y > y1) {
+      _quad(p, V3(x0, y1, z1), V3(x1, y1, z1), V3(x1, y1, z0), V3(x0, y1, z0),
+          face(const V3(0, 1, 0), 1.04).toARGB32());
+    }
+    if (_faceCount > before) {
+      _registerPick(_facePool[before], piece.index, size);
+    }
+    if (windows) _emitWindows(p, piece, y0, y1, pal, night, decay);
+  }
+
+  /// The windows of one storey.
+  ///
+  /// At night a lit window is one achievement showing from the outside, which
+  /// is the whole town's worth of them read in a single glance — the thing the
+  /// wall could never do.
+  void _emitWindows(
+    Projector p,
+    CityPiece piece,
+    double y0,
+    double y1,
+    Palette pal,
+    bool night,
+    double decay,
+  ) {
+    final h = y1 - y0;
+    if (h < 0.5) return;
+    final wy0 = y0 + h * 0.34, wy1 = y0 + h * 0.74;
+    final e = p.eye;
+    final s = piece.seed;
+
+    void row(bool onZ, double at, double from, double to, double outward) {
+      final span = to - from;
+      final n = math.max(1, (span / 0.62).floor());
+      for (var i = 0; i < n; i++) {
+        final c = from + span * (i + 0.5) / n;
+        final lit = night && hash01(s, 70, i) > 0.30 + decay * 0.45;
+        final colour = lit
+            ? const Color(0xFFFFD79A)
+            : Color.lerp(pal.ink, pal.stoneCool, 0.30)!;
+        const hw = 0.15;
+        if (onZ) {
+          _quad(
+            p,
+            V3(c - hw, wy0, outward),
+            V3(c + hw, wy0, outward),
+            V3(c + hw, wy1, outward),
+            V3(c - hw, wy1, outward),
+            (lit ? colour : _hazeAt(colour, p, piece.cx, piece.cz, pal))
+                .toARGB32(),
+          );
+        } else {
+          _quad(
+            p,
+            V3(outward, wy0, c - hw),
+            V3(outward, wy0, c + hw),
+            V3(outward, wy1, c + hw),
+            V3(outward, wy1, c - hw),
+            (lit ? colour : _hazeAt(colour, p, piece.cx, piece.cz, pal))
+                .toARGB32(),
+          );
+        }
+      }
+    }
+
+    if (e.z > piece.z1) {
+      row(true, 0, piece.x0 + 0.2, piece.x1 - 0.2, piece.z1 + 0.012);
+    } else if (e.z < piece.z0) {
+      row(true, 0, piece.x0 + 0.2, piece.x1 - 0.2, piece.z0 - 0.012);
+    }
+    if (e.x > piece.x1) {
+      row(false, 0, piece.z0 + 0.2, piece.z1 - 0.2, piece.x1 + 0.012);
+    } else if (e.x < piece.x0) {
+      row(false, 0, piece.z0 + 0.2, piece.z1 - 0.2, piece.x0 - 0.012);
+    }
+  }
+
+  /// A pitched roof: two slopes and two gable ends.
+  void _emitGable(
+    Projector p,
+    CityPiece piece,
+    double y0,
+    double y1,
+    Color albedo,
+    V3 light,
+    Palette pal,
+    double ao,
+    double flash,
+  ) {
+    final x0 = piece.x0, x1 = piece.x1, z0 = piece.z0, z1 = piece.z1;
+    final mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+    if (p.cameraOf(V3(mx, (y0 + y1) / 2, mz)).z <= p.near) return;
+
+    Color face(V3 n, double k) => _hazeAt(
+          _shade(n, albedo, light, pal, ao * k, flash, 0),
+          p,
+          mx,
+          mz,
+          pal,
+        );
+
+    final rise = y1 - y0;
+    if (piece.alongX) {
+      // Ridge runs east to west; the slopes face north and south.
+      final run = (z1 - z0) / 2;
+      final nA = V3(0, run, rise).normalized;
+      final nB = V3(0, run, -rise).normalized;
+      _quad(p, V3(x0, y0, z1), V3(x1, y0, z1), V3(x1, y1, mz), V3(x0, y1, mz),
+          face(nA, 1.0).toARGB32());
+      _quad(p, V3(x1, y0, z0), V3(x0, y0, z0), V3(x0, y1, mz), V3(x1, y1, mz),
+          face(nB, 0.92).toARGB32());
+      _tri(p, V3(x1, y0, z0), V3(x1, y0, z1), V3(x1, y1, mz),
+          face(const V3(1, 0, 0), 0.88).toARGB32());
+      _tri(p, V3(x0, y0, z1), V3(x0, y0, z0), V3(x0, y1, mz),
+          face(const V3(-1, 0, 0), 0.88).toARGB32());
+    } else {
+      final run = (x1 - x0) / 2;
+      final nA = V3(run, rise, 0).normalized;
+      final nB = V3(-run, rise, 0).normalized;
+      _quad(p, V3(x1, y0, z0), V3(x1, y0, z1), V3(mx, y1, z1), V3(mx, y1, z0),
+          face(nA, 1.0).toARGB32());
+      _quad(p, V3(x0, y0, z1), V3(x0, y0, z0), V3(mx, y1, z0), V3(mx, y1, z1),
+          face(nB, 0.92).toARGB32());
+      _tri(p, V3(x0, y0, z1), V3(x1, y0, z1), V3(mx, y1, z1),
+          face(const V3(0, 0, 1), 0.88).toARGB32());
+      _tri(p, V3(x1, y0, z0), V3(x0, y0, z0), V3(mx, y1, z0),
+          face(const V3(0, 0, -1), 0.88).toARGB32());
+    }
+  }
+
+  /// A spire: four faces to a point.
+  void _emitPyramid(
+    Projector p,
+    CityPiece piece,
+    double y0,
+    double y1,
+    Color albedo,
+    V3 light,
+    Palette pal,
+    double flash,
+  ) {
+    final x0 = piece.x0, x1 = piece.x1, z0 = piece.z0, z1 = piece.z1;
+    final mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
+    final apex = V3(mx, y1, mz);
+    if (p.cameraOf(V3(mx, (y0 + y1) / 2, mz)).z <= p.near) return;
+    final rise = y1 - y0;
+
+    void side(V3 a, V3 b, V3 n, double k) {
+      _tri(
+        p,
+        a,
+        b,
+        apex,
+        _hazeAt(_shade(n.normalized, albedo, light, pal, k, flash, 0), p, mx, mz,
+                pal)
+            .toARGB32(),
+      );
+    }
+
+    side(V3(x0, y0, z1), V3(x1, y0, z1), V3(0, (z1 - z0) / 2, rise), 1.0);
+    side(V3(x1, y0, z0), V3(x0, y0, z0), V3(0, (z1 - z0) / 2, -rise), 0.9);
+    side(V3(x1, y0, z1), V3(x1, y0, z0), V3(rise, (x1 - x0) / 2, 0), 0.95);
+    side(V3(x0, y0, z0), V3(x0, y0, z1), V3(-rise, (x1 - x0) / 2, 0), 0.95);
+  }
+
+  void _tri(Projector p, V3 a, V3 b, V3 c, int color) {
+    final pts = [a, b, c];
+    for (var i = 0; i < 3; i++) {
+      final cp = p.cameraOf(pts[i]);
+      _clipA[i * 3] = cp.x;
+      _clipA[i * 3 + 1] = cp.y;
+      _clipA[i * 3 + 2] = cp.z;
+    }
+    _emit(p, _clipA, 3, color);
+  }
+
+  /// The name of each landmark the town has finished.
+  void _drawCityLabels(
+    Canvas canvas,
+    Projector p,
+    Size size,
+    CityLayout city,
+  ) {
+    for (final b in city.buildings) {
+      if (!b.isLandmark || !b.finished) continue;
+      if (scene.placed < b.firstPiece + b.cost) continue;
+      final at = p.project(V3(b.cx, b.peakY + 0.5, b.cz));
+      if (at == null) continue;
+      if (at.x < -120 || at.x > size.width + 120) continue;
+      _drawLabel(canvas, at, b.name.toUpperCase(), size);
+    }
+  }
+
   Color _shade(V3 n, Color albedo, V3 light, Palette pal, double ao,
       double flash, double repairGlow) {
     final ndl = math.max(0.0, n.dot(light));
@@ -1342,34 +1771,28 @@ class WallPainter extends CustomPainter {
       Canvas canvas, Projector p, StructureInstance st, Offset2 anchor, Size size) {
     if (anchor.depth > 42) return;
     final name = scene.structureNames[st.index] ?? st.type.name;
-    var tp = _labelCache[st.index];
-    if (tp == null || tp.text?.toPlainText() != name) {
-      tp = TextPainter(
-        text: TextSpan(
-          text: name.toUpperCase(),
-          style: TextStyle(
-            color: scene.palette.ink,
-            fontSize: 9.5,
-            letterSpacing: 2.6,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      _labelCache[st.index] = tp;
-    }
     final top = p.project(V3(st.featureX, st.peakY + 0.5, 0));
     if (top == null) return;
-    final fade = clampD(1 - (anchor.depth - 24) / 18, 0, 1);
-    if (fade <= 0.02) return;
+    _drawLabel(canvas, top, name.toUpperCase(), size, at: anchor.depth);
+  }
 
-    // Set straight on the sky with a halo, like the rest of the type. A
-    // filled pill here was the last of the heavy white chrome.
+  /// A name set straight on the sky with a halo, and a hairline under it to tie
+  /// it to the thing it names. No filled pill: that was the last of the heavy
+  /// white chrome.
+  void _drawLabel(
+    Canvas canvas,
+    Offset2 top,
+    String name,
+    Size size, {
+    double? at,
+  }) {
+    final depth = at ?? top.depth;
+    final fade = clampD(1 - (depth - 24) / 18, 0, 1);
+    if (fade <= 0.02) return;
     final dark = _isDarkSky();
-    final origin = Offset(top.x - tp.width / 2, top.y - tp.height / 2);
     final glow = TextPainter(
       text: TextSpan(
-        text: name.toUpperCase(),
+        text: name,
         style: TextStyle(
           color: (dark ? Colors.white : scene.palette.ink)
               .withValues(alpha: 0.88 * fade),
@@ -1387,6 +1810,7 @@ class WallPainter extends CustomPainter {
       ),
       textDirection: TextDirection.ltr,
     )..layout();
+    final origin = Offset(top.x - glow.width / 2, top.y - glow.height / 2);
     glow.paint(canvas, origin);
 
     // A hairline under it, to tie the name to the thing it names.

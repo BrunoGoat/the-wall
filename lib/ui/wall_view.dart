@@ -9,6 +9,7 @@ import '../core/rng.dart';
 import '../data/milestones.dart';
 import '../data/pacing.dart';
 import '../engine/camera.dart';
+import '../engine/city.dart';
 import '../engine/layout.dart';
 import '../engine/palette.dart';
 import '../engine/renderer.dart';
@@ -69,7 +70,9 @@ class _WallViewState extends State<WallView>
   final List<PickTarget> _picks = [];
 
   WallLayout _layout = WallLayout(0);
+  CityLayout? _city;
   int _layoutFor = -1;
+  World _worldFor = World.wall;
 
   PlacementFx? _placement;
   PlaceResult? _pendingResult;
@@ -102,11 +105,19 @@ class _WallViewState extends State<WallView>
     _palette = _buildPalette();
     _rebuildLayout();
     _displayIntegrity = widget.store.integrity;
-    _cam.wallLength = _layout.length;
-    _cam.travelTarget = math.max(1.5, _layout.length - 3.5);
-    _cam.distanceTarget = clampD(9.0 + _layout.length * 0.42, 9.0, 34.0);
-    _cam.yawTarget = 0.62;
-    _cam.pitchTarget = 0.30;
+    final city0 = _city;
+    if (city0 != null) {
+      _cam.travelTarget = 0;
+      _cam.focusYTarget = 1.4;
+      _cam.distanceTarget = clampD(city0.radius * 1.9, 9.0, 60.0);
+      _cam.yawTarget = 0.62;
+      _cam.pitchTarget = 0.46;
+    } else {
+      _cam.travelTarget = math.max(1.5, _layout.length - 3.5);
+      _cam.distanceTarget = clampD(9.0 + _layout.length * 0.42, 9.0, 34.0);
+      _cam.yawTarget = 0.62;
+      _cam.pitchTarget = 0.30;
+    }
     // Fixed framing for development screenshots.
     const camYaw = int.fromEnvironment('CAM_YAW', defaultValue: -999);
     const camPitch = int.fromEnvironment('CAM_PITCH', defaultValue: -999);
@@ -133,13 +144,26 @@ class _WallViewState extends State<WallView>
   }
 
   void _onStoreChanged() {
-    if (widget.store.shownTotal != _layoutFor) _rebuildLayout();
+    if (widget.store.shownTotal != _layoutFor ||
+        Appearance.instance.world != _worldFor) {
+      _rebuildLayout();
+    }
   }
 
   void _rebuildLayout() {
     final was = _layout.length;
+    final world = Appearance.instance.world;
+    _worldFor = world;
     _layout = WallLayout(widget.store.shownTotal);
+    _city = world == World.city ? CityLayout(widget.store.shownTotal) : null;
     _layoutFor = widget.store.shownTotal;
+    // The town orbits its own plaza, so the camera's travel axis is spent on
+    // its width instead of the wall's length.
+    final city = _city;
+    if (city != null) {
+      _cam.wallLength = city.radius * 2;
+      return;
+    }
     _cam.wallLength = _layout.length;
     // A preview can change the wall's size by orders of magnitude; reframe so
     // it is not left staring at empty ground.
@@ -241,6 +265,31 @@ class _WallViewState extends State<WallView>
     }
   }
 
+
+  /// Where the camera should sit to watch a piece land, in whichever world we
+  /// are building. The wall travels along its own axis; the town orbits its
+  /// plaza, so the most the camera does there is look at the right height.
+  void _followPlacement(int index) {
+    final city = _city;
+    if (city != null) {
+      final piece = city.pieceFor(index);
+      if (piece == null) return;
+      _cam.follow = true;
+      _cam.focusYTarget = clampD(piece.y1 + 0.6, 1.0, 6.0);
+      if (_cam.distanceTarget > city.radius * 2.6) {
+        _cam.distanceTarget = city.radius * 2.0;
+      }
+      return;
+    }
+    final slot = _layout.slotFor(index);
+    if (slot == null) return;
+    _cam.follow = true;
+    _cam.travelTo(slot.x);
+    _cam.focusYTarget = clampD(slot.y + 0.35, 0.9, 3.4);
+    // Pull in a little if we are miles away, so the landing is legible.
+    if (_cam.distanceTarget > 26) _cam.distanceTarget = 18;
+  }
+
   // --------------------------------------------------------------- placing
 
   void placeBrick() {
@@ -252,16 +301,7 @@ class _WallViewState extends State<WallView>
     _selectedBrick = null;
     _rebuildLayout();
 
-    final slot = _layout.slotFor(result.brick.index);
-    if (slot != null) {
-      _cam.follow = true;
-      _cam.travelTo(slot.x);
-      _cam.focusYTarget = clampD(slot.y + 0.35, 0.9, 3.4);
-      // Pull in a little if we are miles away, so the landing is legible.
-      if (_cam.distanceTarget > 26) {
-        _cam.distanceTarget = 18;
-      }
-    }
+    _followPlacement(result.brick.index);
     if (wasDecaying) _displayIntegrity = before;
     _pendingResult = result;
     _placement = PlacementFx(result.brick.index);
@@ -269,6 +309,11 @@ class _WallViewState extends State<WallView>
   }
 
   void _onImpact(PlacementFx p) {
+    final city = _city;
+    if (city != null) {
+      _onCityImpact(p);
+      return;
+    }
     final slot = _layout.slotFor(p.brickIndex);
     final result = _pendingResult;
     _pendingResult = null;
@@ -318,14 +363,60 @@ class _WallViewState extends State<WallView>
 
   }
 
+  /// The town's version of the landing: the shake and the sound, and a
+  /// celebration when a building is finished rather than when a milestone is.
+  void _onCityImpact(PlacementFx fx) {
+    final city = _city!;
+    final piece = city.pieceFor(fx.brickIndex);
+    final result = _pendingResult;
+    _pendingResult = null;
+    if (piece == null) return;
+
+    _fx.impact(V3(piece.cx, piece.y0, piece.cz), piece.w * 0.7, strength: 1.1);
+    _cam.shake = 0.05;
+    Sensory.instance.impact(strength: 1.1);
+
+    final building = city.buildings[piece.building];
+    final done = piece.index == building.firstPiece + building.cost - 1;
+    if (done) {
+      _fx.celebrate(
+        V3(building.cx, building.peakY * 0.7, building.cz),
+        1.6,
+        count: building.isLandmark ? 110 : 60,
+      );
+      Future.delayed(const Duration(milliseconds: 220), () {
+        Sensory.instance.milestone();
+      });
+      widget.onWhisper('${building.name} en pie');
+    }
+    if (result?.milestoneCompleted != null) {
+      widget.onMilestoneComplete(result!.milestoneCompleted!);
+    }
+  }
+
   // ---------------------------------------------------------------- camera
 
   void frameAll() {
+    final city = _city;
+    if (city != null) {
+      _cam.travelTarget = 0;
+      _cam.focusYTarget = 1.8;
+      _cam.distanceTarget = clampD(city.radius * 2.4, 9, 90);
+      _cam.pitchTarget = 0.52;
+      _cam.follow = false;
+      Sensory.instance.tick();
+      return;
+    }
     _cam.frameAll();
     Sensory.instance.tick();
   }
 
   void goToLatest() {
+    if (_city != null) {
+      _followPlacement(widget.store.shownTotal - 1);
+      Sensory.instance.tick();
+      return;
+    }
     final slot =
         _layout.slotFor(widget.store.shownTotal - 1) ??
         _layout.slotFor(widget.store.shownTotal);
@@ -419,15 +510,7 @@ class _WallViewState extends State<WallView>
     _charge = v;
     // Glide over to where the stone is going while the button is held, so the
     // landing is always in frame.
-    if (v > 0.05) {
-      final slot = _layout.slotFor(widget.store.shownTotal);
-      if (slot != null) {
-        _cam.follow = true;
-        _cam.travelTo(slot.x);
-        _cam.focusYTarget = clampD(slot.y + 0.35, 0.9, 3.4);
-          if (_cam.distanceTarget > 24) _cam.distanceTarget = 18;
-      }
-    }
+    if (v > 0.05) _followPlacement(widget.store.shownTotal);
   }
 
   void clearSelection() {
@@ -461,6 +544,7 @@ class _WallViewState extends State<WallView>
       detailBudget: _detailBudget,
       coarseBudget: _coarseBudget,
       mortar: Appearance.instance.look,
+      city: _city,
       selectedBrick: _selectedBrick,
       charge: _charge,
     );
