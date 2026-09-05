@@ -6,15 +6,11 @@ import 'package:flutter/material.dart';
 
 import '../core/math3.dart';
 import '../core/rng.dart';
-import '../data/milestones.dart';
 import '../fx/effects.dart';
-import '../model/appearance.dart';
 import 'camera.dart';
-import 'city.dart';
-import 'layout.dart';
+import 'town.dart';
 import 'landscape.dart';
 import 'palette.dart';
-import 'stone.dart';
 
 int _ch(double v) {
   final i = (v * 255.0).round();
@@ -32,9 +28,8 @@ class PickTarget {
   final bool labelled;
 }
 
-class WallScene {
-  WallScene({
-    required this.layout,
+class TownScene {
+  TownScene({
     required this.placed,
     required this.palette,
     required this.camera,
@@ -42,20 +37,16 @@ class WallScene {
     required this.time,
     required this.effects,
     required this.labelledBricks,
-    required this.structureNames,
     this.fx,
-    this.repairSweep,
-    this.detailBudget = 300,
-    this.coarseBudget = 2600,
-    this.mortar = MortarLook.seca,
-    this.city,
+    this.budget = 2900,
+    required this.town,
     this.finished,
     this.finishedAge = 99,
     this.selectedBrick,
     this.charge = 0,
   });
 
-  final WallLayout layout;
+  /// How many achievements have been laid.
   final int placed;
   final Palette palette;
   final OrbitCamera camera;
@@ -63,28 +54,21 @@ class WallScene {
   final double time;
   final EffectSystem effects;
 
+  /// How many pieces are worth drawing this frame, trimmed to hold the frame
+  /// rate on whatever phone this is.
+  final int budget;
+
   /// Bricks the person wrote a note on.
   final Set<int> labelledBricks;
-  final Map<int, String> structureNames;
 
   final PlacementFx? fx;
 
-  /// x position of the travelling repair wave, sweeping from the newest stone
-  /// back down the wall. Null when nothing is being repaired.
-  final double? repairSweep;
 
-  final int detailBudget;
 
-  /// How many further stones are drawn as plain blocks beyond the detailed
-  /// band. They keep their size, colour and joints, only not their chipped
-  /// corners — which at that distance are under a pixel anyway.
-  final int coarseBudget;
 
-  /// How the masonry is pointed.
-  final MortarLook mortar;
 
-  /// When set, the achievements are drawn as a town rather than as a wall.
-  final CityLayout? city;
+  /// The town the achievements have built.
+  final TownLayout town;
 
   /// The building that has just been finished, and how long ago in seconds.
   /// A house takes days to build and a second to celebrate.
@@ -109,14 +93,13 @@ class _Face {
 
 /// Draws the whole world: sky, ground, the wall in full detail nearby, and its
 /// own silhouette receding into the haze when it gets long.
-class WallPainter extends CustomPainter {
-  WallPainter(this.scene, this.picks);
+class TownPainter extends CustomPainter {
+  TownPainter(this.scene, this.picks);
 
-  final WallScene scene;
+  final TownScene scene;
   final List<PickTarget> picks;
 
   static final List<_Face> _facePool = List.generate(16000, (_) => _Face());
-  static final StoneMesh _mesh = StoneMesh(24);
   static final Float64List _clipA = Float64List(96);
   static final Float64List _clipB = Float64List(96);
   static final Path _scratch = Path();
@@ -138,59 +121,24 @@ class WallPainter extends CustomPainter {
     _faceCount = 0;
     _lamps.clear();
 
-    final cam = scene.camera;
-    // Cover a continuous stretch of wall with the stones the budget allows,
-    // and let the distant silhouette take over beyond it.
-    final l0 = scene.layout;
-    final density = l0.length > 0.5 ? scene.placed / l0.length : 4.0;
-    final perSide = 2 * math.max(1.0, density);
-    cam.detailRadius = clampD(scene.detailBudget / perSide, 6, 260);
-    // Beyond the detailed band the stones keep going as plain blocks. Only
-    // past *this* does the wall become its own silhouette — which on any wall
-    // anyone will actually build is off the end of it.
-    cam.coarseRadius = clampD(
-      (scene.detailBudget + scene.coarseBudget) / perSide,
-      cam.detailRadius,
-      900,
-    );
-    final p = cam.projector(size.width, size.height, scene.time);
+    final p = scene.camera.projector(size.width, size.height, scene.time);
     final horizonY = _horizonY(p, size);
-
-    final city = scene.city;
-    if (city != null) {
-      _drawSky(canvas, size, p, horizonY);
-      _drawGround(canvas, size, horizonY);
-      _drawRanges(canvas, p, size, horizonY);
-      _drawCityGround(canvas, p, city);
-      _drawMeadow(p, size, city);
-      _drawRings(canvas, p, city, overlay: false);
-      _collectCity(p, size, city);
-      _flush(canvas);
-      _drawLamps(canvas, size);
-      _drawBirds(canvas, p, size, city);
-      _drawRings(canvas, p, city, overlay: true);
-      _drawCityGhost(canvas, p, size, city);
-      _drawCityLabels(canvas, p, size, city);
-      _drawParticles(canvas, p);
-      _drawAtmosphere(canvas, size, horizonY);
-      return;
-    }
+    final town = scene.town;
 
     _drawSky(canvas, size, p, horizonY);
     _drawGround(canvas, size, horizonY);
     _drawRanges(canvas, p, size, horizonY);
-    _drawTerrain(canvas, p, size);
-    _drawShadow(canvas, p);
-
-    _collectFarWall(p);
-    _collectStones(p, size);
-
+    _drawTownGround(canvas, p, town);
+    _drawMeadow(p, size, town);
+    _drawRings(canvas, p, town, overlay: false);
+    _collectTown(p, size, town);
     _flush(canvas);
-
-    _drawStructureExtras(canvas, p, size);
-    _drawStoneMarks(canvas, p, size);
+    _drawLamps(canvas, size);
+    _drawBirds(canvas, p, size, town);
+    _drawRings(canvas, p, town, overlay: true);
+    _drawTownGhost(canvas, p, size, town);
+    _drawTownLabels(canvas, p, size, town);
     _drawParticles(canvas, p);
-    _drawGhost(canvas, p);
     _drawAtmosphere(canvas, size, horizonY);
   }
 
@@ -308,7 +256,7 @@ class WallPainter extends CustomPainter {
     if (rect.height <= 0) return;
     // The wall stands on a dry plain; the town stands in a meadow. The same
     // ground, read to suit what is built on it.
-    final meadow = scene.city != null && pal.isDaylight;
+    final meadow = true && pal.isDaylight;
     final near = meadow
         ? Color.lerp(pal.ground, const Color(0xFF6B8F3E), 0.45)!
         : pal.ground;
@@ -468,231 +416,7 @@ class WallPainter extends CustomPainter {
     canvas.restore();
   }
 
-  void _drawTerrain(Canvas canvas, Projector p, Size size) {
-    final pal = scene.palette;
-    final base = scene.camera.travel;
-    final paint = Paint();
-    for (var i = 0; i < 22; i++) {
-      // Anchored to a coarse grid along the wall so patches hold still as the
-      // camera travels, instead of swimming with it.
-      final cell = (base / 9).floor() + i - 11;
-      final x = cell * 9.0 + hashRange(-3.5, 3.5, cell, 5);
-      final side = hash01(cell, 6) < 0.5 ? -1.0 : 1.0;
-      final z = side * hashRange(2.4, 26.0, cell, 7);
-      final r = hashRange(1.6, 5.4, cell, 8);
-
-      final c = p.project(V3(x, 0.002, z));
-      if (c == null) continue;
-      final ex = p.project(V3(x + r, 0.002, z));
-      final ez = p.project(V3(x, 0.002, z + r));
-      if (ex == null || ez == null) continue;
-      final rx = (ex.x - c.x).abs().clamp(2.0, size.width);
-      final ry = ((ez.y - c.y).abs() + (ex.y - c.y).abs() * 0.5)
-          .clamp(1.0, size.height);
-      if (rx < 3 || c.x < -rx * 2 || c.x > size.width + rx * 2) continue;
-
-      final warm = hash01(cell, 9) < 0.45;
-      final tint = warm
-          ? Color.lerp(pal.ground, pal.groundFar, 0.55)!
-          : Color.lerp(pal.ground, pal.ink, 0.30)!;
-      final fade = 1 - math.exp(-c.depth * 0.02);
-      paint.shader = ui.Gradient.radial(
-        Offset(c.x, c.y),
-        math.max(rx, ry),
-        [
-          tint.withValues(alpha: 0.30 * (1 - fade)),
-          tint.withValues(alpha: 0.0),
-        ],
-      );
-      canvas.save();
-      canvas.translate(c.x, c.y);
-      canvas.scale(1, ry / math.max(rx, ry));
-      canvas.translate(-c.x, -c.y);
-      canvas.drawCircle(Offset(c.x, c.y), math.max(rx, ry), paint);
-      canvas.restore();
-      paint.shader = null;
-    }
-  }
-
-  /// The wall's shadow, laid on the ground away from the light.
-  void _drawShadow(Canvas canvas, Projector p) {
-    final l = scene.layout;
-    if (l.profileCore.isEmpty) return;
-    final pal = scene.palette;
-    final light = pal.lightDir;
-    if (light.y < 0.05) return;
-    final stretch = clampD(1.0 / light.y, 0.6, 2.2);
-    final ox = -light.x * stretch;
-    final oz = -light.z * stretch;
-
-    final path = Path();
-    var started = false;
-    final n = l.profileCore.length;
-    final lo = _bucketLo(), hi = _bucketHi();
-    // Far edge of the shadow.
-    for (var i = lo; i <= hi && i < n; i++) {
-      final top = l.profileCore[i];
-      if (top <= 0) continue;
-      final d = l.profileDepth[i];
-      final x = i * l.profileStep;
-      final pt = p.project(V3(x + ox * top, 0.004, -d + oz * top));
-      if (pt == null) {
-        started = false;
-        continue;
-      }
-      if (!started) {
-        path.moveTo(pt.x, pt.y);
-        started = true;
-      } else {
-        path.lineTo(pt.x, pt.y);
-      }
-    }
-    // Near edge, coming back.
-    for (var i = math.min(hi, n - 1); i >= lo; i--) {
-      final top = l.profileCore[i];
-      if (top <= 0) continue;
-      final d = l.profileDepth[i];
-      final x = i * l.profileStep;
-      final pt = p.project(V3(x, 0.004, d));
-      if (pt == null) continue;
-      path.lineTo(pt.x, pt.y);
-    }
-    if (!started) return;
-    path.close();
-    final strength = scene.integrity.clamp(0.55, 1.0);
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = Color.fromARGB(_ch(0.24 * strength), 38, 33, 22)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
-    );
-    // An ambient contact shadow hugging both sides of the footing. The
-    // directional shadow can fall entirely behind the wall depending on where
-    // the sun is; without this the wall reads as floating.
-    final contact = Path();
-    var open = false;
-    for (var i = lo; i <= hi && i < n; i++) {
-      if (l.profileCore[i] <= 0) {
-        open = false;
-        continue;
-      }
-      final d = l.profileDepth[i] + 0.20;
-      final pt = p.project(V3(i * l.profileStep, 0.003, d));
-      if (pt == null) {
-        open = false;
-        continue;
-      }
-      if (!open) {
-        contact.moveTo(pt.x, pt.y);
-        open = true;
-      } else {
-        contact.lineTo(pt.x, pt.y);
-      }
-    }
-    for (var i = math.min(hi, n - 1); i >= lo; i--) {
-      if (l.profileCore[i] <= 0) continue;
-      final d = l.profileDepth[i] + 0.20;
-      final pt = p.project(V3(i * l.profileStep, 0.003, -d));
-      if (pt == null) continue;
-      contact.lineTo(pt.x, pt.y);
-    }
-    if (open) {
-      contact.close();
-      canvas.drawPath(
-        contact,
-        Paint()
-          ..color = Color.fromARGB(_ch(0.30 * strength), 30, 26, 17)
-          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
-      );
-    }
-  }
-
-  int _bucketLo() {
-    final l = scene.layout;
-    final r = scene.camera.coarseRadius * 1.3;
-    return ((scene.camera.travel - r) / l.profileStep)
-        .floor()
-        .clamp(0, math.max(0, l.profileCore.length - 1));
-  }
-
-  int _bucketHi() {
-    final l = scene.layout;
-    final r = scene.camera.coarseRadius * 1.3;
-    return ((scene.camera.travel + r) / l.profileStep)
-        .ceil()
-        .clamp(0, math.max(0, l.profileCore.length - 1));
-  }
-
   // ------------------------------------------------------------- far wall
-
-  /// Beyond the detail radius the wall becomes its own silhouette, thinning
-  /// into the haze. On a wall that has grown long this is most of what you see,
-  /// so it is lit with the same model as the stones and keeps its battlements —
-  /// it has to read as the same wall carrying on, not as a bank of earth.
-  void _collectFarWall(Projector p) {
-    final l = scene.layout;
-    if (l.profileTop.isEmpty) return;
-    final pal = scene.palette;
-    final cam = scene.camera;
-    final light = pal.lightDir;
-    final near = math.max(2.0, cam.coarseRadius - l.profileStep * 3);
-    final step = l.profileStep;
-    final n = l.profileTop.length;
-    final decay = 1.0 - scene.integrity;
-
-    for (var i = 0; i < n - 1; i++) {
-      final x0 = i * step;
-      final x1 = x0 + step;
-      // Start just inside the detailed range: the silhouette sits a little
-      // thinner than the stones, so the overlap hides the seam behind them.
-      if ((x0 - cam.travel).abs() < near && (x1 - cam.travel).abs() < near) {
-        continue;
-      }
-      final core = l.profileCore[i];
-      final tip = l.profileTop[i];
-      if (core <= 0.01) continue;
-      final d = math.max(0.10, l.profileDepth[i] * 0.93);
-
-      final dx = (x0 + x1) / 2 - p.eye.x;
-      final dz = p.eye.z;
-      final dist = math.max(0.001, math.sqrt(dx * dx + dz * dz));
-      final haze = 1 - math.exp(-dist * 0.011);
-
-      // Enough albedo variation from bucket to bucket to suggest coursing.
-      var albedo = Color.lerp(
-        pal.stoneCool,
-        pal.stoneWarm,
-        0.30 + 0.46 * hash01(i, 61),
-      )!;
-      if (decay > 0.02 && hash01(i, 62) < decay * 0.6) {
-        albedo = Color.lerp(albedo, const Color(0xFF5C6B4A), 0.22 + decay * 0.3)!;
-      }
-
-      Color band(V3 normal, double ao) {
-        final c = _shade(normal, albedo, light, pal, ao, 0, 0);
-        return Color.lerp(c, pal.haze, haze * 0.92)!;
-      }
-
-      final front = p.eye.z >= 0 ? d : -d;
-      final frontN = V3(0, 0, p.eye.z >= 0 ? 1 : -1);
-
-      // The solid mass.
-      _quad(p, V3(x0, 0, front), V3(x1, 0, front), V3(x1, core, front),
-          V3(x0, core, front), band(frontN, 0.80).toARGB32());
-      _quad(p, V3(x0, core, d), V3(x1, core, d), V3(x1, core, -d),
-          V3(x0, core, -d), band(const V3(0, 1, 0), 0.95).toARGB32());
-
-      // The battlements on top, only where there actually is a merlon.
-      if (tip > core + 0.06 && dist < 65) {
-        final md = d * 0.82;
-        final mf = p.eye.z >= 0 ? md : -md;
-        _quad(p, V3(x0, core, mf), V3(x1, core, mf), V3(x1, tip, mf),
-            V3(x0, tip, mf), band(frontN, 0.88).toARGB32());
-        _quad(p, V3(x0, tip, md), V3(x1, tip, md), V3(x1, tip, -md),
-            V3(x0, tip, -md), band(const V3(0, 1, 0), 1.0).toARGB32());
-      }
-    }
-  }
 
   void _quad(Projector p, V3 a, V3 b, V3 c, V3 d, int color,
       {double? depthOverride}) {
@@ -728,424 +452,6 @@ class WallPainter extends CustomPainter {
 
   // --------------------------------------------------------------- stones
 
-  void _collectStones(Projector p, Size size) {
-    final l = scene.layout;
-    final cam = scene.camera;
-    final pal = scene.palette;
-    final light = pal.lightDir;
-    final decay = 1.0 - scene.integrity;
-    final radius = cam.detailRadius;
-    final profiles = StoneProfiles.instance;
-    final look = scene.mortar;
-    final mortarBase = Color.lerp(pal.mortar, pal.stone, look.tint)!;
-    final fx = scene.fx;
-
-    // Nearest-first so the detail budget is spent where the eye is.
-    final order = <int>[];
-    for (var i = 0; i < scene.placed && i < l.slots.length; i++) {
-      final s = l.slots[i];
-      if ((s.x - cam.travel).abs() > cam.coarseRadius) continue;
-      order.add(i);
-    }
-    order.sort((a, b) {
-      final da = (l.slots[a].x - cam.travel).abs();
-      final db = (l.slots[b].x - cam.travel).abs();
-      return da.compareTo(db);
-    });
-    final take = math.min(order.length, scene.detailBudget);
-    final coarse =
-        math.min(order.length, scene.detailBudget + scene.coarseBudget);
-
-    for (var k = 0; k < take; k++) {
-      final idx = order[k];
-      final slot = l.slots[idx];
-      final isFalling = fx != null && fx.brickIndex == idx;
-
-      var yOff = 0.0, rot = 0.0, sx = 1.0, sy = 1.0, flash = 0.0;
-      if (isFalling) {
-        yOff = fx.yOffset;
-        rot = fx.rotation;
-        final sq = fx.squash;
-        sx = sq.$1;
-        sy = sq.$2;
-        flash = fx.flash;
-      }
-
-      // Weathering: erosion nibbles at the stones, worst on the exposed top.
-      final exposure = clampD(slot.y / 2.2, 0.25, 1.0);
-      var erosion = decay * exposure;
-      // The repair wave runs from the stone just laid back along the wall,
-      // healing everything it has already passed.
-      final sweep = scene.repairSweep;
-      var repairGlow = 0.0;
-      if (sweep != null) {
-        final d = (slot.x - sweep).abs();
-        if (slot.x > sweep) {
-          erosion = 0;
-        } else if (d < 1.6) {
-          erosion *= d / 1.6;
-        }
-        repairGlow = math.max(0.0, 1 - d / 1.3);
-      }
-
-      // Cheap ambient occlusion: deep courses and recesses sit in shade.
-      var ao = 0.58 + 0.42 * smoothstep(-0.2, 1.7, slot.y);
-      if (slot.kind == SlotKind.recess) ao *= 0.62;
-      final capped = _hasWallAbove(l, slot);
-
-      final profile = profiles.forSeed(slot.seed);
-      _mesh.build(
-        slot,
-        profile,
-        yOffset: yOff,
-        rotation: rot,
-        scaleX: sx,
-        scaleY: sy,
-        erosion: erosion,
-        mirror: (slot.seed & 0x1000) != 0,
-        joint: look.joint,
-        relief: look.relief,
-      );
-      _mesh.toCamera(p);
-
-      final albedo = _albedoFor(slot, pal, erosion);
-      final n = _mesh.n;
-
-      // The mortar core this stone is set into: a solid box, very slightly
-      // larger than the slot so it fills the joints, and slightly thinner so
-      // the stone's own irregular face still stands proud of it.
-      //
-      // It has to be a solid and not a pair of flat plates. Plates leave the
-      // wall hollow the moment you look at it from above or from behind, and
-      // no amount of sorting fixes that — you are simply looking through a
-      // joint at nothing. Its faces are all pinned behind the *furthest*
-      // corner of its own stone so the core can never paint over the stone,
-      // whichever side of the wall the camera has orbited to.
-      var farDepth = 0.0;
-      for (var i = 0; i < n; i++) {
-        final f = _mesh.camFront[i * 3 + 2];
-        final b = _mesh.camBack[i * 3 + 2];
-        if (f > farDepth) farDepth = f;
-        if (b > farDepth) farDepth = b;
-      }
-      farDepth += 0.02;
-      // Sized to the slot exactly. Slots tile, so the joints are still backed;
-      // growing it even slightly made the core stand proud of the stone along
-      // every exposed edge, and that dark rim is what made each stone read as
-      // an open crate rather than a block set into a wall.
-      _emitCore(
-        p,
-        x0: slot.x - slot.w / 2,
-        x1: slot.x + slot.w / 2,
-        y0: slot.y - slot.h / 2,
-        y1: slot.y + slot.h / 2,
-        z0: slot.zCenter - slot.halfDepth + look.recess,
-        z1: slot.zCenter + slot.halfDepth - look.recess,
-        albedo: mortarBase,
-        light: light,
-        pal: pal,
-        ao: ao * 0.92,
-        repairGlow: repairGlow * 0.4,
-        depth: farDepth,
-        capped: capped,
-      );
-
-      _emitPrism(p, slot, albedo, light, pal, ao,
-          flash: flash,
-          repairGlow: repairGlow,
-          capped: capped,
-          pickInto: size,
-          pickIndex: idx);
-    }
-
-    // Past the detailed band every stone is still a stone: the same block, in
-    // the same place, its own colour, with its own joints around it — just
-    // without the chipped corners, which out there are under a pixel wide. It
-    // used to become a smooth ribbon at this distance, and the seam where the
-    // masonry stopped was the most conspicuous thing on the wall.
-    for (var k = take; k < coarse; k++) {
-      final idx = order[k];
-      final slot = l.slots[idx];
-      final exposure = clampD(slot.y / 2.2, 0.25, 1.0);
-      final erosion = decay * exposure;
-      final ao = 0.58 + 0.42 * smoothstep(-0.2, 1.7, slot.y);
-      _emitBlock(
-        p,
-        slot,
-        _albedoFor(slot, pal, erosion),
-        mortarBase,
-        light,
-        pal,
-        ao,
-        look,
-        size,
-        idx,
-        _hasWallAbove(l, slot),
-      );
-    }
-
-    _emitBuried(p, l, cam, radius, mortarBase, light, pal);
-  }
-
-  /// Blocks the crenellation gaps of every course the wall has grown past.
-  ///
-  /// Emitted in short chunks rather than as one long box: the painter's
-  /// algorithm sorts by a single depth per face, and a face running the whole
-  /// length of the wall has no single sensible depth.
-  void _emitBuried(
-    Projector p,
-    WallLayout l,
-    OrbitCamera cam,
-    double radius,
-    Color mortar,
-    V3 light,
-    Palette pal,
-  ) {
-    if (l.buried.isEmpty) return;
-    const chunk = 0.62;
-    for (final band in l.buried) {
-      if (band.x1 < cam.travel - radius || band.x0 > cam.travel + radius) {
-        continue;
-      }
-      var x = math.max(band.x0, cam.travel - radius);
-      final xTo = math.min(band.x1, cam.travel + radius);
-      final ao = 0.58 + 0.42 * smoothstep(-0.2, 1.7, band.y0);
-      while (x < xTo) {
-        final x1 = math.min(x + chunk, xTo);
-        final mid = V3((x + x1) / 2, (band.y0 + band.y1) / 2, 0);
-        _emitCore(
-          p,
-          x0: x,
-          x1: x1,
-          y0: band.y0,
-          y1: band.y1,
-          z0: -band.halfDepth,
-          z1: band.halfDepth,
-          albedo: mortar,
-          light: light,
-          pal: pal,
-          ao: ao * 0.88,
-          repairGlow: 0,
-          depth: p.cameraOf(mid).z + band.halfDepth,
-        );
-        x = x1;
-      }
-    }
-  }
-
-  /// Emits every visible face of the prism currently in [_mesh].
-  ///
-  /// Shared by the wall's stones and by the boulders lying around it, so both
-  /// are lit and sorted by exactly the same rules.
-  void _emitPrism(
-    Projector p,
-    StoneSlot slot,
-    Color albedo,
-    V3 light,
-    Palette pal,
-    double ao, {
-    double flash = 0,
-    double repairGlow = 0,
-    bool capped = false,
-    Size? pickInto,
-    int pickIndex = -1,
-  }) {
-    // Anything straddling the near plane clips into a sliver whose average
-    // depth reads as "extremely close", which sorts it in front of the entire
-    // scene. Nothing that near is worth drawing anyway.
-    final centre = p.cameraOf(V3(slot.x, slot.y, slot.zCenter));
-    if (centre.z < slot.halfDepth + slot.w * 0.5 + p.near) return;
-
-    final n = _mesh.n;
-    // --- front and back faces
-    for (var side = 0; side < 2; side++) {
-      final cam3 = side == 0 ? _mesh.camFront : _mesh.camBack;
-      final normal = V3(0, 0, side == 0 ? 1 : -1);
-      final toEye = V3(
-        p.eye.x - slot.x,
-        p.eye.y - slot.y,
-        p.eye.z - (slot.zCenter + (side == 0 ? slot.halfDepth : -slot.halfDepth)),
-      );
-      if (normal.dot(toEye) <= 0) continue;
-      for (var i = 0; i < n; i++) {
-        final j = side == 0 ? i : (n - 1 - i);
-        _clipA[i * 3] = cam3[j * 3];
-        _clipA[i * 3 + 1] = cam3[j * 3 + 1];
-        _clipA[i * 3 + 2] = cam3[j * 3 + 2];
-      }
-      final c = _shade(normal, albedo, light, pal, ao, flash, repairGlow);
-      final before = _faceCount;
-      _emit(p, _clipA, n, _haze(c, p, slot.x, pal).toARGB32());
-      if (side == 0 && pickInto != null && _faceCount > before) {
-        _registerPick(_facePool[before], pickIndex, pickInto);
-      }
-    }
-
-    // --- side faces, which are also the tops the light catches
-    for (var i = 0; i < n; i++) {
-      final j = (i + 1) % n;
-      final ax = _mesh.front[i * 3], ay = _mesh.front[i * 3 + 1], az = _mesh.front[i * 3 + 2];
-      final bx = _mesh.front[j * 3], by = _mesh.front[j * 3 + 1], bz = _mesh.front[j * 3 + 2];
-      final cx = _mesh.back[j * 3], cy2 = _mesh.back[j * 3 + 1], cz = _mesh.back[j * 3 + 2];
-      final dx = _mesh.back[i * 3], dy = _mesh.back[i * 3 + 1], dz = _mesh.back[i * 3 + 2];
-
-      // The profile winds counter-clockwise seen from the front, so the
-      // outward normal of each side face is (into-the-wall) x (along-edge).
-      final e1 = V3(bx - ax, by - ay, bz - az);
-      final e2 = V3(dx - ax, dy - ay, dz - az);
-      final nrm = e2.cross(e1).normalized;
-      final mx = (ax + bx + cx + dx) * 0.25;
-      final my = (ay + by + cy2 + dy) * 0.25;
-      final mz = (az + bz + cz + dz) * 0.25;
-      if (nrm.dot(V3(p.eye.x - mx, p.eye.y - my, p.eye.z - mz)) <= 0) continue;
-
-      _clipA[0] = _mesh.camFront[i * 3];
-      _clipA[1] = _mesh.camFront[i * 3 + 1];
-      _clipA[2] = _mesh.camFront[i * 3 + 2];
-      _clipA[3] = _mesh.camFront[j * 3];
-      _clipA[4] = _mesh.camFront[j * 3 + 1];
-      _clipA[5] = _mesh.camFront[j * 3 + 2];
-      _clipA[6] = _mesh.camBack[j * 3];
-      _clipA[7] = _mesh.camBack[j * 3 + 1];
-      _clipA[8] = _mesh.camBack[j * 3 + 2];
-      _clipA[9] = _mesh.camBack[i * 3];
-      _clipA[10] = _mesh.camBack[i * 3 + 1];
-      _clipA[11] = _mesh.camBack[i * 3 + 2];
-
-      // A stone with wall on top of it is looking up into a crevice, not at
-      // the sky. Left lit, every course showed a bright white ledge along its
-      // top edge and the wall read as a stack of loose slabs instead of a
-      // face — which is most of what made the mortar look bad.
-      final shade = capped && nrm.y > 0.30
-          ? lerpD(1.0, 0.34, smoothstep(0.30, 0.85, nrm.y))
-          : 1.0;
-      final c = _shade(nrm, albedo, light, pal, ao * shade, flash, repairGlow);
-      _emit(p, _clipA, 4, _haze(c, p, slot.x, pal).toARGB32());
-    }
-  }
-
-  /// The solid mortar box behind one stone. Only the faces actually turned
-  /// towards the camera are emitted.
-  void _emitCore(
-    Projector p, {
-    required double x0,
-    required double x1,
-    required double y0,
-    required double y1,
-    required double z0,
-    required double z1,
-    required Color albedo,
-    required V3 light,
-    required Palette pal,
-    required double ao,
-    required double repairGlow,
-    required double depth,
-    bool capped = false,
-  }) {
-    if (z1 <= z0) {
-      final mid = (z0 + z1) / 2;
-      z0 = mid - 0.01;
-      z1 = mid + 0.01;
-    }
-    final e = p.eye;
-    const debugCore = bool.fromEnvironment('DEBUG_CORE');
-    int col(V3 normal, double k) => debugCore
-        ? const Color(0xFFFF00AA).toARGB32()
-        : _haze(
-            _shade(normal, albedo, light, pal, ao * k, 0, repairGlow),
-            p,
-            (x0 + x1) / 2,
-            pal,
-          ).toARGB32();
-
-    if (e.z > z1) {
-      _quad(p, V3(x0, y0, z1), V3(x1, y0, z1), V3(x1, y1, z1), V3(x0, y1, z1),
-          col(const V3(0, 0, 1), 1.0), depthOverride: depth);
-    } else if (e.z < z0) {
-      _quad(p, V3(x1, y0, z0), V3(x0, y0, z0), V3(x0, y1, z0), V3(x1, y1, z0),
-          col(const V3(0, 0, -1), 1.0), depthOverride: depth);
-    }
-    if (e.y > y1) {
-      _quad(p, V3(x0, y1, z1), V3(x1, y1, z1), V3(x1, y1, z0), V3(x0, y1, z0),
-          col(const V3(0, 1, 0), capped ? 0.36 : 1.05), depthOverride: depth);
-    } else if (e.y < y0) {
-      _quad(p, V3(x0, y0, z0), V3(x1, y0, z0), V3(x1, y0, z1), V3(x0, y0, z1),
-          col(const V3(0, -1, 0), 0.75), depthOverride: depth);
-    }
-    if (e.x > x1) {
-      _quad(p, V3(x1, y0, z1), V3(x1, y0, z0), V3(x1, y1, z0), V3(x1, y1, z1),
-          col(const V3(1, 0, 0), 0.92), depthOverride: depth);
-    } else if (e.x < x0) {
-      _quad(p, V3(x0, y0, z0), V3(x0, y0, z1), V3(x0, y1, z1), V3(x0, y1, z0),
-          col(const V3(-1, 0, 0), 0.92), depthOverride: depth);
-    }
-  }
-
-  /// Whether the wall carries on above this stone.
-  ///
-  /// Read off the coarse top profile rather than the layout's own courses,
-  /// because a landmark's stones do not sit on courses at all. It takes the
-  /// *lowest* reading across the stone's span, so a walkway stone with sky
-  /// showing between two merlons still catches the light, while a stone with
-  /// wall over the whole of it does not.
-  bool _hasWallAbove(WallLayout l, StoneSlot slot) {
-    if (l.profileTop.isEmpty) return false;
-    final last = l.profileTop.length - 1;
-    final i0 = (slot.left / l.profileStep).floor().clamp(0, last);
-    final i1 = (slot.right / l.profileStep).ceil().clamp(0, last);
-    var above = double.infinity;
-    for (var i = i0; i <= i1; i++) {
-      if (l.profileTop[i] < above) above = l.profileTop[i];
-    }
-    return above > slot.top + 0.06;
-  }
-
-  /// One stone, far enough away that its chipped corners are under a pixel.
-  ///
-  /// Drawn at the full size of its slot rather than cut back for a joint: out
-  /// here the joint is a fraction of a pixel too, and letting the block fill it
-  /// means the coarse band butts up against the detailed one with no seam.
-  void _emitBlock(
-    Projector p,
-    StoneSlot slot,
-    Color albedo,
-    Color mortar,
-    V3 light,
-    Palette pal,
-    double ao,
-    MortarLook look,
-    Size size,
-    int idx,
-    bool capped,
-  ) {
-    final centre = p.cameraOf(V3(slot.x, slot.y, slot.zCenter));
-    if (centre.z <= p.near) return;
-    // Under about a pixel and a half wide it is not worth a draw call; the
-    // silhouette behind covers that ground.
-    if (slot.w * p.focal / centre.z < 1.4) return;
-
-    final before = _faceCount;
-    _emitCore(
-      p,
-      x0: slot.x - slot.w / 2,
-      x1: slot.x + slot.w / 2,
-      y0: slot.y - slot.h / 2,
-      y1: slot.y + slot.h / 2,
-      z0: slot.zCenter - slot.halfDepth,
-      z1: slot.zCenter + slot.halfDepth,
-      albedo: albedo,
-      light: light,
-      pal: pal,
-      ao: ao,
-      repairGlow: 0,
-      depth: centre.z,
-      capped: capped,
-    );
-    if (_faceCount > before) {
-      _registerPick(_facePool[before], idx, size);
-    }
-  }
-
   void _registerPick(_Face f, int brickIndex, Size size) {
     var minX = double.infinity, minY = double.infinity;
     var maxX = -double.infinity, maxY = -double.infinity;
@@ -1166,35 +472,6 @@ class WallPainter extends CustomPainter {
     ));
   }
 
-  Color _albedoFor(StoneSlot slot, Palette pal, double erosion) {
-    final s = slot.seed;
-    // Natural limestone is never one colour: warm and cool stones alternate,
-    // with a little brightness variation on top.
-    final warm = hash01(s, 1);
-    var c = Color.lerp(pal.stoneCool, pal.stoneWarm, 0.28 + warm * 0.52)!;
-    final b = 1.0 + hashJitter(0.055, s, 2);
-    c = Color.from(
-      alpha: 1,
-      red: clampD(c.r * b, 0, 1),
-      green: clampD(c.g * b, 0, 1),
-      blue: clampD(c.b * b, 0, 1),
-    );
-    if (slot.kind == SlotKind.deck) {
-      c = Color.lerp(c, const Color(0xFF6B4F32), 0.55)!;
-    } else if (slot.kind == SlotKind.ornament) {
-      c = Color.lerp(c, pal.stoneWarm, 0.25)!;
-    }
-    // Lichen creeps in as the wall is neglected.
-    if (erosion > 0.02) {
-      final moss = hash01(s, 3);
-      if (moss < erosion * 0.72) {
-        c = Color.lerp(c, const Color(0xFF5C6B4A), 0.20 + erosion * 0.42)!;
-      }
-      c = Color.lerp(c, const Color(0xFF7E7C6E), erosion * 0.28)!;
-    }
-    return c;
-  }
-
   // ------------------------------------------------------------------ town
 
   /// Haze by real distance rather than by distance along one axis.
@@ -1205,16 +482,15 @@ class WallPainter extends CustomPainter {
   Color _hazeAt(Color c, Projector p, double x, double z, Palette pal) {
     final dx = x - p.eye.x, dz = z - p.eye.z;
     final dist = math.sqrt(dx * dx + dz * dz);
-    // The town is meant to be looked at, not squinted through: it keeps far
-    // more of its colour than the wall's long silhouette ever needed to.
-    final city = scene.city != null;
-    final t = 1 - math.exp(-dist * (city ? 0.0052 : 0.0125));
+    // The town is meant to be looked at, not squinted through: it keeps most
+    // of its colour all the way to the far side of the valley.
+    final t = 1 - math.exp(-dist * 0.0052);
     if (t < 0.004) return c;
-    return Color.lerp(c, pal.haze, t * (city ? 0.55 : 0.85))!;
+    return Color.lerp(c, pal.haze, t * 0.55)!;
   }
 
   /// The lanes between the blocks, and the shadow each building sits in.
-  void _drawCityGround(Canvas canvas, Projector p, CityLayout city) {
+  void _drawTownGround(Canvas canvas, Projector p, TownLayout town) {
     final pal = scene.palette;
     // A yard of packed earth around each house: the ground people walk on,
     // worn bare by the door and ragged at the edges where the grass wins.
@@ -1224,8 +500,8 @@ class WallPainter extends CustomPainter {
         Color.lerp(pal.ground, const Color(0xFFB0946C), 0.72)!,
         pal.skyLight,
         0.10)!;
-    const half = CityLayout.plotPitch * 0.46;
-    for (final b in city.buildings) {
+    final half = town.plotPitch * 0.46;
+    for (final b in town.buildings) {
       if (b.placedPieces <= 0) continue;
       final s = b.seed;
       // Eight points round the edge, each pulled in or out a little, so no two
@@ -1263,7 +539,7 @@ class WallPainter extends CustomPainter {
     // at this size a contact shadow is what stops them floating anyway.
     final light = pal.lightDir;
     final drop = clampD(1.0 / math.max(0.25, light.y), 0.8, 2.4);
-    for (final b in city.buildings) {
+    for (final b in town.buildings) {
       if (b.placedPieces <= 0 || b.peakY <= 0.05) continue;
       final h = b.peakY;
       final at = p.project(V3(
@@ -1292,9 +568,9 @@ class WallPainter extends CustomPainter {
   /// standing where the piece will go, breathing on its own and firming up as
   /// the button is held. It is the difference between pressing a button and
   /// finishing something you can already see.
-  void _drawCityGhost(Canvas canvas, Projector p, Size size, CityLayout city) {
+  void _drawTownGhost(Canvas canvas, Projector p, Size size, TownLayout town) {
     if (scene.fx != null) return; // one is already in flight
-    final piece = city.pieceFor(scene.placed);
+    final piece = town.pieceFor(scene.placed);
     if (piece == null) return;
     final pal = scene.palette;
     final charge = scene.charge;
@@ -1366,7 +642,7 @@ class WallPainter extends CustomPainter {
 
   /// The ring that runs out across the ground when something lands or is
   /// finished. Two lines and it is the thing the eye actually follows.
-  void _drawRings(Canvas canvas, Projector p, CityLayout city,
+  void _drawRings(Canvas canvas, Projector p, TownLayout town,
       {required bool overlay}) {
     final pal = scene.palette;
 
@@ -1401,7 +677,7 @@ class WallPainter extends CustomPainter {
     // down. This is the whole of the anticipation: you can see exactly where it
     // is going and exactly how long it has left.
     if (!overlay && fx != null && !fx.landed) {
-      final piece = city.pieceFor(fx.brickIndex);
+      final piece = town.pieceFor(fx.brickIndex);
       if (piece != null) {
         final up = fx.yOffset;
         final t = clampD(1 - up / 2.3, 0, 1);
@@ -1428,7 +704,7 @@ class WallPainter extends CustomPainter {
     // masonry, because dust goes behind a wall; the gold below is light, and
     // light goes in front.
     if (!overlay && fx != null && fx.landed) {
-      final piece = city.pieceFor(fx.brickIndex);
+      final piece = town.pieceFor(fx.brickIndex);
       if (piece != null) {
         final t = clampD(fx.sinceImpact / 0.55, 0, 1);
         ring(piece.cx, piece.cz, 0.25 + t * 2.1, (1 - t) * (1 - t) * 0.55,
@@ -1440,8 +716,8 @@ class WallPainter extends CustomPainter {
 
     // Two rings out from a building that has just been finished.
     final justDone = scene.finished;
-    if (justDone != null && justDone < city.buildings.length) {
-      final b = city.buildings[justDone];
+    if (justDone != null && justDone < town.buildings.length) {
+      final b = town.buildings[justDone];
       for (var i = 0; i < 2; i++) {
         final t = clampD((scene.finishedAge - i * 0.22) / 1.5, 0, 1);
         if (t <= 0) continue;
@@ -1484,7 +760,7 @@ class WallPainter extends CustomPainter {
   /// They cost almost nothing and they do something no amount of masonry can:
   /// they make the sky part of the place. A town with birds over it is somewhere
   /// you are looking at; a town without them is a model on a table.
-  void _drawBirds(Canvas canvas, Projector p, Size size, CityLayout city) {
+  void _drawBirds(Canvas canvas, Projector p, Size size, TownLayout town) {
     final pal = scene.palette;
     if (!pal.isDaylight) return;
     final t = scene.time;
@@ -1497,7 +773,7 @@ class WallPainter extends CustomPainter {
     // Two loose flocks on wide circles at different heights and speeds.
     for (var flock = 0; flock < 2; flock++) {
       final n = flock == 0 ? 5 : 3;
-      final radius = city.radius * (flock == 0 ? 0.55 : 0.85) + 4;
+      final radius = town.radius * (flock == 0 ? 0.55 : 0.85) + 4;
       final height = 7.0 + flock * 4.5;
       final speed = (flock == 0 ? 0.085 : -0.062);
       final drift = hash01(flock, 7) * 6.28;
@@ -1533,7 +809,7 @@ class WallPainter extends CustomPainter {
   /// Not a texture — a few hundred real blades, sized and coloured apart, near
   /// the camera only, and never where a building already stands. It is what
   /// turns a flat green field into ground.
-  void _drawMeadow(Projector p, Size size, CityLayout city) {
+  void _drawMeadow(Projector p, Size size, TownLayout town) {
     final pal = scene.palette;
     if (!pal.isDaylight && pal.starAlpha > 0.6) return;
 
@@ -1542,7 +818,7 @@ class WallPainter extends CustomPainter {
     final reachEarly = clampD(scene.camera.distance * 2.0, 12, 62);
     final step = clampD(reachEarly / 52, 0.34, 1.0);
     final built = <int>{};
-    for (final b in city.buildings) {
+    for (final b in town.buildings) {
       final gx = (b.cx / step).round(), gz = (b.cz / step).round();
       // Only the plot itself is bare: the lanes between the houses are grass,
       // which is most of what the eye actually sees at street level.
@@ -1609,7 +885,7 @@ class WallPainter extends CustomPainter {
   }
 
   /// The town itself.
-  void _collectCity(Projector p, Size size, CityLayout city) {
+  void _collectTown(Projector p, Size size, TownLayout town) {
     final pal = scene.palette;
     final light = pal.lightDir;
     final decay = 1.0 - scene.integrity;
@@ -1620,8 +896,8 @@ class WallPainter extends CustomPainter {
     var sweep = -1.0;
     var sweepFade = 0.0;
     final justDone = scene.finished;
-    if (justDone != null && justDone < city.buildings.length) {
-      final b = city.buildings[justDone];
+    if (justDone != null && justDone < town.buildings.length) {
+      final b = town.buildings[justDone];
       const rise = 0.85; // seconds from footings to ridge
       final t = scene.finishedAge / rise;
       if (t < 1.7) {
@@ -1630,24 +906,23 @@ class WallPainter extends CustomPainter {
       }
     }
 
-    final take = math.min(scene.placed, city.pieces.length);
+    final take = math.min(scene.placed, town.pieces.length);
     // Nearest first, so the detail budget is spent where the eye is.
     final order = <int>[];
     for (var i = 0; i < take; i++) {
       order.add(i);
     }
     order.sort((a, b) {
-      double d(CityPiece q) {
+      double d(TownPiece q) {
         final dx = q.cx - p.eye.x, dz = q.cz - p.eye.z;
         return dx * dx + dz * dz;
       }
 
-      return d(city.pieces[a]).compareTo(d(city.pieces[b]));
+      return d(town.pieces[a]).compareTo(d(town.pieces[b]));
     });
 
-    final budget = scene.detailBudget + scene.coarseBudget;
-    for (var k = 0; k < order.length && k < budget; k++) {
-      final piece = city.pieces[order[k]];
+    for (var k = 0; k < order.length && k < scene.budget; k++) {
+      final piece = town.pieces[order[k]];
       var lift = 0.0;
       var flash = 0.0;
       var squash = 1.0;
@@ -1675,7 +950,7 @@ class WallPainter extends CustomPainter {
 
   void _emitPiece(
     Projector p,
-    CityPiece piece,
+    TownPiece piece,
     Palette pal,
     V3 light,
     double decay,
@@ -1693,20 +968,20 @@ class WallPainter extends CustomPainter {
     final y0 = piece.y0 + lift;
     final y1 = y0 + (piece.y1 - piece.y0) * squash;
     // A house is plaster over stone: pale walls, a stone base, a warm roof.
-    // Plaster takes a limewash, and in a town every house picks its own: warm
-    // white mostly, but enough ochre, rose and pale blue among them that the
-    // place reads as lived in rather than as one material repeated.
+    // Plaster takes a limewash, and every town has one it favours: Ribera is
+    // white, Marca ochre, Costa indigo. Most houses take the local colour and
+    // the rest go their own way, which is what stops a town reading as one
+    // material repeated — and what makes two towns two places.
+    final ch = scene.town.character;
     Color wall() {
       final warm = hash01(h, 1);
       var c = Color.lerp(pal.stoneCool, pal.stoneWarm, 0.35 + warm * 0.55)!;
       final wash = hash01(h, 2);
-      if (wash < 0.16) {
-        c = Color.lerp(c, const Color(0xFFD8A64C), 0.42)!;
-      } else if (wash < 0.28) {
-        c = Color.lerp(c, const Color(0xFFC9836E), 0.36)!;
-      } else if (wash < 0.36) {
-        c = Color.lerp(c, const Color(0xFF7FA3B8), 0.30)!;
-      } else if (wash < 0.44) {
+      if (wash < ch.washShare) {
+        c = Color.lerp(c, ch.wash, 0.30 + hash01(h, 21) * 0.22)!;
+      } else if (wash < ch.washShare + 0.12) {
+        c = Color.lerp(c, const Color(0xFFC9836E), 0.34)!;
+      } else if (wash < ch.washShare + 0.20) {
         c = Color.lerp(c, const Color(0xFFA8B47A), 0.28)!;
       }
       return _weather(c, decay, s);
@@ -1715,13 +990,15 @@ class WallPainter extends CustomPainter {
     Color stone() => _weather(
         Color.lerp(pal.stoneCool, pal.stone, 0.55)!, decay, s);
 
+    /// Tile, slate or thatch, in whatever mix this town roofs with.
     Color roofColour() {
       final t = hash01(h, 3);
-      final base = t < 0.46
-          ? const Color(0xFFC05C38) // tile
-          : (t < 0.76
-              ? const Color(0xFF5B6B72) // slate
-              : const Color(0xFFA8853A)); // thatch
+      final (tile, slate, _) = ch.roofMix;
+      final base = t < tile
+          ? const Color(0xFFC05C38)
+          : (t < tile + slate
+              ? const Color(0xFF5B6B72)
+              : const Color(0xFFA8853A));
       return _weather(Color.lerp(base, pal.stone, 0.08)!, decay, s);
     }
 
@@ -1797,7 +1074,7 @@ class WallPainter extends CustomPainter {
   /// the town is seen at it reads as a dome rather than as eight facets.
   void _emitDome(
     Projector p,
-    CityPiece piece,
+    TownPiece piece,
     double y0,
     double y1,
     Color albedo,
@@ -1839,7 +1116,7 @@ class WallPainter extends CustomPainter {
   /// outside is exactly what an arcade looks like.
   void _emitArcade(
     Projector p,
-    CityPiece piece,
+    TownPiece piece,
     double y0,
     double y1,
     Color albedo,
@@ -1892,7 +1169,7 @@ class WallPainter extends CustomPainter {
   /// A flight of steps, drawn as three shallow treads.
   void _emitStair(
     Projector p,
-    CityPiece piece,
+    TownPiece piece,
     double y0,
     double y1,
     Color albedo,
@@ -1927,7 +1204,7 @@ class WallPainter extends CustomPainter {
 
   /// Ploughed rows, and the crop standing in them rippling with the wind.
   void _emitField(
-      Projector p, CityPiece piece, double y0, Palette pal, double decay) {
+      Projector p, TownPiece piece, double y0, Palette pal, double decay) {
     final s = piece.seed;
     // Real crop colours rather than a wash of the ground tone: young green,
     // ripe barley, the deep green of a kitchen garden.
@@ -1982,7 +1259,7 @@ class WallPainter extends CustomPainter {
   /// Standing water: a colour of its own, bands of light running across it,
   /// and foam where it meets the bank.
   void _emitWater(
-      Projector p, CityPiece piece, double y0, Palette pal, bool night) {
+      Projector p, TownPiece piece, double y0, Palette pal, bool night) {
     final y = y0 + 0.05;
     final deep = night ? const Color(0xFF1E3A52) : const Color(0xFF35707B);
     final lit = night ? const Color(0xFF33556F) : const Color(0xFF5C9AA0);
@@ -2057,7 +1334,7 @@ class WallPainter extends CustomPainter {
   /// reads as a tree and costs eight faces.
   void _emitTree(
     Projector p,
-    CityPiece piece,
+    TownPiece piece,
     double y0,
     double y1,
     V3 light,
@@ -2089,7 +1366,7 @@ class WallPainter extends CustomPainter {
   /// A run of stakes.
   void _emitPalisade(
     Projector p,
-    CityPiece piece,
+    TownPiece piece,
     double y0,
     double y1,
     V3 light,
@@ -2127,7 +1404,7 @@ class WallPainter extends CustomPainter {
   /// colour that is not stone, plaster or tile.
   void _emitBanner(
     Projector p,
-    CityPiece piece,
+    TownPiece piece,
     double y0,
     double y1,
     V3 light,
@@ -2174,7 +1451,7 @@ class WallPainter extends CustomPainter {
   /// A water wheel: a rim of paddles turning in a vertical plane.
   void _emitWheel(
     Projector p,
-    CityPiece piece,
+    TownPiece piece,
     double y0,
     double y1,
     V3 light,
@@ -2246,7 +1523,7 @@ class WallPainter extends CustomPainter {
   /// the single most alive thing in the town.
   void _emitSails(
     Projector p,
-    CityPiece piece,
+    TownPiece piece,
     double y0,
     double y1,
     V3 light,
@@ -2336,7 +1613,7 @@ class WallPainter extends CustomPainter {
   }
 
   /// Makes a piece tappable without it having drawn a box of its own.
-  void _registerPickAt(Projector p, CityPiece piece, Size size, double y) {
+  void _registerPickAt(Projector p, TownPiece piece, Size size, double y) {
     final at = p.project(V3(piece.cx, y, piece.cz));
     if (at == null) return;
     if (at.x < 0 || at.x > size.width || at.y < 0 || at.y > size.height) return;
@@ -2359,7 +1636,7 @@ class WallPainter extends CustomPainter {
   /// A box, with only the faces turned towards the camera drawn.
   void _emitBox(
     Projector p,
-    CityPiece piece,
+    TownPiece piece,
     double y0,
     double y1,
     Color albedo,
@@ -2419,7 +1696,7 @@ class WallPainter extends CustomPainter {
   /// "nobody has been here" far better than moss on a wall ever did.
   void _emitWindows(
     Projector p,
-    CityPiece piece,
+    TownPiece piece,
     double y0,
     double y1,
     Palette pal,
@@ -2540,7 +1817,7 @@ class WallPainter extends CustomPainter {
   /// A pitched roof: two slopes and two gable ends.
   void _emitGable(
     Projector p,
-    CityPiece piece,
+    TownPiece piece,
     double y0,
     double y1,
     Color albedo,
@@ -2593,7 +1870,7 @@ class WallPainter extends CustomPainter {
   /// A spire: four faces to a point.
   void _emitPyramid(
     Projector p,
-    CityPiece piece,
+    TownPiece piece,
     double y0,
     double y1,
     Color albedo,
@@ -2637,16 +1914,16 @@ class WallPainter extends CustomPainter {
   }
 
   /// The name of each landmark the town has finished.
-  void _drawCityLabels(
+  void _drawTownLabels(
     Canvas canvas,
     Projector p,
     Size size,
-    CityLayout city,
+    TownLayout town,
   ) {
     // Nearest first, so when two names collide it is the one further away that
     // gives up its place.
     final show = <(double, Offset2, String, double)>[];
-    for (final b in city.buildings) {
+    for (final b in town.buildings) {
       if (!b.isLandmark || !b.finished) continue;
       if (scene.placed < b.firstPiece + b.cost) continue;
       final at = p.project(V3(b.cx, b.peakY + 0.5, b.cz));
@@ -2690,13 +1967,6 @@ class WallPainter extends CustomPainter {
     return Color.fromARGB(255, _ch(r), _ch(g), _ch(b));
   }
 
-  Color _haze(Color c, Projector p, double x, Palette pal) {
-    final dist = (x - p.eye.x).abs() + (p.eye.y).abs() * 0.2;
-    final t = 1 - math.exp(-dist * 0.0085);
-    if (t < 0.004) return c;
-    return Color.lerp(c, pal.haze, t * 0.85)!;
-  }
-
   // ---------------------------------------------------------------- flush
 
   void _flush(Canvas canvas) {
@@ -2719,146 +1989,6 @@ class WallPainter extends CustomPainter {
   }
 
   // ------------------------------------------------------------- extras
-
-  /// The small living details that hang off the landmarks: fire in a brazier,
-  /// a lantern in a shrine, chains on a drawbridge, a banner on a great tower.
-  void _drawStructureExtras(Canvas canvas, Projector p, Size size) {
-    final l = scene.layout;
-    final pal = scene.palette;
-    for (final st in l.structures) {
-      final built = scene.placed >= st.firstBrick + st.brickCount;
-      final progress =
-          ((scene.placed - st.firstBrick) / st.brickCount).clamp(0.0, 1.0);
-      if (progress <= 0) continue;
-      final anchor = p.project(V3(st.featureX, st.featureY, 0));
-      if (anchor == null) continue;
-      if (anchor.x < -200 || anchor.x > size.width + 200) continue;
-      final scale = p.focal / anchor.depth;
-
-      switch (st.type.kind) {
-        case MilestoneKind.beacon:
-          if (built) _drawFire(canvas, anchor, scale, pal);
-          break;
-        case MilestoneKind.shrine:
-          if (built) _drawLantern(canvas, anchor, scale, pal);
-          break;
-        case MilestoneKind.drawbridge:
-          if (built) _drawChains(canvas, p, st, pal);
-          break;
-        case MilestoneKind.greatTower:
-        case MilestoneKind.barbican:
-          if (built) _drawBanner(canvas, p, st, pal);
-          break;
-        default:
-          break;
-      }
-      if (built) _drawStructureLabel(canvas, p, st, anchor, size);
-    }
-  }
-
-  void _drawFire(Canvas canvas, Offset2 at, double scale, Palette pal) {
-    final flick = 0.82 + 0.18 * math.sin(scene.time * 9.1);
-    final r = 0.26 * scale * flick;
-    final c = Offset(at.x, at.y - r * 0.5);
-    canvas.drawCircle(
-      c,
-      r * 2.6,
-      Paint()
-        ..shader = ui.Gradient.radial(c, r * 2.6, [
-          const Color(0xFFFFB347).withValues(alpha: 0.42),
-          const Color(0xFFFF7A18).withValues(alpha: 0.0),
-        ]),
-    );
-    final path = Path()..moveTo(c.dx - r * 0.5, c.dy + r * 0.5);
-    path.quadraticBezierTo(c.dx - r * 0.7, c.dy - r * 0.4, c.dx, c.dy - r * 1.5 * flick);
-    path.quadraticBezierTo(c.dx + r * 0.7, c.dy - r * 0.4, c.dx + r * 0.5, c.dy + r * 0.5);
-    path.close();
-    canvas.drawPath(path, Paint()..color = const Color(0xFFFFC46B).withValues(alpha: 0.92));
-  }
-
-  void _drawLantern(Canvas canvas, Offset2 at, double scale, Palette pal) {
-    final pulse = 0.85 + 0.15 * math.sin(scene.time * 2.2);
-    final r = 0.24 * scale * pulse;
-    final c = Offset(at.x, at.y);
-    canvas.drawCircle(
-      c,
-      r * 3.4,
-      Paint()
-        ..shader = ui.Gradient.radial(c, r * 3.4, [
-          const Color(0xFFFFD9A0).withValues(alpha: 0.38),
-          const Color(0xFFFFB25E).withValues(alpha: 0.0),
-        ]),
-    );
-    canvas.drawCircle(c, r * 0.5, Paint()..color = const Color(0xFFFFE9C4));
-  }
-
-  /// The two chains that lift the drawbridge deck.
-  ///
-  /// Their length is capped rather than run all the way to the top of the gate
-  /// towers: those towers now grow with the wall, and a chain drawn from the
-  /// deck to the top of a wall three storeys high stopped reading as a chain
-  /// and started reading as a scratch across the screen. They also sag, and
-  /// they are drawn thick enough at any distance to be a chain and not a
-  /// hairline.
-  void _drawChains(Canvas canvas, Projector p, StructureInstance st, Palette pal) {
-    final topY = math.min(st.peakY - 0.25, st.featureY + 1.85);
-    if (topY <= st.featureY + 0.2) return;
-    for (final side in [-1.0, 1.0]) {
-      final a = p.project(V3(st.featureX + side * 0.44, st.featureY + 0.06, 0.72));
-      final b = p.project(V3(st.featureX + side * 0.86, topY, 0.52));
-      if (a == null || b == null) continue;
-      // A little slack, hanging from the winch end.
-      final mid = Offset(
-        (a.x + b.x) / 2 - side * 0.06 * (b.y - a.y).abs(),
-        (a.y + b.y) / 2 + 0.10 * (b.y - a.y).abs(),
-      );
-      final path = Path()
-        ..moveTo(a.x, a.y)
-        ..quadraticBezierTo(mid.dx, mid.dy, b.x, b.y);
-      final width = clampD(p.focal / math.max(1.0, a.depth) * 0.055, 1.4, 6.0);
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = pal.ink.withValues(alpha: 0.42)
-          ..strokeWidth = width
-          ..strokeCap = StrokeCap.round
-          ..style = PaintingStyle.stroke,
-      );
-    }
-  }
-
-  void _drawBanner(Canvas canvas, Projector p, StructureInstance st, Palette pal) {
-    final base = p.project(V3(st.featureX, st.peakY, 0.1));
-    final tip = p.project(V3(st.featureX, st.peakY + 1.1, 0.1));
-    if (base == null || tip == null) return;
-    canvas.drawLine(
-      Offset(base.x, base.y),
-      Offset(tip.x, tip.y),
-      Paint()
-        ..color = pal.ink.withValues(alpha: 0.7)
-        ..strokeWidth = 1.8,
-    );
-    final w = (base.y - tip.y).abs() * 0.55;
-    if (w < 2) return;
-    final wave = math.sin(scene.time * 2.4) * w * 0.12;
-    final path = Path()
-      ..moveTo(tip.x, tip.y + w * 0.08)
-      ..lineTo(tip.x + w, tip.y + w * 0.18 + wave)
-      ..lineTo(tip.x + w * 0.78, tip.y + w * 0.52)
-      ..lineTo(tip.x + w, tip.y + w * 0.86 + wave)
-      ..lineTo(tip.x, tip.y + w * 0.76)
-      ..close();
-    canvas.drawPath(path, Paint()..color = pal.accent.withValues(alpha: 0.88));
-  }
-
-  void _drawStructureLabel(
-      Canvas canvas, Projector p, StructureInstance st, Offset2 anchor, Size size) {
-    if (anchor.depth > 42) return;
-    final name = scene.structureNames[st.index] ?? st.type.name;
-    final top = p.project(V3(st.featureX, st.peakY + 0.5, 0));
-    if (top == null) return;
-    _drawLabel(canvas, top, name.toUpperCase(), size, at: anchor.depth);
-  }
 
   /// A name set straight on the sky with a halo, and a hairline under it to tie
   /// it to the thing it names. No filled pill: that was the last of the heavy
@@ -2944,47 +2074,6 @@ class WallPainter extends CustomPainter {
 
   // ---------------------------------------------------------- stone marks
 
-  /// A quiet mark on the stones that carry a note, and a ring around the one
-  /// currently selected.
-  void _drawStoneMarks(Canvas canvas, Projector p, Size size) {
-    final pal = scene.palette;
-    for (final pick in picks) {
-      final selected = pick.brickIndex == scene.selectedBrick;
-      if (!pick.labelled && !selected) continue;
-      final c = Offset(pick.cx, pick.cy);
-      final r = clampD(pick.radius * 0.38, 3, 26);
-
-      if (pick.labelled) {
-        final breathe = 0.72 + 0.28 * math.sin(scene.time * 1.4 + pick.brickIndex);
-        canvas.drawCircle(
-          c,
-          r * 1.7,
-          Paint()
-            ..shader = ui.Gradient.radial(c, r * 1.7, [
-              pal.accent.withValues(alpha: 0.30 * breathe),
-              pal.accent.withValues(alpha: 0.0),
-            ]),
-        );
-        canvas.drawCircle(
-          c,
-          math.max(1.6, r * 0.22),
-          Paint()..color = pal.accent.withValues(alpha: 0.85),
-        );
-      }
-
-      if (selected) {
-        canvas.drawCircle(
-          c,
-          r * 1.5,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2
-            ..color = Colors.white.withValues(alpha: 0.85),
-        );
-      }
-    }
-  }
-
   // ------------------------------------------------------------- particles
 
   void _drawParticles(Canvas canvas, Projector p) {
@@ -3052,75 +2141,20 @@ class WallPainter extends CustomPainter {
 
   // ----------------------------------------------------------------- ghost
 
-  /// Where the next stone will land. Anticipation is part of the reward.
-  void _drawGhost(Canvas canvas, Projector p) {
-    final l = scene.layout;
-    if (scene.placed >= l.slots.length) return;
-    if (scene.fx != null && !scene.fx!.landed) return;
-    final slot = l.slots[scene.placed];
-    final profile = StoneProfiles.instance.forSeed(slot.seed);
-    _mesh.build(slot, profile, mirror: (slot.seed & 0x1000) != 0);
-    final path = Path();
-    var ok = false;
-    for (var i = 0; i < _mesh.n; i++) {
-      final pt = p.project(V3(_mesh.front[i * 3], _mesh.front[i * 3 + 1],
-          _mesh.front[i * 3 + 2]));
-      if (pt == null) return;
-      if (i == 0) {
-        path.moveTo(pt.x, pt.y);
-        ok = true;
-      } else {
-        path.lineTo(pt.x, pt.y);
-      }
-    }
-    if (!ok) return;
-    path.close();
-    // Idle it is a faint outline; as the button is held it fills and brightens,
-    // so you can see exactly where the stone is about to go.
-    final ch = scene.charge.clamp(0.0, 1.0);
-    final beat = ch > 0.02 ? 6.0 + ch * 14 : 2.6;
-    final pulse = 0.35 + 0.25 * math.sin(scene.time * beat);
-    final accent = scene.palette.accent;
-
-    if (ch > 0.02) {
-      canvas.drawPath(
-        path,
-        Paint()
-          ..color = accent.withValues(alpha: 0.28 * ch)
-          ..maskFilter = MaskFilter.blur(BlurStyle.normal, 6 + 14 * ch),
-      );
-    }
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = Color.lerp(Colors.white, accent, ch)!
-            .withValues(alpha: 0.03 * pulse + 0.45 * ch)
-        ..style = PaintingStyle.fill,
-    );
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = Color.lerp(Colors.white, accent, ch * 0.7)!
-            .withValues(alpha: 0.10 + 0.06 * pulse + 0.55 * ch)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0 + 2.6 * ch,
-    );
-  }
-
   void _drawAtmosphere(Canvas canvas, Size size, double horizonY) {
     final pal = scene.palette;
     final decay = 1 - scene.integrity;
     if (decay > 0.05) {
-      // The wall fades into the weather when it is left; a town does not fog
-      // over, it goes cold and quiet. Grey mist over a town reads as bad
-      // visibility. A cold, dim town reads as nobody home.
-      final veil = scene.city != null
-          ? Color.lerp(pal.ink, const Color(0xFF3E4758), 0.55)!
-              .withValues(alpha: 0.06 + decay * 0.20)
-          : pal.haze.withValues(alpha: 0.10 + decay * 0.16);
-      canvas.drawRect(Offset.zero & size, Paint()..color = veil);
+      // A town left alone does not fog over, it goes cold and quiet. Grey mist
+      // reads as bad visibility; a cold, dim town reads as nobody home.
+      canvas.drawRect(
+        Offset.zero & size,
+        Paint()
+          ..color = Color.lerp(pal.ink, const Color(0xFF3E4758), 0.55)!
+              .withValues(alpha: 0.06 + decay * 0.20),
+      );
     }
-    // A soft vignette to hold the eye on the wall.
+    // A soft vignette to hold the eye on the town.
     canvas.drawRect(
       Offset.zero & size,
       Paint()
@@ -3134,5 +2168,5 @@ class WallPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant WallPainter old) => true;
+  bool shouldRepaint(covariant TownPainter old) => true;
 }

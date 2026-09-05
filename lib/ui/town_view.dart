@@ -6,25 +6,24 @@ import 'package:flutter/scheduler.dart';
 
 import '../core/math3.dart';
 import '../core/rng.dart';
-import '../data/milestones.dart';
-import '../data/pacing.dart';
 import '../engine/camera.dart';
+
 import '../data/landmarks.dart';
-import '../engine/city.dart';
-import '../engine/layout.dart';
+import '../engine/town.dart';
 import '../engine/palette.dart';
 import '../engine/renderer.dart';
 import '../fx/effects.dart';
 import '../fx/sensory.dart';
-import '../model/models.dart';
-import '../model/appearance.dart';
-import '../model/wall_store.dart';
+import '../model/piece.dart';
+
+import '../model/habit.dart';
+import '../model/store.dart';
 
 /// Handle the surrounding UI uses to drive the wall.
-class WallViewController {
-  _WallViewState? _state;
+class TownViewController {
+  _TownViewState? _state;
 
-  void place() => _state?.placeBrick();
+  void place() => _state?.placePiece();
 
   /// 0..1 while the place button is being held. The wall answers by lighting
   /// up where the stone is about to land.
@@ -32,52 +31,49 @@ class WallViewController {
   void clearSelection() => _state?.clearSelection();
   void frameAll() => _state?.frameAll();
   void goToLatest() => _state?.goToLatest();
-  void goToX(double x) => _state?.goToX(x);
+  void goTo(double x, double z) => _state?.goTo(x, z);
   void resetView() => _state?.resetView();
   double get travel => _state?._cam.travelTarget ?? 0;
-  double get wallLength => _state?._layout.length ?? 0;
-  List<StructureInstance> get structures =>
-      _state?._layout.structures ?? const [];
+
+  /// How wide the town in front of you reaches, for framing.
+  double get townRadius => _state?._town.radius ?? 8;
   Palette? get palette => _state?._palette;
 }
 
-class WallView extends StatefulWidget {
-  const WallView({
+class TownView extends StatefulWidget {
+  const TownView({
     super.key,
     required this.store,
     required this.controller,
-    required this.onMilestoneComplete,
     required this.onTownLandmark,
     required this.onStoneTapped,
     required this.onWhisper,
     required this.onPaletteChanged,
   });
 
-  final WallStore store;
-  final WallViewController controller;
-  final void Function(PlanSegment seg) onMilestoneComplete;
+  final Store store;
+  final TownViewController controller;
 
   /// A landmark of the town finished, and which number it is.
   final void Function(Landmark mark, int ordinal) onTownLandmark;
-  final void Function(Brick brick) onStoneTapped;
+  final void Function(Piece piece) onStoneTapped;
   final void Function(String message) onWhisper;
   final void Function(Palette palette) onPaletteChanged;
 
   @override
-  State<WallView> createState() => _WallViewState();
+  State<TownView> createState() => _TownViewState();
 }
 
-class _WallViewState extends State<WallView>
+class _TownViewState extends State<TownView>
     with SingleTickerProviderStateMixin {
   late Ticker _ticker;
   final OrbitCamera _cam = OrbitCamera();
   final EffectSystem _fx = EffectSystem();
   final List<PickTarget> _picks = [];
 
-  WallLayout _layout = WallLayout(0);
-  CityLayout? _city;
+  late TownLayout _town;
   int _layoutFor = -1;
-  World _worldFor = World.wall;
+  int _slotFor = -1;
 
   PlacementFx? _placement;
   PlaceResult? _pendingResult;
@@ -94,19 +90,16 @@ class _WallViewState extends State<WallView>
   double _showcaseAge = 0;
 
   double _displayIntegrity = 1;
-  double? _repairSweep;
-  int? _selectedBrick;
+  int? _selectedPiece;
   double _charge = 0;
 
   static const int _budgetOverride =
       int.fromEnvironment('BUDGET', defaultValue: -1);
-  int _detailBudget = _budgetOverride > 0 ? _budgetOverride : 300;
 
-  /// Stones drawn as plain blocks past the detailed band. Generous on purpose:
-  /// a wall that turns into a smooth ribbon a few metres from the camera is
-  /// the single most obvious thing wrong with it, and a block costs a fraction
-  /// of what a chipped stone costs.
-  int _coarseBudget = 1600;
+  /// How many pieces are worth drawing. Given away when the frame gets long
+  /// and won back when it does not, so an old phone shows a smaller town
+  /// rather than a stuttering one.
+  int _budget = _budgetOverride > 0 ? _budgetOverride : 2400;
   double _frameAvg = 16;
 
   late Palette _palette;
@@ -118,28 +111,14 @@ class _WallViewState extends State<WallView>
     _palette = _buildPalette();
     _rebuildLayout();
     _displayIntegrity = widget.store.integrity;
-    final city0 = _city;
-    if (city0 != null) {
-      _cam.travelTarget = 0;
-      _cam.focusYTarget = 1.4;
-      _cam.distanceTarget = clampD(city0.radius * 1.9, 9.0, 60.0);
-      _cam.yawTarget = 0.62;
-      _cam.pitchTarget = 0.46;
-    } else {
-      _cam.travelTarget = math.max(1.5, _layout.length - 3.5);
-      _cam.distanceTarget = clampD(9.0 + _layout.length * 0.42, 9.0, 34.0);
-      _cam.yawTarget = 0.62;
-      _cam.pitchTarget = 0.30;
-    }
+    _frameTown();
     // Fixed framing for development screenshots.
     const camYaw = int.fromEnvironment('CAM_YAW', defaultValue: -999);
     const camPitch = int.fromEnvironment('CAM_PITCH', defaultValue: -999);
     const camDist = int.fromEnvironment('CAM_DIST', defaultValue: -999);
-    const camAt = int.fromEnvironment('CAM_AT', defaultValue: -999);
     if (camYaw != -999) _cam.yawTarget = camYaw * math.pi / 180;
     if (camPitch != -999) _cam.pitchTarget = camPitch * math.pi / 180;
     if (camDist != -999) _cam.distanceTarget = camDist.toDouble();
-    if (camAt != -999) _cam.travelTarget = _layout.length * camAt / 100;
     // Aims the town camera at a spot on the ground while judging a landmark.
     const camX = int.fromEnvironment('CAM_X', defaultValue: -999);
     const camZ = int.fromEnvironment('CAM_Z', defaultValue: -999);
@@ -153,6 +132,18 @@ class _WallViewState extends State<WallView>
     });
   }
 
+  /// Puts the camera where a town is best first seen: from its own plaza,
+  /// far enough back to take it in.
+  void _frameTown() {
+    _cam.travelTarget = _town.cx;
+    _cam.focusZTarget = _town.cz;
+    _cam.focusYTarget = 1.4;
+    _cam.distanceTarget = clampD(_town.radius * 1.9, 9.0, 60.0);
+    _cam.yawTarget = 0.62;
+    _cam.pitchTarget = 0.46;
+    _cam.wallLength = _town.radius * 2;
+  }
+
   @override
   void dispose() {
     widget.store.removeListener(_onStoreChanged);
@@ -162,31 +153,29 @@ class _WallViewState extends State<WallView>
   }
 
   void _onStoreChanged() {
-    if (widget.store.shownTotal != _layoutFor ||
-        Appearance.instance.world != _worldFor) {
+    final store = widget.store;
+    if (store.shownTotal != _layoutFor || store.habit.slot != _slotFor) {
       _rebuildLayout();
     }
   }
 
   void _rebuildLayout() {
-    final was = _layout.length;
-    final world = Appearance.instance.world;
-    _worldFor = world;
-    _layout = WallLayout(widget.store.shownTotal);
-    _city = world == World.city ? CityLayout(widget.store.shownTotal) : null;
-    _layoutFor = widget.store.shownTotal;
-    // The town orbits its own plaza, so the camera's travel axis is spent on
-    // its width instead of the wall's length.
-    final city = _city;
-    if (city != null) {
-      _cam.wallLength = city.radius * 2;
-      return;
-    }
-    _cam.wallLength = _layout.length;
-    // A preview can change the wall's size by orders of magnitude; reframe so
-    // it is not left staring at empty ground.
-    if (was > 0 && (_layout.length / was > 1.8 || _layout.length / was < 0.55)) {
-      _cam.frameAll();
+    final store = widget.store;
+    final wasSlot = _slotFor;
+    _town = TownLayout(store.shownTotal, store.character,
+        cx: Habit.centreOf(store.habit.slot).$1,
+        cz: Habit.centreOf(store.habit.slot).$2);
+    _layoutFor = store.shownTotal;
+    _slotFor = store.habit.slot;
+    _cam.wallLength = _town.radius * 2;
+    // Moving to another habit is moving to another town: take the camera
+    // there rather than leaving it hanging over an empty valley.
+    if (wasSlot != _slotFor) {
+      _frameTown();
+      _fx.clear();
+      _placement = null;
+      _finished = null;
+      _showcase = null;
     }
   }
 
@@ -211,20 +200,10 @@ class _WallViewState extends State<WallView>
 
     if (_budgetOverride <= 0) {
       _frameAvg = _frameAvg * 0.92 + dtRaw * 1000 * 0.08;
-      // The coarse band is given up first and won back last: losing the far
-      // masonry is much more noticeable than losing a few chipped corners.
-      if (_frameAvg > 21) {
-        if (_coarseBudget > 900) {
-          _coarseBudget -= 40;
-        } else if (_detailBudget > 150) {
-          _detailBudget -= 6;
-        }
-      } else if (_frameAvg < 13) {
-        if (_detailBudget < 460) {
-          _detailBudget += 3;
-        } else if (_coarseBudget < 3200) {
-          _coarseBudget += 24;
-        }
+      if (_frameAvg > 21 && _budget > 700) {
+        _budget -= 40;
+      } else if (_frameAvg < 13 && _budget < 4200) {
+        _budget += 24;
       }
     }
 
@@ -244,27 +223,9 @@ class _WallViewState extends State<WallView>
       if (p.done) _placement = null;
     }
 
-    if (_repairSweep != null) {
-      _repairSweep = _repairSweep! - dt * math.max(9.0, _layout.length * 0.9);
-      final origin = _layout.slotFor(widget.store.shownTotal - 1);
-      if (origin != null) {
-        for (var i = 0; i < 2; i++) {
-          _fx.repairMote(
-            _repairSweep! + hashJitter(0.6, (_time * 60).toInt(), i),
-            hash01((_time * 60).toInt(), i + 5) * 1.9,
-            0.42,
-          );
-        }
-      }
-      if (_repairSweep! < -3) {
-        _repairSweep = null;
-        _displayIntegrity = 1;
-      }
-    } else {
-      final target = widget.store.integrity;
-      _displayIntegrity +=
-          (target - _displayIntegrity) * (1 - math.exp(-dt * 1.4));
-    }
+    final target = widget.store.integrity;
+    _displayIntegrity +=
+        (target - _displayIntegrity) * (1 - math.exp(-dt * 1.4));
 
     _spawnAmbient(dt);
 
@@ -281,7 +242,7 @@ class _WallViewState extends State<WallView>
   /// a degree every few seconds, is a place you keep watching without deciding
   /// to — which is exactly what it should be doing while you are not building.
   void _turnAround(double dt) {
-    if (_city == null) return;
+    
     final show = _showcase;
     if (show != null) {
       _showcaseAge += dt;
@@ -311,12 +272,10 @@ class _WallViewState extends State<WallView>
   /// A chimney with smoke coming out of it is the cheapest thing in the whole
   /// app and the one that most makes the place look lived in: it turns a model
   /// of a town into a town where somebody has just lit a fire.
-  void _spawnCityAmbient(double dt) {
-    final city = _city;
-    if (city == null) return;
+  void _spawnAmbient(double dt) {
     _ambientCounter++;
-
-    final take = math.min(widget.store.shownTotal, city.pieces.length);
+    final town = _town;
+    final take = math.min(widget.store.shownTotal, town.pieces.length);
     if (take <= 0) return;
 
     // The same gust the renderer leans everything else with.
@@ -328,7 +287,7 @@ class _WallViewState extends State<WallView>
     var found = 0;
     for (var k = 0; k < 40 && found < 3; k++) {
       final i = (_ambientCounter * 7 + k * 131) % take;
-      final piece = city.pieces[i];
+      final piece = town.pieces[i];
       if (piece.kind != PieceKind.chimney) continue;
       final dx = piece.cx - _cam.travel, dz = piece.cz - _cam.focusZ;
       if (dx * dx + dz * dz > 26 * 26) continue;
@@ -346,7 +305,7 @@ class _WallViewState extends State<WallView>
     if (_palette.isDaylight && _ambientCounter % 5 == 0) {
       for (var k = 0; k < 26; k++) {
         final i = (_ambientCounter * 13 + k * 97) % take;
-        final piece = city.pieces[i];
+        final piece = town.pieces[i];
         if (piece.kind != PieceKind.water) continue;
         final dx = piece.cx - _cam.travel, dz = piece.cz - _cam.focusZ;
         if (dx * dx + dz * dz > 20 * 20) continue;
@@ -360,131 +319,47 @@ class _WallViewState extends State<WallView>
     }
   }
 
-  /// Fires on completed beacons keep licking upwards on their own.
-  void _spawnAmbient(double dt) {
-    if (_city != null) {
-      _spawnCityAmbient(dt);
-      return;
-    }
-    _ambientCounter++;
-    if (_ambientCounter % 3 != 0) return;
-    for (final st in _layout.structures) {
-      if (st.type.kind != MilestoneKind.beacon) continue;
-      if (widget.store.shownTotal < st.firstBrick + st.brickCount) continue;
-      if ((st.featureX - _cam.travel).abs() > _cam.detailRadius) continue;
-      _fx.ember(st.featureX, st.featureY - 0.1, 0);
-    }
-  }
-
 
   /// Where the camera should sit to watch a piece land, in whichever world we
   /// are building. The wall travels along its own axis; the town orbits its
   /// plaza, so the most the camera does there is look at the right height.
   void _followPlacement(int index) {
-    final city = _city;
-    if (city != null) {
-      final piece = city.pieceFor(index);
-      if (piece == null) return;
-      _cam.follow = true;
-      _cam.travelTo(piece.cx);
-      _cam.focusZTarget = piece.cz;
-      _cam.focusYTarget = clampD(piece.y1 + 0.6, 1.0, 6.0);
-      if (_cam.distanceTarget > 20) _cam.distanceTarget = 15;
-      return;
-    }
-    final slot = _layout.slotFor(index);
-    if (slot == null) return;
+    final piece = _town.pieceFor(index);
+    if (piece == null) return;
     _cam.follow = true;
-    _cam.travelTo(slot.x);
-    _cam.focusYTarget = clampD(slot.y + 0.35, 0.9, 3.4);
-    // Pull in a little if we are miles away, so the landing is legible.
-    if (_cam.distanceTarget > 26) _cam.distanceTarget = 18;
+    _cam.travelTo(piece.cx);
+    _cam.focusZTarget = piece.cz;
+    _cam.focusYTarget = clampD(piece.y1 + 0.6, 1.0, 6.0);
+    if (_cam.distanceTarget > 20) _cam.distanceTarget = 15;
   }
 
   // --------------------------------------------------------------- placing
 
-  void placeBrick() {
+  void placePiece() {
     _touched();
     _showcase = null;
     final store = widget.store;
     final wasDecaying = store.integrity < 0.995;
     final before = store.integrity;
     store.setPreview(null);
-    final result = store.placeBrick();
-    _selectedBrick = null;
-    _rebuildLayout();
-
-    _followPlacement(result.brick.index);
+    final result = store.placePiece();
+    _selectedPiece = null;
+    _followPlacement(result.piece.index);
     if (wasDecaying) _displayIntegrity = before;
     _pendingResult = result;
     // In the town a piece is set down, not dropped from a crane: from high up
     // it reads as a bug, and the anticipation is in the shadow closing under
     // it rather than in the height it falls from.
-    _placement = PlacementFx(result.brick.index,
-        dropHeight: _city != null ? 2.3 : 5.2);
+    _placement = PlacementFx(result.piece.index,
+        dropHeight: 2.3);
     setState(() {});
-  }
-
-  void _onImpact(PlacementFx p) {
-    final city = _city;
-    if (city != null) {
-      _onCityImpact(p);
-      return;
-    }
-    final slot = _layout.slotFor(p.brickIndex);
-    final result = _pendingResult;
-    _pendingResult = null;
-    if (slot == null) return;
-
-    final at = V3(
-      slot.x,
-      slot.y - slot.h * 0.4,
-      slot.zCenter + slot.halfDepth * 0.5,
-    );
-    final strength = clampD(slot.w / 0.7, 0.7, 1.5);
-    _fx.impact(at, slot.w * 0.6, strength: strength);
-    _cam.shake = 0.045 * strength;
-    Sensory.instance.impact(strength: strength);
-
-    if (result == null) return;
-
-    if (result.repaired) {
-      _repairSweep = slot.x + 0.8;
-      Future.delayed(const Duration(milliseconds: 90), () {
-        Sensory.instance.repair();
-      });
-    }
-
-    if (result.milestoneCompleted != null) {
-      final st = _layout.structures.where(
-        (s) => s.firstBrick == result.milestoneCompleted!.firstBrick,
-      );
-      if (st.isNotEmpty) {
-        final s = st.first;
-        _fx.celebrate(
-          V3((s.x0 + s.x1) / 2, s.peakY * 0.6, 0.5),
-          1.6,
-          count: 90,
-        );
-        _cam.travelTo((s.x0 + s.x1) / 2);
-        _cam.distanceTarget = clampD(s.peakY * 3.2, 8, 22);
-        _cam.focusYTarget = s.peakY * 0.55;
-      }
-      Future.delayed(const Duration(milliseconds: 260), () {
-        Sensory.instance.milestone();
-      });
-      widget.onMilestoneComplete(result.milestoneCompleted!);
-    } else if (result.milestoneStarted != null) {
-      widget.onWhisper('Empieza ${result.milestoneStarted!.type!.name}');
-    }
-
   }
 
   /// The town's version of the landing: the shake and the sound, and a
   /// celebration when a building is finished rather than when a milestone is.
-  void _onCityImpact(PlacementFx fx) {
-    final city = _city!;
-    final piece = city.pieceFor(fx.brickIndex);
+  void _onImpact(PlacementFx fx) {
+    final town = _town;
+    final piece = town.pieceFor(fx.brickIndex);
     final result = _pendingResult;
     _pendingResult = null;
     if (piece == null) return;
@@ -493,7 +368,7 @@ class _WallViewState extends State<WallView>
     _cam.shake = 0.05;
     Sensory.instance.impact(strength: 1.1);
 
-    final building = city.buildings[piece.building];
+    final building = town.buildings[piece.building];
     final done = piece.index == building.firstPiece + building.cost - 1;
     if (done) {
       _finished = building.index;
@@ -519,7 +394,7 @@ class _WallViewState extends State<WallView>
       final mark = building.landmark;
       if (mark != null) {
         var ordinal = 0;
-        for (final b in city.buildings) {
+        for (final b in town.buildings) {
           if (b.isLandmark && b.index <= building.index) ordinal++;
         }
         // The camera takes a slow turn around it while the card is up: it is
@@ -532,60 +407,45 @@ class _WallViewState extends State<WallView>
         widget.onWhisper('${building.name} en pie');
       }
     }
-    // The wall's milestones do not belong in a town: it has a hundred and
-    // twelve of its own, and they are announced by the building being
-    // finished, not by a card about a bastion.
-    if (result != null && result.repaired) {
+    if (result != null && result.relit) {
       widget.onWhisper('El pueblo vuelve a encenderse');
     }
   }
 
   // ---------------------------------------------------------------- camera
 
+  /// The whole of this town, from its own plaza.
   void frameAll() {
-    final city = _city;
-    if (city != null) {
-      _cam.travelTarget = 0;
-      _cam.focusZTarget = 0;
-      _cam.focusYTarget = 1.8;
-      _cam.distanceTarget = clampD(city.radius * 2.4, 9, 90);
-      _cam.pitchTarget = 0.52;
-      _cam.follow = false;
-      Sensory.instance.tick();
-      return;
-    }
-    _cam.frameAll();
+    _touched();
+    _cam.travelTarget = _town.cx;
+    _cam.focusZTarget = _town.cz;
+    _cam.focusYTarget = 1.8;
+    _cam.distanceTarget = clampD(_town.radius * 2.4, 9, 90);
+    _cam.pitchTarget = 0.52;
+    _cam.follow = false;
     Sensory.instance.tick();
   }
 
   void goToLatest() {
-    if (_city != null) {
-      _followPlacement(widget.store.shownTotal - 1);
-      Sensory.instance.tick();
-      return;
-    }
-    final slot =
-        _layout.slotFor(widget.store.shownTotal - 1) ??
-        _layout.slotFor(widget.store.shownTotal);
-    if (slot != null) {
-      _cam.travelTo(slot.x);
-      _cam.focusYTarget = clampD(slot.y + 0.3, 0.9, 3.2);
-      _cam.distanceTarget = clampD(_cam.distanceTarget, 6, 16);
-      _cam.follow = true;
-    }
+    _touched();
+    _followPlacement(widget.store.shownTotal - 1);
     Sensory.instance.tick();
   }
 
-  void goToX(double x) {
+  /// Looks at a spot on the valley floor, for the map and the landmark list.
+  void goTo(double x, double z) {
+    _touched();
     _cam.travelTo(x);
+    _cam.focusZTarget = z;
     _cam.follow = false;
   }
 
   void resetView() {
+    _touched();
     _cam.yawTarget = 0.62;
-    _cam.pitchTarget = 0.30;
-    _cam.focusYTarget = 1.15;
-    _cam.distanceTarget = 10;
+    _cam.pitchTarget = 0.34;
+    _cam.focusYTarget = 1.4;
+    _cam.distanceTarget = clampD(_town.radius * 1.6, 9, 40);
     Sensory.instance.tick();
   }
 
@@ -643,13 +503,13 @@ class _WallViewState extends State<WallView>
       }
     }
     if (best == null) {
-      if (_selectedBrick != null) setState(() => _selectedBrick = null);
+      if (_selectedPiece != null) setState(() => _selectedPiece = null);
       return;
     }
 
-    final brick = widget.store.brickAt(best.brickIndex);
+    final brick = widget.store.pieceAt(best.brickIndex);
     if (brick == null) return;
-    setState(() => _selectedBrick = brick.index);
+    setState(() => _selectedPiece = brick.index);
     Sensory.instance.tick();
     widget.onStoneTapped(brick);
   }
@@ -663,8 +523,8 @@ class _WallViewState extends State<WallView>
   }
 
   void clearSelection() {
-    if (_selectedBrick != null && mounted) {
-      setState(() => _selectedBrick = null);
+    if (_selectedPiece != null && mounted) {
+      setState(() => _selectedPiece = null);
     }
   }
 
@@ -673,8 +533,7 @@ class _WallViewState extends State<WallView>
   @override
   Widget build(BuildContext context) {
     final store = widget.store;
-    final scene = WallScene(
-      layout: _layout,
+    final scene = TownScene(
       placed: store.shownTotal,
       palette: _palette,
       camera: _cam,
@@ -682,21 +541,15 @@ class _WallViewState extends State<WallView>
       time: _time,
       effects: _fx,
       labelledBricks: {
-        for (final b in store.bricks)
-          if (b.hasLabel) b.index,
-      },
-      structureNames: {
-        for (final s in _layout.structures) s.index: s.type.name,
+        for (final p in store.pieces)
+          if (p.hasLabel) p.index,
       },
       fx: _placement,
-      repairSweep: _repairSweep,
-      detailBudget: _detailBudget,
-      coarseBudget: _coarseBudget,
-      mortar: Appearance.instance.look,
-      city: _city,
+      budget: _budget,
+      town: _town,
       finished: _finished,
       finishedAge: _finishedAge,
-      selectedBrick: _selectedBrick,
+      selectedBrick: _selectedPiece,
       charge: _charge,
     );
 
@@ -716,7 +569,7 @@ class _WallViewState extends State<WallView>
           Sensory.instance.tick();
         },
         child: CustomPaint(
-          painter: WallPainter(scene, _picks),
+          painter: TownPainter(scene, _picks),
           size: Size.infinite,
           isComplex: true,
           willChange: true,

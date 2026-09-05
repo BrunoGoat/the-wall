@@ -1,99 +1,9 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import '../data/lexicon.dart';
 
 import '../data/landmarks.dart';
-import '../data/milestones.dart';
 import 'papyrus.dart';
-import 'sigil.dart';
 import 'style.dart';
-
-/// The card that celebrates a finished landmark.
-class MilestoneOverlay extends StatelessWidget {
-  const MilestoneOverlay({
-    super.key,
-    required this.type,
-    required this.theme,
-    required this.onDismiss,
-    required this.ordinal,
-  });
-
-  final MilestoneType type;
-  final UiTheme theme;
-  final VoidCallback onDismiss;
-  final int ordinal;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onDismiss,
-      child: Container(
-        color: Colors.black.withValues(alpha: 0.42),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 340),
-            child: Padding(
-              padding: const EdgeInsets.all(26),
-              child: Frosted(
-                theme: theme,
-                strong: true,
-                radius: 28,
-                padding: const EdgeInsets.fromLTRB(26, 30, 26, 26),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    LandmarkSigil(
-                      kind: type.kind,
-                      color: theme.fg.withValues(alpha: 0.88),
-                      size: 74,
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'HITO $ordinal COMPLETADO',
-                      style: TextStyle(
-                        color: theme.accent,
-                        fontSize: 10.5,
-                        letterSpacing: 3.0,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      type.name,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: theme.fg,
-                        fontSize: 26,
-                        fontFamily: Papyrus.serif,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      type.blurb,
-                      textAlign: TextAlign.center,
-                      style: theme.bodySoft.copyWith(fontStyle: FontStyle.italic),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'levantado con ${type.brickCost} '
-                      '${Lexicon.of.units} tuyas',
-                      style: TextStyle(
-                        color: theme.fgFaint,
-                        fontSize: 11,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 /// The card for a landmark the town has just finished.
 ///
@@ -279,8 +189,7 @@ class StoneCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  '${Lexicon.of.unit.toUpperCase()} $number · '
-                  '${formatDate(when)}',
+                  'PIEZA $number · ${formatDate(when)}',
                   style: t.label.copyWith(fontSize: 9.5, letterSpacing: 1.4),
                 ),
                 const SizedBox(height: 7),
@@ -403,10 +312,7 @@ class _LabelSheetState extends State<LabelSheet> {
               ),
             ),
             const SizedBox(height: 18),
-            Text(
-                'LEYENDA DE ${Lexicon.isTown ? 'LA PIEZA' : 'EL LADRILLO'} '
-                '${widget.number}',
-                style: t.label),
+            Text('LEYENDA DE LA PIEZA ${widget.number}', style: t.label),
             const SizedBox(height: 4),
             Text(
               'Opcional. Para acordarte de qué fue este.',

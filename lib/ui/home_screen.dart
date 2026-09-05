@@ -2,39 +2,36 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../data/milestones.dart';
 import '../engine/palette.dart';
 import '../fx/sensory.dart';
 import '../model/appearance.dart';
-import '../model/models.dart';
+import '../model/piece.dart';
 import '../data/landmarks.dart';
-import '../data/lexicon.dart';
-import '../model/wall_store.dart';
+import '../model/store.dart';
 import 'hold_button.dart';
 import 'journey_sheet.dart';
 import 'overlays.dart';
 import 'style.dart';
-import 'wall_view.dart';
+import '../engine/town.dart';
+import 'town_view.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.store});
-  final WallStore store;
+  final Store store;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final WallViewController _wall = WallViewController();
+  final TownViewController _wall = TownViewController();
   late UiTheme _theme = UiTheme(Palette.forMoment(12, 1));
-
-  MilestoneReveal? _revealMilestone;
 
   /// A landmark of the town, and which number it is, waiting to be shown.
   (Landmark, int)? _revealTown;
   String? _whisper;
   Timer? _whisperTimer;
-  Brick? _selected;
+  Piece? _selected;
 
   @override
   void initState() {
@@ -56,7 +53,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Keep the open card in step with the store, so a note written now shows
     // up on the card straight away.
     if (_selected != null) {
-      _selected = widget.store.brickAt(_selected!.index);
+      _selected = widget.store.pieceAt(_selected!.index);
     }
     setState(() {});
   }
@@ -65,12 +62,11 @@ class _HomeScreenState extends State<HomeScreen> {
   void _greet() {
     final s = widget.store;
     if (s.total == 0) {
-      _showWhisper(Lexicon.of.firstPrompt,
+      _showWhisper('Mantené el botón para poner tu primera piedra',
           duration: const Duration(seconds: 6));
     } else if (s.integrityAtLaunch < 0.92) {
       final days = s.daysIdle.floor();
-      final w = Lexicon.of;
-      _showWhisper('$days días sin ${w.units}. ${w.decayWhisper}',
+      _showWhisper('$days días sin piezas. El pueblo se está quedando a oscuras.',
           duration: const Duration(seconds: 5));
     }
   }
@@ -84,7 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Future<void> _editLabel(Brick brick) async {
+  Future<void> _editLabel(Piece brick) async {
     final result = await LabelSheet.show(
       context,
       theme: _theme,
@@ -95,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
     widget.store.setLabel(brick.index, result);
     if (mounted) {
       Sensory.instance.tick();
-      setState(() => _selected = widget.store.brickAt(brick.index));
+      setState(() => _selected = widget.store.pieceAt(brick.index));
     }
   }
 
@@ -110,18 +106,9 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: WallView(
+            child: TownView(
               store: store,
               controller: _wall,
-              onMilestoneComplete: (seg) {
-                // In the testing mode the stones come far too fast for a
-                // full-screen announcement to be anything but in the way.
-                if (Appearance.instance.rapid) return;
-                setState(() {
-                  _revealMilestone =
-                      MilestoneReveal(seg.type!, seg.milestoneNo + 1);
-                });
-              },
               onTownLandmark: (mark, ordinal) {
                 if (Appearance.instance.rapid) return;
                 setState(() => _revealTown = (mark, ordinal));
@@ -176,13 +163,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 GhostButton(
                   icon: Icons.zoom_out_map,
                   theme: t,
-                  tooltip: Lexicon.of.seeAll,
+                  tooltip: 'Ver todo el pueblo',
                   onTap: _wall.frameAll,
                 ),
                 GhostButton(
                   icon: Icons.center_focus_strong,
                   theme: t,
-                  tooltip: Lexicon.of.goLatest,
+                  tooltip: 'Ir a lo último que pusiste',
                   onTap: _wall.goToLatest,
                 ),
                 GhostButton(
@@ -243,6 +230,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: _BottomDeck(
               theme: t,
               placed: store.total,
+              plan: store.plan,
               wall: _wall,
               onPlace: () {
                 _wall.clearSelection();
@@ -262,15 +250,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
-          if (_revealMilestone != null)
-            Positioned.fill(
-              child: MilestoneOverlay(
-                type: _revealMilestone!.type,
-                ordinal: _revealMilestone!.ordinal,
-                theme: t,
-                onDismiss: () => setState(() => _revealMilestone = null),
-              ),
-            ),
         ],
       ),
     );
@@ -278,9 +257,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _openJourney() {
     Sensory.instance.tick();
-    final structureX = <int, double>{
-      for (final s in _wall.structures) s.firstBrick: (s.x0 + s.x1) / 2,
-    };
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -288,18 +264,11 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (_) => JourneySheet(
         store: widget.store,
         theme: _theme,
-        structureX: structureX,
-        onGoTo: _wall.goToX,
+        onGoTo: _wall.goTo,
         onEditLabel: _editLabel,
       ),
     );
   }
-}
-
-class MilestoneReveal {
-  MilestoneReveal(this.type, this.ordinal);
-  final MilestoneType type;
-  final int ordinal;
 }
 
 class _TopBar extends StatelessWidget {
@@ -310,7 +279,7 @@ class _TopBar extends StatelessWidget {
   });
 
   final UiTheme theme;
-  final WallStore store;
+  final Store store;
   final VoidCallback onJourney;
 
   @override
@@ -338,7 +307,7 @@ class _TopBar extends StatelessWidget {
                     const SizedBox(width: 8),
                     Padding(
                       padding: const EdgeInsets.only(bottom: 2),
-                      child: Text(Lexicon.of.unitsCaps,
+                      child: Text('PIEZAS',
                           style: t.label.copyWith(shadows: t.halo)),
                     ),
                     if (days > 0) ...[
@@ -359,10 +328,8 @@ class _TopBar extends StatelessWidget {
                 const SizedBox(height: 5),
                 Text(
                   decaying
-                      ? Lexicon.of.decayLine
-                      : (Lexicon.isTown
-                          ? Lexicon.nextEvent(store.total)
-                          : store.nextEventLabel),
+                      ? 'Se están apagando las ventanas · una pieza las enciende'
+                      : store.nextEventLabel,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -390,18 +357,34 @@ class _TopBar extends StatelessWidget {
   }
 }
 
+/// What this piece finishes, said above the button.
+///
+/// The pull to put one more down is strongest when you can see exactly what it
+/// completes. "faltan 2 para el Granero" is a different feeling from a button
+/// that only says "mantener".
+String? buttonHint(int placed, TownPlan plan) {
+  final work = plan.underway(placed);
+  if (work == null) return null;
+  final left = work.$2;
+  if (left == 1) return 'esta termina ${work.$1}';
+  if (left <= 4) return 'faltan $left para ${work.$1}';
+  return null;
+}
+
 class _BottomDeck extends StatelessWidget {
   const _BottomDeck({
     required this.theme,
     required this.wall,
     required this.onPlace,
     required this.placed,
+    required this.plan,
   });
 
   final UiTheme theme;
-  final WallViewController wall;
+  final TownViewController wall;
   final VoidCallback onPlace;
   final int placed;
+  final TownPlan plan;
 
   @override
   Widget build(BuildContext context) {
@@ -423,24 +406,12 @@ class _BottomDeck extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: TravelScrubber(
-              theme: t,
-              length: wall.wallLength,
-              travel: wall.travel,
-              marks: [
-                for (final s in wall.structures) (s.x0 + s.x1) / 2,
-              ],
-              onSeek: wall.goToX,
-            ),
-          ),
           HoldToPlace(
             theme: t,
             onPlace: onPlace,
             onCharge: wall.setCharge,
             rapid: Appearance.instance.rapid,
-            hint: Lexicon.isTown ? Lexicon.buttonHint(placed) : null,
+            hint: buttonHint(placed, plan),
           ),
         ],
       ),
@@ -452,7 +423,7 @@ class _BottomDeck extends StatelessWidget {
 class _PreviewBanner extends StatelessWidget {
   const _PreviewBanner({required this.theme, required this.store});
   final UiTheme theme;
-  final WallStore store;
+  final Store store;
 
   @override
   Widget build(BuildContext context) {
@@ -470,7 +441,7 @@ class _PreviewBanner extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'VISTA DE ${store.shownTotal} ${Lexicon.of.unitsCaps}',
+              'VISTA DE ${store.shownTotal} PIEZAS',
               style: TextStyle(
                 color: t.accent,
                 fontSize: 10.5,

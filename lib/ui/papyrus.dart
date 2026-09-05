@@ -4,7 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 
 import '../core/rng.dart';
-import '../model/models.dart';
+import '../model/piece.dart';
 
 /// The colours of an old sheet. Deliberately fixed: a chronicle does not
 /// change colour because the sun went down over the wall outside.
@@ -233,7 +233,7 @@ class PapyrusEntry extends StatelessWidget {
     this.dropCap = false,
   });
 
-  final Brick brick;
+  final Piece brick;
 
   /// Which entry this is in the whole log, for the marginal number.
   final int ordinal;
@@ -305,7 +305,7 @@ class PapyrusEntry extends StatelessWidget {
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    'Puesta la piedra ${Papyrus.roman(brick.index + 1)}, '
+                    'Puesta la pieza ${Papyrus.roman(brick.index + 1)}, '
                     '${Papyrus.longDate(brick.placedAt)}.',
                     style: Papyrus.body(12.5, c: Papyrus.inkSoft),
                   ),

@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'fx/sensory.dart';
-import 'data/lexicon.dart';
 import 'model/appearance.dart';
-import 'model/wall_store.dart';
+import 'model/store.dart';
 import 'ui/home_screen.dart';
 
 void main() {
@@ -19,18 +18,18 @@ void main() {
   ));
   // The first frame goes up straight away; loading happens behind it, so a
   // slow disk can never turn into a blank screen.
-  runApp(const LaMurallaApp());
+  runApp(const PuebloApp());
 }
 
-class LaMurallaApp extends StatefulWidget {
-  const LaMurallaApp({super.key});
+class PuebloApp extends StatefulWidget {
+  const PuebloApp({super.key});
 
   @override
-  State<LaMurallaApp> createState() => _LaMurallaAppState();
+  State<PuebloApp> createState() => _PuebloAppState();
 }
 
-class _LaMurallaAppState extends State<LaMurallaApp> {
-  final WallStore store = WallStore();
+class _PuebloAppState extends State<PuebloApp> {
+  final Store store = Store();
 
   @override
   void initState() {
@@ -40,18 +39,6 @@ class _LaMurallaAppState extends State<LaMurallaApp> {
 
   Future<void> _boot() async {
     await Appearance.instance.load();
-    // Development shortcut for comparing the pointings side by side.
-    const mortar = String.fromEnvironment('MORTAR');
-    if (mortar.isNotEmpty) {
-      for (final l in MortarLook.all) {
-        if (l.style.name == mortar) await Appearance.instance.setMortar(l.style);
-      }
-    }
-    // Development shortcut for looking at the town prototype.
-    const world = String.fromEnvironment('WORLD');
-    for (final w in World.values) {
-      if (w.name == world) await Appearance.instance.setWorld(w);
-    }
     await store.load();
 
     // Development shortcut for inspecting how the wall reads after weeks or a
@@ -69,7 +56,7 @@ class _LaMurallaAppState extends State<LaMurallaApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'La Muralla',
+      title: 'El Pueblo',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -84,7 +71,7 @@ class _LaMurallaAppState extends State<LaMurallaApp> {
   }
 }
 
-/// The first half-second: the thing, before there is a thing.
+/// The first half-second: the valley, before there is a town in it.
 class _Opening extends StatelessWidget {
   const _Opening();
 
@@ -94,7 +81,7 @@ class _Opening extends StatelessWidget {
       backgroundColor: const Color(0xFF9FB6D8),
       body: Center(
         child: Text(
-          Lexicon.of.title,
+          'EL PUEBLO',
           style: TextStyle(
             color: Color(0xCC241F16),
             fontSize: 15,

@@ -1,6 +1,6 @@
-/// One achievement, one stone. The index is its permanent position in the wall.
-class Brick {
-  const Brick({
+/// One achievement, one piece. The index is its permanent place in the town.
+class Piece {
+  const Piece({
     required this.index,
     required this.placedAt,
     this.label,
@@ -10,14 +10,14 @@ class Brick {
   final DateTime placedAt;
 
   /// What this one was for, if the person cared to say. Always optional: the
-  /// stone counts either way.
+  /// piece counts either way.
   final String? label;
 
   bool get hasLabel => label != null && label!.trim().isNotEmpty;
 
-  Brick withLabel(String? text) {
+  Piece withLabel(String? text) {
     final t = text?.trim();
-    return Brick(
+    return Piece(
       index: index,
       placedAt: placedAt,
       label: t == null || t.isEmpty ? null : t,
@@ -30,7 +30,7 @@ class Brick {
         if (hasLabel) 'l': label,
       };
 
-  static Brick fromJson(Map<String, dynamic> j) => Brick(
+  static Piece fromJson(Map<String, dynamic> j) => Piece(
         index: (j['i'] as num).toInt(),
         placedAt: DateTime.fromMillisecondsSinceEpoch((j['t'] as num).toInt()),
         label: j['l'] as String?,

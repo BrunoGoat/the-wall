@@ -1,18 +1,14 @@
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../data/lexicon.dart';
-import '../engine/city.dart';
+import '../engine/town.dart';
+import '../model/habit.dart';
 import '../model/appearance.dart';
-import '../model/models.dart';
+import '../model/piece.dart';
 import '../fx/sensory.dart';
-import '../model/wall_store.dart';
-import '../engine/layout.dart';
-import 'appearance_sheet.dart';
+import '../model/store.dart';
 import 'debug_sheet.dart';
 import 'papyrus.dart';
-import 'sigil.dart';
 import 'style.dart';
 
 /// Everything the wall has become: the numbers, the landmarks and the hundred
@@ -23,21 +19,19 @@ class JourneySheet extends StatefulWidget {
     required this.store,
     required this.theme,
     required this.onGoTo,
-    required this.structureX,
     required this.onEditLabel,
   });
 
-  final WallStore store;
+  final Store store;
   final UiTheme theme;
 
   /// Jumps the camera to a position along the wall.
-  final void Function(double x) onGoTo;
+  final void Function(double x, double z) onGoTo;
 
   /// Centre of each built landmark, keyed by the brick it started on.
-  final Map<int, double> structureX;
 
   /// Opens the note editor for a brick.
-  final void Function(Brick brick) onEditLabel;
+  final void Function(Piece brick) onEditLabel;
 
   @override
   State<JourneySheet> createState() => _JourneySheetState();
@@ -78,13 +72,7 @@ class _JourneySheetState extends State<JourneySheet> {
               Expanded(
                 child: switch (_tab) {
                   0 => _Summary(store: widget.store, theme: t),
-                  1 => Lexicon.isTown
-                      ? _TownMilestones(store: widget.store, theme: t)
-                      : _Milestones(
-                          store: widget.store,
-                          theme: t,
-                          onGoTo: widget.onGoTo,
-                          structureX: widget.structureX),
+                  1 => _TownMilestones(store: widget.store, theme: t),
                   _ => _Legends(
                       store: widget.store,
                       theme: t,
@@ -101,7 +89,7 @@ class _JourneySheetState extends State<JourneySheet> {
   }
 
   Widget _tabs(UiTheme t) {
-    final labels = Lexicon.of.tabs;
+    final labels = const ['EL PUEBLO', 'HITOS', 'LEYENDAS'];
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(3, (i) {
@@ -138,13 +126,13 @@ class _JourneySheetState extends State<JourneySheet> {
 
 class _Summary extends StatelessWidget {
   const _Summary({required this.store, required this.theme});
-  final WallStore store;
+  final Store store;
   final UiTheme theme;
 
   @override
   Widget build(BuildContext context) {
     final t = theme;
-    final days = store.recentDays(35);
+    final days = store.lastDays(35);
     final maxDay = days.fold<int>(1, (m, d) => d.count > m ? d.count : m);
     final integrity = store.integrity;
 
@@ -153,21 +141,19 @@ class _Summary extends StatelessWidget {
       children: [
         Row(
           children: [
-            _stat(t, '${store.total}', Lexicon.of.unitsCaps),
-            _stat(t, '${store.wallLengthMeters.toStringAsFixed(0)} m', 'LARGO'),
+            _stat(t, '${store.total}', 'PIEZAS'),
+            _stat(t, '${store.plan.finishedBuildings(store.total)}', 'CASAS'),
             _stat(t, '${store.streak}', 'RACHA'),
             _stat(t, '${store.bestStreak}', 'MEJOR'),
           ],
         ),
         const SizedBox(height: 26),
-        Text(Lexicon.isTown ? 'LO QUE LLEVA EN PIE' : 'NIVEL DE LA MURALLA',
+        Text('LO QUE LLEVA EN PIE',
             style: t.label),
         const SizedBox(height: 10),
-        if (Lexicon.isTown) _TownBar(store: store, theme: t)
-        else _TierBar(store: store, theme: t),
+        _TownBar(store: store, theme: t),
         const SizedBox(height: 26),
-        Text(Lexicon.isTown ? 'ESTADO DEL PUEBLO' : 'ESTADO DE LA MURALLA',
-            style: t.label),
+        Text('ESTADO DEL PUEBLO', style: t.label),
         const SizedBox(height: 10),
         ClipRRect(
           borderRadius: BorderRadius.circular(4),
@@ -185,10 +171,10 @@ class _Summary extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           integrity > 0.99
-              ? Lexicon.of.stateIntact
+              ? 'Todas las ventanas encendidas. Cada día que sumás una pieza siguen así.'
               : integrity > 0.6
-                  ? Lexicon.of.stateSlipping
-                  : Lexicon.of.stateFalling,
+                  ? 'Empiezan a apagarse ventanas. Una sola pieza las vuelve a encender todas.'
+                  : 'El pueblo se está quedando vacío. Una pieza alcanza para que vuelvan a encenderse.',
           style: t.bodySoft,
         ),
         const SizedBox(height: 28),
@@ -223,7 +209,7 @@ class _Summary extends StatelessWidget {
         Text(store.nextEventLabel, style: t.body),
         const SizedBox(height: 6),
         Text(
-          Lexicon.of.creed,
+          'Una pieza es siempre un logro. Nunca un lote.',
           style: t.bodySoft.copyWith(fontStyle: FontStyle.italic),
         ),
         const SizedBox(height: 30),
@@ -231,24 +217,12 @@ class _Summary extends StatelessWidget {
         const SizedBox(height: 6),
         _SoundToggles(theme: t),
         const SizedBox(height: 4),
-        // The pointing is masonry: in a town there are no joints to look at.
-        if (!Lexicon.isTown)
-        _SheetRow(
-          theme: t,
-          icon: Icons.grain,
-          title: 'Mortero y juntas',
-          subtitle: 'Cómo se ve la piedra: junta viva, fina, enrasada o '
-              'piedra seca.',
-          trailing: MortarLook.of(Appearance.instance.mortar).name,
-          open: (nav) => AppearanceSheet(theme: t),
-        ),
         _RapidToggle(theme: t),
-        _WorldToggle(theme: t),
         _SheetRow(
           theme: t,
           icon: Icons.tune,
-          title: Lexicon.of.futureTitle,
-          subtitle: Lexicon.of.futureBlurb,
+          title: 'Ver el pueblo a futuro',
+          subtitle: 'Cómo se vería con 100, 500 o 5000 piezas. No toca las tuyas.',
           open: (nav) => DebugSheet(store: store, theme: t),
         ),
       ],
@@ -274,14 +248,14 @@ class _Summary extends StatelessWidget {
 /// would actually say out loud about a town.
 class _TownBar extends StatelessWidget {
   const _TownBar({required this.store, required this.theme});
-  final WallStore store;
+  final Store store;
   final UiTheme theme;
 
   @override
   Widget build(BuildContext context) {
     final t = theme;
-    final built = CityPlan.finishedBuildings(store.total);
-    final work = CityPlan.underway(store.total);
+    final built = store.plan.finishedBuildings(store.total);
+    final work = store.plan.underway(store.total);
     final left = work?.$2 ?? 0;
     final name = work?.$1 ?? '';
     final cost = left > 0 ? left : 1;
@@ -323,69 +297,6 @@ class _TownBar extends StatelessWidget {
   }
 }
 
-/// How high the wall has climbed, and how far the next level still is.
-///
-/// Every level opens a whole new band of courses above the old crenellations:
-/// the stones already laid stay exactly where they are, and the wall grows up
-/// over them instead of only sideways.
-class _TierBar extends StatelessWidget {
-  const _TierBar({required this.store, required this.theme});
-  final WallStore store;
-  final UiTheme theme;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = theme;
-    final tier = WallTiers.tierAt(math.max(0, store.total - 1));
-    final left = WallStore.bricksToNextTier(store.total);
-    final from = tier == 0 ? 0 : WallTiers.thresholds[tier - 1];
-    final to = left == null ? store.total : store.total + left;
-    final progress = to <= from
-        ? 1.0
-        : ((store.total - from) / (to - from)).clamp(0.0, 1.0);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Text(
-              WallStore.tierNameFor(store.total),
-              style: t.number.copyWith(
-                fontSize: 27,
-                fontFamily: Papyrus.serif,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                left == null
-                    ? 'Altura máxima alcanzada.'
-                    : 'Faltan $left para que suba otro nivel.',
-                style: t.bodySoft.copyWith(fontSize: 12),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 9),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: progress,
-            minHeight: 7,
-            backgroundColor: t.fg.withValues(alpha: 0.10),
-            valueColor: AlwaysStoppedAnimation(t.accent),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// The one switch in the app that breaks its own rule, kept for testing.
 class _RapidToggle extends StatefulWidget {
   const _RapidToggle({required this.theme});
   final UiTheme theme;
@@ -418,40 +329,6 @@ class _RapidToggleState extends State<_RapidToggle> {
   }
 }
 
-/// The prototype switch between the two worlds the same achievements can
-/// build. Temporary: one of the two will end up being the app.
-class _WorldToggle extends StatefulWidget {
-  const _WorldToggle({required this.theme});
-  final UiTheme theme;
-
-  @override
-  State<_WorldToggle> createState() => _WorldToggleState();
-}
-
-class _WorldToggleState extends State<_WorldToggle> {
-  @override
-  Widget build(BuildContext context) {
-    final t = widget.theme;
-    return SwitchListTile(
-      contentPadding: EdgeInsets.zero,
-      dense: true,
-      value: Appearance.instance.world == World.city,
-      activeThumbColor: t.accent,
-      title: Text('Construir un pueblo', style: t.body),
-      subtitle: Text(
-        'Los mismos logros, casa por casa en vez de piedra por piedra. '
-        'No se pierde nada: es la misma cuenta leída de otra manera.',
-        style: t.bodySoft.copyWith(fontSize: 11.5),
-      ),
-      onChanged: (v) async {
-        Sensory.instance.tick();
-        await Appearance.instance.setWorld(v ? World.city : World.wall);
-        if (mounted) setState(() {});
-      },
-    );
-  }
-}
-
 /// A quiet way into one of the sheets that changes how the wall looks.
 ///
 /// Every one of them opens without a scrim: they are all judgements about the
@@ -463,14 +340,12 @@ class _SheetRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.open,
-    this.trailing,
   });
 
   final UiTheme theme;
   final IconData icon;
   final String title;
   final String subtitle;
-  final String? trailing;
   final Widget Function(NavigatorState nav) open;
 
   @override
@@ -505,13 +380,6 @@ class _SheetRow extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(child: Text(title, style: t.body)),
-                      if (trailing != null)
-                        Text(
-                          trailing!,
-                          style: t.bodySoft.copyWith(
-                            fontSize: 11.5,
-                            color: t.accent,
-                          ),
                         ),
                     ],
                   ),
@@ -574,7 +442,7 @@ class _SoundTogglesState extends State<_SoundToggles> {
 /// is going up right now, and what is still to come.
 class _TownMilestones extends StatelessWidget {
   const _TownMilestones({required this.store, required this.theme});
-  final WallStore store;
+  final Store store;
   final UiTheme theme;
 
   static const _icons = [
@@ -587,7 +455,7 @@ class _TownMilestones extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = theme;
     final placed = store.total;
-    final rows = CityPlan.landmarksAround(placed);
+    final rows = store.plan.landmarksAround(placed);
 
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(22, 14, 22, 40),
@@ -664,114 +532,7 @@ class _TownMilestones extends StatelessWidget {
   }
 }
 
-class _Milestones extends StatelessWidget {
-  const _Milestones({
-    required this.store,
-    required this.theme,
-    required this.onGoTo,
-    required this.structureX,
-  });
-  final WallStore store;
-  final UiTheme theme;
-  final void Function(double x) onGoTo;
-  final Map<int, double> structureX;
 
-  @override
-  Widget build(BuildContext context) {
-    final t = theme;
-    final segs = store.plan.segments.where((s) => s.isMilestone).toList();
-    final shown = segs.where((s) => s.firstBrick <= store.total + 400).toList();
-    final layout = store.total;
-
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(22, 14, 22, 40),
-      itemCount: shown.length,
-      itemBuilder: (context, i) {
-        final s = shown[i];
-        final type = s.type!;
-        final done = layout >= s.firstBrick + s.length;
-        final active = layout > s.firstBrick && !done;
-        final progress = s.progress(layout);
-        final locked = layout <= s.firstBrick;
-
-        return Opacity(
-          opacity: locked ? 0.45 : 1,
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(15),
-            decoration: BoxDecoration(
-              color: t.fg.withValues(alpha: active ? 0.07 : 0.035),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(
-                color: active ? t.accent.withValues(alpha: 0.5) : t.stroke,
-              ),
-            ),
-            child: Row(
-              children: [
-                LandmarkSigil(
-                  kind: type.kind,
-                  color: locked
-                      ? t.fg.withValues(alpha: 0.34)
-                      : (active ? t.accent : t.fg.withValues(alpha: 0.78)),
-                  size: 34,
-                  locked: locked,
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        locked ? 'Hito ${s.milestoneNo + 1}' : type.name,
-                        style: t.body.copyWith(fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        done
-                            ? 'Levantado con ${s.length} ladrillos'
-                            : active
-                                ? 'En obra · ${layout - s.firstBrick} de ${s.length}'
-                                : 'Empieza en el ladrillo ${s.firstBrick + 1}',
-                        style: t.bodySoft.copyWith(fontSize: 11.5),
-                      ),
-                      if (active) ...[
-                        const SizedBox(height: 8),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(3),
-                          child: LinearProgressIndicator(
-                            value: progress,
-                            minHeight: 5,
-                            backgroundColor: t.fg.withValues(alpha: 0.10),
-                            valueColor: AlwaysStoppedAnimation(t.accent),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                if (done)
-                  IconButton(
-                    icon: Icon(Icons.my_location,
-                        size: 18, color: t.fg.withValues(alpha: 0.6)),
-                    onPressed: () {
-                      final x = structureX[s.firstBrick];
-                      if (x != null) {
-                        Navigator.of(context).pop();
-                        onGoTo(x);
-                      }
-                    },
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-/// The chronicle: every stone the person actually wrote something on, read as
-/// a scribe's log on a sheet of papyrus rather than as a list of rows.
 class _Legends extends StatelessWidget {
   const _Legends({
     required this.store,
@@ -780,10 +541,10 @@ class _Legends extends StatelessWidget {
     required this.onEdit,
   });
 
-  final WallStore store;
+  final Store store;
   final UiTheme theme;
-  final void Function(double x) onGoTo;
-  final void Function(Brick brick) onEdit;
+  final void Function(double x, double z) onGoTo;
+  final void Function(Piece brick) onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -814,14 +575,14 @@ class _Legends extends StatelessWidget {
         children: [
           const SizedBox(height: 26),
           Text(
-            Lexicon.of.logTitle,
+            'BITÁCORA DEL PUEBLO',
             textAlign: TextAlign.center,
             style: Papyrus.body(13, w: FontWeight.w700, c: Papyrus.ink)
                 .copyWith(letterSpacing: 2.6),
           ),
           const SizedBox(height: 6),
           Text(
-            '· ${Papyrus.roman(store.total)} ${Lexicon.of.logCount} ·',
+            '· ${Papyrus.roman(store.total)} ${'piezas asentadas'} ·',
             textAlign: TextAlign.center,
             style: Papyrus.body(11.5, c: Papyrus.inkFaint)
                 .copyWith(letterSpacing: 1.2),
@@ -844,7 +605,7 @@ class _Legends extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            Lexicon.of.noteInvite,
+            'Tocá cualquier parte del pueblo y dejale una leyenda: “Leí”, “Corrí”, lo que quieras. No hace falta —la pieza ya está puesta— pero lo que se escribe queda en esta bitácora, y dentro de un año esto va a ser una historia.',
             textAlign: TextAlign.center,
             style: Papyrus.body(14, c: Papyrus.inkSoft),
           ),
@@ -853,7 +614,7 @@ class _Legends extends StatelessWidget {
         ],
       );
 
-  Widget _log(BuildContext context, List<Brick> items) {
+  Widget _log(BuildContext context, List<Piece> items) {
     // Broken into months, each with its own illuminated heading.
     final rows = <Widget>[_heading()];
     String? month;
@@ -877,9 +638,12 @@ class _Legends extends StatelessWidget {
         ordinal: i + 1,
         dropCap: i == 0,
         onGo: () {
-          final slot = WallLayout(store.total).slotFor(b.index);
+          final piece = TownLayout(store.total, store.character,
+                  cx: Habit.centreOf(store.habit.slot).$1,
+                  cz: Habit.centreOf(store.habit.slot).$2)
+              .pieceFor(b.index);
           Navigator.of(context).pop();
-          if (slot != null) onGoTo(slot.x);
+          if (piece != null) onGoTo(piece.cx, piece.cz);
         },
         onEdit: () {
           Navigator.of(context).pop();
@@ -892,7 +656,7 @@ class _Legends extends StatelessWidget {
       ..add(const PapyrusRule(wide: true))
       ..add(const SizedBox(height: 10))
       ..add(Text(
-        Lexicon.isTown ? 'Y el pueblo sigue creciendo.' : 'Y la muralla sigue creciendo.',
+        'Y el pueblo sigue creciendo.',
         textAlign: TextAlign.center,
         style: Papyrus.body(12.5, c: Papyrus.inkFaint)
             .copyWith(fontStyle: FontStyle.italic),

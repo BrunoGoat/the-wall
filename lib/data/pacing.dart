@@ -1,176 +1,34 @@
-import 'milestones.dart';
-
-/// The rhythm of the wall.
+/// How fast the town falls quiet when nobody comes back.
 ///
-/// This file is the second backbone of the app. Every threshold here is chosen
-/// for *real* usage, not for a demo with thousands of bricks:
+/// The only rhythm the app still owns outside the town's own plan. Everything
+/// else — what gets built, when, and how long it takes — lives in the plan in
+/// `engine/town.dart`, expressed purely in achievements.
 ///
-///  * One brick is always one achievement. Never a batch. That rule is not
-///    negotiable, so pacing is expressed purely in brick counts.
-///  * Someone logging one or two things a day places roughly 30-60 bricks in a
-///    month. That first month has to feel alive, so the first landmark starts
-///    at brick 12 and is finished well inside the month.
-///  * Someone who keeps it up for a year lands somewhere around 350-1100
-///    bricks. By then they must have met many *different* landmarks.
-///  * Landmarks keep arriving for years afterwards without ever bunching up.
+/// The numbers here are chosen for real use, not for a demo:
+///
+///  * A day and a half of grace, because life happens and a habit that
+///    punishes a single missed evening is a habit nobody keeps.
+///  * A fortnight from full to nearly dark, so the slide is slow enough to
+///    notice and steep enough to mind.
+///  * It never reaches zero. What you built stays built; only the lights go
+///    out, and one piece turns them all back on.
 class Pacing {
   const Pacing._();
 
-  /// Brick index at which the first milestone begins to be built.
-  static const int firstMilestoneAt = 12;
-
-  /// Where milestone number [n] (0-based) starts.
-  ///
-  /// Gaps widen gently rather than exploding, so landmarks keep arriving for
-  /// years: 12, 45, 86, 135, 192, 257, ...
-  static int milestoneStart(int n) {
-    var at = firstMilestoneAt;
-    for (var i = 0; i < n; i++) {
-      at += _milestoneGap(i);
-    }
-    return at;
-  }
-
-  static int _milestoneGap(int i) => 33 + 8 * i;
-
-  /// How much taller the wall is at brick [index] than it was at the start.
-  ///
-  /// Set by the renderer's tier ladder; kept here as a plain table so the plan
-  /// does not depend on the geometry engine and stays trivially inspectable.
-  static double wallGrowthAt(int index) {
-    const thresholds = [100, 350, 900];
-    const growth = [1.0, 1.93, 2.64, 3.13];
-    var k = 0;
-    for (final t in thresholds) {
-      if (index >= t) k++;
-    }
-    return growth[k];
-  }
-
-  /// Grace period before the wall starts to suffer, in days.
+  /// Days off before anything at all begins to dim.
   static const double decayGraceDays = 1.6;
 
-  /// Days from the end of the grace period to full ruin.
+  /// Days from the end of that grace to as empty as it ever gets.
   static const double decayFullDays = 14.0;
 
-  /// Integrity never drops to zero: the wall weathers, it never disappears.
+  /// The floor. A town is never abandoned, only unlit.
   static const double minIntegrity = 0.12;
 
-  /// Structural integrity in 0..1 from days since the last brick.
   static double integrityFor(double daysIdle) {
     if (daysIdle <= decayGraceDays) return 1.0;
     final t = (daysIdle - decayGraceDays) / decayFullDays;
     final v = 1.0 - t;
     if (v < minIntegrity) return minIntegrity;
     return v > 1 ? 1 : v;
-  }
-}
-
-/// The full ordered plan of the wall: alternating stretches of plain rampart
-/// and milestone structures, expressed only in brick counts.
-class WallPlan {
-  WallPlan(this.totalBricks) {
-    var index = 0;
-    var milestoneNo = 0;
-    var cursor = 0;
-    // Build enough of the plan to cover the requested brick count plus a little
-    // headroom so the "next milestone" preview always has something to show.
-    final limit = totalBricks + 260;
-    while (cursor < limit) {
-      final start = Pacing.milestoneStart(milestoneNo);
-      if (start > cursor) {
-        final runLength = start - cursor;
-        segments.add(PlanSegment.run(
-          firstBrick: cursor,
-          length: runLength,
-          index: index++,
-        ));
-        cursor = start;
-      }
-      // Priced for the wall it will stand in, which depends only on where it
-      // starts — a fixed function of its number. The plan is therefore the same
-      // on the first day as on the thousandth.
-      final type = MilestoneCatalog.typeFor(
-        milestoneNo,
-        wallGrowth: Pacing.wallGrowthAt(cursor),
-      );
-      segments.add(PlanSegment.milestone(
-        firstBrick: cursor,
-        length: type.brickCost,
-        index: index++,
-        milestoneNo: milestoneNo,
-        type: type,
-      ));
-      cursor += type.brickCost;
-      milestoneNo++;
-    }
-  }
-
-  final int totalBricks;
-  final List<PlanSegment> segments = [];
-
-  /// The segment that contains a given brick index.
-  PlanSegment segmentOf(int brick) {
-    for (final s in segments) {
-      if (brick >= s.firstBrick && brick < s.firstBrick + s.length) return s;
-    }
-    return segments.last;
-  }
-
-  /// The milestone currently under construction, if any.
-  PlanSegment? activeMilestone(int placed) {
-    for (final s in segments) {
-      if (!s.isMilestone) continue;
-      if (placed > s.firstBrick && placed < s.firstBrick + s.length) return s;
-    }
-    return null;
-  }
-
-  /// The next milestone that has not been finished yet.
-  PlanSegment? nextMilestone(int placed) {
-    for (final s in segments) {
-      if (!s.isMilestone) continue;
-      if (placed < s.firstBrick + s.length) return s;
-    }
-    return null;
-  }
-
-  /// Milestones fully built at [placed] bricks.
-  List<PlanSegment> completedMilestones(int placed) => segments
-      .where((s) => s.isMilestone && placed >= s.firstBrick + s.length)
-      .toList();
-}
-
-class PlanSegment {
-  PlanSegment.run({
-    required this.firstBrick,
-    required this.length,
-    required this.index,
-  })  : isMilestone = false,
-        milestoneNo = -1,
-        type = null;
-
-  PlanSegment.milestone({
-    required this.firstBrick,
-    required this.length,
-    required this.index,
-    required this.milestoneNo,
-    required this.type,
-  }) : isMilestone = true;
-
-  final int firstBrick;
-  final int length;
-  final int index;
-  final bool isMilestone;
-  final int milestoneNo;
-  final MilestoneType? type;
-
-  int get lastBrick => firstBrick + length - 1;
-
-  /// 0..1 build progress of this segment at [placed] total bricks.
-  double progress(int placed) {
-    if (placed <= firstBrick) return 0;
-    if (placed >= firstBrick + length) return 1;
-    return (placed - firstBrick) / length;
   }
 }

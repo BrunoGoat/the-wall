@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import '../data/lexicon.dart';
 
 import '../fx/sensory.dart';
-import '../model/wall_store.dart';
+import '../model/store.dart';
 import 'style.dart';
 
 /// Looks at what the wall becomes after any number of bricks.
@@ -13,7 +12,7 @@ import 'style.dart';
 class DebugSheet extends StatefulWidget {
   const DebugSheet({super.key, required this.store, required this.theme});
 
-  final WallStore store;
+  final Store store;
   final UiTheme theme;
 
   static const List<int> shortcuts = [50, 100, 200, 500, 1000, 5000];
@@ -62,11 +61,10 @@ class _DebugSheetState extends State<DebugSheet> {
             ),
           ),
           const SizedBox(height: 18),
-          Text(Lexicon.of.futureTitle.toUpperCase(), style: t.label),
+          Text('VER EL PUEBLO A FUTURO', style: t.label),
           const SizedBox(height: 5),
           Text(
-            'Sólo mira. Tus ${store.total} ${Lexicon.of.units} reales '
-            'quedan intactas.',
+            'Sólo mira. Tus ${store.total} piezas reales quedan intactas.',
             style: t.bodySoft.copyWith(fontSize: 12),
           ),
           const SizedBox(height: 20),
@@ -76,18 +74,8 @@ class _DebugSheetState extends State<DebugSheet> {
             children: [
               Text('$shown', style: t.number.copyWith(fontSize: 40)),
               const SizedBox(width: 9),
-              Text(Lexicon.of.unitsCaps, style: t.label),
+              Text('PIEZAS', style: t.label),
               const Spacer(),
-              if (!Lexicon.isTown)
-              Text(
-                'nivel ${WallStore.tierNameFor(shown)}',
-                style: TextStyle(
-                  color: t.accent,
-                  fontSize: 11.5,
-                  letterSpacing: 1.4,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
             ],
           ),
           SliderTheme(

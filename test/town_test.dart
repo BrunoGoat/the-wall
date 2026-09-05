@@ -2,21 +2,22 @@ import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:la_muralla/data/character.dart';
 import 'package:la_muralla/data/landmarks.dart';
-import 'package:la_muralla/engine/city.dart';
+import 'package:la_muralla/engine/town.dart';
 import 'package:la_muralla/engine/mason.dart';
 
 void main() {
   group('one achievement is one piece', () {
     test('n achievements produce n pieces, plus one ghost for the next', () {
       for (final n in [0, 1, 7, 30, 200, 900]) {
-        expect(CityLayout(n).pieces.length, n + 1, reason: 'with $n placed');
+        expect(TownLayout(n, TownCharacter.all.first).pieces.length, n + 1, reason: 'with $n placed');
       }
     });
 
     test('a piece laid today is in the same place tomorrow', () {
-      final now = CityLayout(140);
-      final later = CityLayout(900);
+      final now = TownLayout(140, TownCharacter.all.first);
+      final later = TownLayout(900, TownCharacter.all.first);
       for (var i = 0; i < now.pieces.length - 1; i++) {
         final a = now.pieces[i], b = later.pieces[i];
         expect(b.kind, a.kind, reason: 'piece $i changed kind');
@@ -29,7 +30,7 @@ void main() {
     });
 
     test('the same town is rebuilt exactly the same way', () {
-      final a = CityLayout(333), b = CityLayout(333);
+      final a = TownLayout(333, TownCharacter.all.first), b = TownLayout(333, TownCharacter.all.first);
       for (var i = 0; i < a.pieces.length; i++) {
         expect(b.pieces[i].cx, a.pieces[i].cx);
         expect(b.pieces[i].y1, a.pieces[i].y1);
@@ -39,7 +40,7 @@ void main() {
 
   group('the buildings', () {
     test('every finished building cost exactly what the plan says', () {
-      final city = CityLayout(900);
+      final city = TownLayout(900, TownCharacter.all.first);
       for (final b in city.buildings) {
         if (!b.finished) continue;
         final mine = city.pieces.where((p) => p.building == b.index).length;
@@ -48,7 +49,7 @@ void main() {
     });
 
     test('a house is built from the ground up, with nothing left floating', () {
-      final city = CityLayout(900);
+      final city = TownLayout(900, TownCharacter.all.first);
       for (final b in city.buildings) {
         final mine = city.pieces.where((p) => p.building == b.index).toList();
         if (mine.isEmpty) continue;
@@ -72,8 +73,8 @@ void main() {
       // a door or a clock face left hanging over the tiles. Only a chimney is
       // allowed to come out through a roof.
       const caps = {PieceKind.roof, PieceKind.spire};
-      final city = CityLayout(900);
-      bool over(CityPiece a, CityPiece b) =>
+      final city = TownLayout(900, TownCharacter.all.first);
+      bool over(TownPiece a, TownPiece b) =>
           (a.cx - b.cx).abs() < (a.w + b.w) * 0.4 &&
           (a.cz - b.cz).abs() < (a.d + b.d) * 0.4;
       for (final b in city.buildings) {
@@ -99,7 +100,7 @@ void main() {
     });
 
     test('no two houses are built on the same plot', () {
-      final city = CityLayout(900);
+      final city = TownLayout(900, TownCharacter.all.first);
       final seen = <String>{};
       for (final b in city.buildings) {
         expect(seen.add('${b.cx.toStringAsFixed(3)},${b.cz.toStringAsFixed(3)}'),
@@ -109,7 +110,7 @@ void main() {
     });
 
     test('a year of use meets several different landmarks', () {
-      final city = CityLayout(900);
+      final city = TownLayout(900, TownCharacter.all.first);
       final names = city.buildings
           .where((b) => b.isLandmark && b.finished)
           .map((b) => b.name)
@@ -124,7 +125,7 @@ void main() {
   group('the town keeps its shape', () {
     test('it grows outward from the middle, never as a single line', () {
       for (final n in [30, 200, 900]) {
-        final city = CityLayout(n);
+        final city = TownLayout(n, TownCharacter.all.first);
         var maxX = 0.0, maxZ = 0.0;
         for (final b in city.buildings) {
           if (b.cx.abs() > maxX) maxX = b.cx.abs();
@@ -139,7 +140,7 @@ void main() {
     test('the town spreads slowly enough to stay one place', () {
       // A hundred times more achievements must not put the far side of town
       // a hundred times further away.
-      expect(CityLayout(9000).radius, lessThan(CityLayout(90).radius * 12));
+      expect(TownLayout(9000, TownCharacter.all.first).radius, lessThan(TownLayout(90, TownCharacter.all.first).radius * 12));
     });
   });
 
@@ -268,10 +269,11 @@ void main() {
     });
 
     test('a long life meets a hundred landmarks without repeating one', () {
+      final plan = TownPlan.of(TownCharacter.all.first);
       final seen = <String>[];
       for (var b = 0; b < 12000; b++) {
-        if (!CityPlan.isLandmarkSlot(b)) continue;
-        seen.add(CityPlan.landmarkFor(b).id);
+        if (!TownPlan.isLandmarkSlot(b)) continue;
+        seen.add(plan.landmarkFor(b).id);
         if (seen.length >= 100) break;
       }
       expect(seen.length, 100, reason: 'only ${seen.length} landmarks come up');

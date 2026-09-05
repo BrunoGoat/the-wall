@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import '../core/rng.dart';
+import '../data/character.dart';
 import '../data/landmarks.dart';
 import 'mason.dart';
 
@@ -12,8 +13,8 @@ export 'mason.dart' show PieceKind;
 /// "the wall is one brick longer", but a piece of a house means "the house is
 /// nearly finished", and three days later the house *is* finished. There is a
 /// completion to look forward to that is closer than the next landmark.
-class CityPiece {
-  CityPiece({
+class TownPiece {
+  TownPiece({
     required this.index,
     required this.building,
     required this.kind,
@@ -82,8 +83,8 @@ const Map<BuildingKind, String> buildingName = {
   BuildingKind.inn: 'Posada',
 };
 
-class CityBuilding {
-  CityBuilding({
+class TownBuilding {
+  TownBuilding({
     required this.index,
     required this.kind,
     required this.landmark,
@@ -125,8 +126,15 @@ class CityBuilding {
 /// A pure function of the building's number, exactly like the wall's plan, so
 /// the hundredth achievement lands on the same piece of the same house whether
 /// it is placed today or replayed on a fresh install.
-class CityPlan {
-  const CityPlan._();
+class TownPlan {
+  TownPlan._(this.character);
+
+  /// One plan per kind of place, built once and kept.
+  static final Map<int, TownPlan> _plans = {};
+  factory TownPlan.of(TownCharacter c) =>
+      _plans.putIfAbsent(c.order, () => TownPlan._(c));
+
+  final TownCharacter character;
 
   /// Landmarks arrive at a widening cadence, so the first one is close enough
   /// to be worth waiting for and the twentieth does not arrive every fortnight.
@@ -174,12 +182,12 @@ class CityPlan {
   /// things rather than the same four. The sequence is front-loaded with the
   /// small works and back-loaded with the grand ones, which is the order a real
   /// town builds in: the well before the cathedral.
-  static Landmark landmarkFor(int b) {
+  Landmark landmarkFor(int b) {
     final seq = _sequence;
     return seq[landmarkNumber(b) % seq.length];
   }
 
-  static List<Landmark>? _seq;
+  List<Landmark>? _seq;
 
   /// The pattern of tiers the sequence follows, repeated until the catalogue is
   /// spent. Roughly a third small, half middling and a fifth grand, which is
@@ -187,14 +195,14 @@ class CityPlan {
   /// the fallback below almost never fires.
   static const List<int> _cadence = [0, 1, 0, 1, 2, 1, 0, 1, 2, 1];
 
-  /// The first landmarks a town builds, chosen rather than drawn.
+  /// The landmarks worth opening a town with.
   ///
-  /// The catalogue is shuffled so that no two towns walk the same road, but the
-  /// opening is not: the first two years should show what the town is capable
-  /// of — a mill with its crops, a wheel turning in a river, a bridge, a
-  /// castle — and not a pigsty and a charnel house, which is what an honest
-  /// shuffle keeps handing out.
-  static const List<String> _opening = [
+  /// A town's first two years should show what the place is capable of — a mill
+  /// with its crops, a wheel turning in a river, a bridge, a castle — and not a
+  /// pigsty and a charnel house, which is what an honest shuffle keeps handing
+  /// out. So the openers are chosen; but *which* of them a given town gets, and
+  /// in what order, is its own, so two habits never walk the same road.
+  static const List<String> _openers = [
     'pozo',
     'horno',
     'molinoViento',
@@ -217,13 +225,21 @@ class CityPlan {
     'concejo',
   ];
 
-  static List<Landmark> get _sequence {
+  List<Landmark> get _sequence {
     final cached = _seq;
     if (cached != null) return cached;
 
     final out = <Landmark>[];
     final taken = <String>{};
-    for (final id in _opening) {
+    // This town's own order through the openers.
+    final opening = <(double, String)>[
+      for (var i = 0; i < _openers.length; i++)
+        (hash01(character.order, 0x09E4, i), _openers[i]),
+    ]..sort((a, b) {
+        final c = a.$1.compareTo(b.$1);
+        return c != 0 ? c : a.$2.compareTo(b.$2);
+      });
+    for (final (_, id) in opening) {
       for (final l in landmarks) {
         if (l.id == id && taken.add(id)) out.add(l);
       }
@@ -253,16 +269,17 @@ class CityPlan {
     return _seq = out;
   }
 
-  static final Map<int, List<Landmark>> _pools = {};
+  final Map<int, List<Landmark>> _pools = {};
 
   /// One tier's catalogue, shuffled once and then kept.
   ///
   /// A fixed permutation, so appending a new landmark to the catalogue only
   /// ever changes what comes after everything already standing.
-  static List<Landmark> _pool(int tier) => _pools.putIfAbsent(tier, () {
+  List<Landmark> _pool(int tier) => _pools.putIfAbsent(tier, () {
         final of = landmarks.where((l) => l.tier == tier).toList();
         final keyed = <(double, Landmark)>[
-          for (var i = 0; i < of.length; i++) (hash01(0x5EED, tier, i), of[i]),
+          for (var i = 0; i < of.length; i++)
+            (hash01(character.order, tier, i), of[i]),
         ];
         keyed.sort((a, b) {
           final c = a.$1.compareTo(b.$1);
@@ -312,7 +329,7 @@ class CityPlan {
   ///
   /// A pure walk over the plan, so the label at the top of the screen never
   /// needs a laid-out town to say what is being built.
-  static (String, int, bool)? underway(int placed) {
+  (String, int, bool)? underway(int placed) {
     var cursor = 0;
     for (var b = 0; b < 20000; b++) {
       final mark = isLandmarkSlot(b) ? landmarkFor(b) : null;
@@ -329,7 +346,7 @@ class CityPlan {
   /// Every landmark the town has built or is about to, with the achievement
   /// it starts at and what it costs. Enough to show the road ahead without
   /// laying out a town to do it.
-  static List<(Landmark, int)> landmarksAround(int placed, {int ahead = 500}) {
+  List<(Landmark, int)> landmarksAround(int placed, {int ahead = 500}) {
     final out = <(Landmark, int)>[];
     var cursor = 0;
     for (var b = 0; b < 20000; b++) {
@@ -343,7 +360,7 @@ class CityPlan {
   }
 
   /// How many buildings the town has finished.
-  static int finishedBuildings(int placed) {
+  int finishedBuildings(int placed) {
     var cursor = 0, n = 0;
     for (var b = 0; b < 20000; b++) {
       cursor += costOf(b);
@@ -354,35 +371,48 @@ class CityPlan {
   }
 
   /// What it costs to build the bth building, whatever it turns out to be.
-  static int costOf(int b) =>
+  int costOf(int b) =>
       isLandmarkSlot(b) ? landmarkFor(b).cost : buildingCost[kindFor(b)]!;
 }
 
-class CityLayout {
-  CityLayout(this.placed) {
+class TownLayout {
+  TownLayout(this.placed, this.character, {this.cx = 0, this.cz = 0})
+      : plan = TownPlan.of(character),
+        plotPitch = character.plotPitch {
     _build();
   }
+
+  /// Where in the valley this town stands. Every habit has its own plot, so
+  /// several towns can be looked at side by side without any of them moving.
+  final double cx, cz;
+
+  /// What kind of place this is: how tall its houses stand, how tight its
+  /// streets run, and the order it meets the hundred and twelve.
+  final TownCharacter character;
+  final TownPlan plan;
 
   /// One extra piece is always laid out so the app can show a ghost of where
   /// the next one goes.
   final int placed;
 
-  final List<CityPiece> pieces = [];
-  final List<CityBuilding> buildings = [];
+  final List<TownPiece> pieces = [];
+  final List<TownBuilding> buildings = [];
 
   /// How far the town reaches from its centre, for framing the camera.
   double radius = 4;
 
-  CityPiece? pieceFor(int index) =>
+  TownPiece? pieceFor(int index) =>
       index >= 0 && index < pieces.length ? pieces[index] : null;
 
-  CityBuilding? buildingOf(int index) {
+  TownBuilding? buildingOf(int index) {
     final p = pieceFor(index);
     return p == null ? null : buildings[p.building];
   }
 
-  static const double plotPitch = 2.5;
-  static const double blockPitch = 9.0;
+  /// How close together the plots are laid here.
+  final double plotPitch;
+
+  double get blockPitch => plotPitch * 3.6;
 
   void _build() {
     final want = placed + 1;
@@ -390,30 +420,30 @@ class CityLayout {
     // How many buildings the town needs to hold that many pieces.
     var count = 0, total = 0;
     while (total < want) {
-      total += CityPlan.costOf(count);
+      total += plan.costOf(count);
       count++;
     }
     count = math.max(count, 1);
 
-    final isMark = [for (var b = 0; b < count; b++) CityPlan.isLandmarkSlot(b)];
+    final isMark = [for (var b = 0; b < count; b++) TownPlan.isLandmarkSlot(b)];
     final plots = _plots(count, isMark);
     var index = 0;
     for (var b = 0; b < count; b++) {
-      final mark = isMark[b] ? CityPlan.landmarkFor(b) : null;
+      final mark = isMark[b] ? plan.landmarkFor(b) : null;
       final seed = hash32(b, 0x9e37, 17);
-      final building = CityBuilding(
+      final building = TownBuilding(
         index: b,
-        kind: mark == null ? CityPlan.kindFor(b) : null,
+        kind: mark == null ? TownPlan.kindFor(b) : null,
         landmark: mark,
         firstPiece: index,
-        cx: plots[b].$1,
-        cz: plots[b].$2,
+        cx: cx + plots[b].$1,
+        cz: cz + plots[b].$2,
         seed: seed,
       );
       final made = _piecesOf(building);
       for (final p in made) {
         if (index >= want) break;
-        pieces.add(CityPiece(
+        pieces.add(TownPiece(
           index: index,
           building: b,
           kind: p.kind,
@@ -431,8 +461,8 @@ class CityLayout {
         index++;
       }
       buildings.add(building);
-      final out =
-          math.sqrt(building.cx * building.cx + building.cz * building.cz);
+      final out = math.sqrt((building.cx - cx) * (building.cx - cx) +
+          (building.cz - cz) * (building.cz - cz));
       if (out + building.reach > radius) radius = out + building.reach;
       if (index >= want) break;
     }
@@ -474,7 +504,7 @@ class CityLayout {
     final reaches = <double>[];
     var from = 0;
     for (var b = 0; b < want; b++) {
-      final r = isMark[b] ? CityPlan.landmarkFor(b).room : 1.3;
+      final r = isMark[b] ? plan.landmarkFor(b).room : 1.3;
       var placedIt = false;
       for (var i = from; i < all.length; i++) {
         if (used[i]) continue;
@@ -511,7 +541,7 @@ class CityLayout {
     return out;
   }
 
-  List<Spec> _piecesOf(CityBuilding b) {
+  List<Spec> _piecesOf(TownBuilding b) {
     final s = b.seed;
     // Every building sits a little differently on its plot, so a grid of them
     // never lines up into a barracks. A landmark sits square: it is the thing
@@ -530,34 +560,38 @@ class CityLayout {
       return m.finish(mark.cost);
     }
 
-    final wide = hashRange(1.45, 1.85, s, 6);
-    final deep = hashRange(1.35, 1.75, s, 7);
-    final storey = hashRange(0.92, 1.14, s, 8);
+    // The same house, built the way this place builds houses: a Sierra town
+    // piles its storeys up on a narrow footprint, a Ribera town spreads out
+    // and keeps its roofs shallow.
+    final wide = hashRange(1.45, 1.85, s, 6) * character.spread;
+    final deep = hashRange(1.35, 1.75, s, 7) * character.spread;
+    final storey = hashRange(0.92, 1.14, s, 8) * character.storey;
+    final pitch = character.pitch;
 
     switch (b.kind!) {
       case BuildingKind.shed:
         m.floor(wide * 0.8, deep * 0.8, storey * 0.78);
-        m.roof(wide * 0.86, deep * 0.86, 0.42);
+        m.roof(wide * 0.86, deep * 0.86, 0.42 * pitch);
       case BuildingKind.cottage:
         m.floor(wide, deep, storey);
-        m.roof(wide + 0.16, deep + 0.16, 0.62);
+        m.roof(wide + 0.16, deep + 0.16, 0.62 * pitch);
         m.chimney(0.26, 0.75, dx: wide * 0.28, dz: deep * 0.18);
       case BuildingKind.workshop:
         m.floor(wide, deep, storey);
         m.floor(wide, deep, storey * 0.85);
-        m.roof(wide + 0.16, deep + 0.16, 0.58);
+        m.roof(wide + 0.16, deep + 0.16, 0.58 * pitch);
         m.door(wide * 0.5, 0.66, dz: deep * 0.5 + 0.22);
       case BuildingKind.house:
         m.floor(wide, deep, storey);
         m.floor(wide, deep, storey * 0.92);
-        m.roof(wide + 0.18, deep + 0.18, 0.7);
+        m.roof(wide + 0.18, deep + 0.18, 0.7 * pitch);
         m.chimney(0.28, 0.9, dx: -wide * 0.3, dz: deep * 0.2);
         m.dormer(0.5, 0.42, dz: deep * 0.28);
       case BuildingKind.granary:
         m.plinth(wide + 0.3, deep + 0.3, 0.34);
         m.floor(wide, deep, storey * 1.15);
         m.floor(wide, deep, storey);
-        m.roof(wide + 0.22, deep + 0.22, 0.78);
+        m.roof(wide + 0.22, deep + 0.22, 0.78 * pitch);
         m.door(wide * 0.42, 0.5, dz: deep * 0.5 + 0.2);
         m.dormer(0.42, 0.4, dz: -deep * 0.28);
       case BuildingKind.townhouse:
@@ -565,13 +599,13 @@ class CityLayout {
         m.floor(wide, deep, storey);
         m.floor(wide, deep, storey * 0.95);
         m.floor(wide, deep, storey * 0.9);
-        m.roof(wide + 0.2, deep + 0.2, 0.72);
+        m.roof(wide + 0.2, deep + 0.2, 0.72 * pitch);
         m.dormer(0.46, 0.4, dz: deep * 0.26);
         m.door(wide * 0.44, 0.62, dz: deep * 0.5 + 0.2);
       case BuildingKind.inn:
         m.floor(wide * 1.15, deep, storey * 1.1);
         m.floor(wide * 1.15, deep, storey);
-        m.roof(wide * 1.25, deep + 0.2, 0.72);
+        m.roof(wide * 1.25, deep + 0.2, 0.72 * pitch);
         // The side wing stands on the ground beside the inn, not on its roof.
         m.box(PieceKind.floor, wide * 0.6, deep * 0.7, storey * 0.9,
             dx: wide * 0.8, ridge: true, at: 0);
