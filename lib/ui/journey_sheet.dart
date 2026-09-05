@@ -377,12 +377,7 @@ class _SheetRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(child: Text(title, style: t.body)),
-                        ),
-                    ],
-                  ),
+                  Text(title, style: t.body),
                   const SizedBox(height: 2),
                   Text(subtitle, style: t.bodySoft.copyWith(fontSize: 11.5)),
                 ],
