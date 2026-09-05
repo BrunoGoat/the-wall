@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:la_muralla/data/character.dart';
+import 'package:la_muralla/model/habit.dart';
 import 'package:la_muralla/data/landmarks.dart';
 import 'package:la_muralla/engine/town.dart';
 import 'package:la_muralla/engine/mason.dart';
@@ -278,6 +279,71 @@ void main() {
       }
       expect(seen.length, 100, reason: 'only ${seen.length} landmarks come up');
       expect(seen.toSet().length, 100, reason: 'a landmark came round twice');
+    });
+  });
+
+  group('a valley of towns', () {
+    test('every plot is a different kind of place', () {
+      final regions = TownCharacter.all.map((c) => c.region).toSet();
+      expect(regions.length, TownCharacter.all.length);
+      final orders = TownCharacter.all.map((c) => c.order).toSet();
+      expect(orders.length, TownCharacter.all.length);
+    });
+
+    test('two towns meet the hundred and twelve in a different order', () {
+      // Four habits must not feel like the same thing four times, and the
+      // clearest way they would is by hitting the same landmarks on the same
+      // days. Every plot walks its own road.
+      final roads = <String>{};
+      for (final c in TownCharacter.all) {
+        final plan = TownPlan.of(c);
+        final first = <String>[];
+        for (var b = 0; b < 400 && first.length < 10; b++) {
+          if (TownPlan.isLandmarkSlot(b)) first.add(plan.landmarkFor(b).id);
+        }
+        expect(first.length, 10);
+        roads.add(first.join(','));
+      }
+      expect(roads.length, TownCharacter.all.length,
+          reason: 'dos plots construyen los mismos hitos en el mismo orden');
+    });
+
+    test('every town still opens with something worth waiting for', () {
+      // Different, but never worse: an honest shuffle hands out a pigsty
+      // before the mill, and that is a bad first month whichever plot it is.
+      const dreary = {'porqueriza', 'osario', 'picota', 'camposanto', 'horca'};
+      for (final c in TownCharacter.all) {
+        final plan = TownPlan.of(c);
+        final first = <String>[];
+        for (var b = 0; b < 200 && first.length < 4; b++) {
+          if (TownPlan.isLandmarkSlot(b)) first.add(plan.landmarkFor(b).id);
+        }
+        for (final id in first) {
+          expect(dreary.contains(id), isFalse,
+              reason: '${c.region} abre con $id');
+        }
+      }
+    });
+
+    test('two towns never stand on top of each other', () {
+      for (var a = 0; a < Habit.maxSlots; a++) {
+        for (var b = a + 1; b < Habit.maxSlots; b++) {
+          final (ax, az) = Habit.centreOf(a);
+          final (bx, bz) = Habit.centreOf(b);
+          final d = math.sqrt((ax - bx) * (ax - bx) + (az - bz) * (az - bz));
+          // Room for two towns of thirty thousand achievements each.
+          expect(d, greaterThan(90.0), reason: 'plots $a y $b');
+        }
+      }
+    });
+
+    test('a town is built where its plot is, not at the origin', () {
+      final (cx, cz) = Habit.centreOf(3);
+      final t = TownLayout(200, TownCharacter.forSlot(3), cx: cx, cz: cz);
+      for (final p in t.pieces) {
+        expect((p.cx - cx).abs(), lessThan(40));
+        expect((p.cz - cz).abs(), lessThan(40));
+      }
     });
   });
 }

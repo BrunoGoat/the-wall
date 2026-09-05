@@ -17,6 +17,26 @@ int _ch(double v) {
   return i < 0 ? 0 : (i > 255 ? 255 : i);
 }
 
+/// One town in the valley, and what the habit behind it is called.
+class TownEntry {
+  const TownEntry({
+    required this.layout,
+    required this.name,
+    required this.symbol,
+    required this.integrity,
+    required this.placed,
+  });
+
+  final TownLayout layout;
+  final String name;
+  final String symbol;
+
+  /// How lit this town is. A habit left alone goes dark, and from across the
+  /// valley that is the whole comparison: this one is alive, that one is not.
+  final double integrity;
+  final int placed;
+}
+
 /// One stone as it appears on screen this frame, kept so taps can be resolved
 /// back to the brick that was drawn there.
 class PickTarget {
@@ -39,7 +59,8 @@ class TownScene {
     required this.labelledBricks,
     this.fx,
     this.budget = 2900,
-    required this.town,
+    required this.towns,
+    required this.active,
     this.finished,
     this.finishedAge = 99,
     this.selectedBrick,
@@ -67,8 +88,13 @@ class TownScene {
 
 
 
-  /// The town the achievements have built.
-  final TownLayout town;
+  /// Every town in the valley, one per habit, and which of them is the one
+  /// being built right now. They are all drawn: the whole point of a valley
+  /// with several towns in it is being able to look at them together.
+  final List<TownEntry> towns;
+  final int active;
+
+  TownLayout get town => towns[active].layout;
 
   /// The building that has just been finished, and how long ago in seconds.
   /// A house takes days to build and a second to celebrate.
@@ -128,16 +154,19 @@ class TownPainter extends CustomPainter {
     _drawSky(canvas, size, p, horizonY);
     _drawGround(canvas, size, horizonY);
     _drawRanges(canvas, p, size, horizonY);
-    _drawTownGround(canvas, p, town);
+    for (final e in scene.towns) {
+      _drawTownGround(canvas, p, e.layout);
+    }
     _drawMeadow(p, size, town);
     _drawRings(canvas, p, town, overlay: false);
-    _collectTown(p, size, town);
+    _collectTown(p, size);
     _flush(canvas);
     _drawLamps(canvas, size);
     _drawBirds(canvas, p, size, town);
     _drawRings(canvas, p, town, overlay: true);
     _drawTownGhost(canvas, p, size, town);
     _drawTownLabels(canvas, p, size, town);
+    _drawTownSigns(canvas, p, size);
     _drawParticles(canvas, p);
     _drawAtmosphere(canvas, size, horizonY);
   }
@@ -755,6 +784,115 @@ class TownPainter extends CustomPainter {
     }
   }
 
+  /// The sign over each town: its symbol, its name and how much of it is
+  /// standing.
+  ///
+  /// This is the whole reason several towns share a valley. From far enough
+  /// back you cannot read a house, but you can read four signs and see under
+  /// each one how big and how lit its town is — which is the answer to "me
+  /// está yendo bien con esto y mal con lo otro", said in one look.
+  void _drawTownSigns(Canvas canvas, Projector p, Size size) {
+    if (scene.towns.length < 2) return;
+    final pal = scene.palette;
+    final dark = _isDarkSky();
+
+    // Nearest first, so a sign never covers one in front of it.
+    final rows = <(double, int)>[];
+    for (var i = 0; i < scene.towns.length; i++) {
+      final l = scene.towns[i].layout;
+      final dx = l.cx - p.eye.x, dz = l.cz - p.eye.z;
+      rows.add((dx * dx + dz * dz, i));
+    }
+    rows.sort((a, b) => a.$1.compareTo(b.$1));
+
+    final taken = <Rect>[];
+    for (final (_, i) in rows) {
+      final e = scene.towns[i];
+      final l = e.layout;
+      // High enough to clear the roofs, wherever the camera is.
+      final at = p.project(V3(l.cx, math.max(6.0, l.radius * 0.55), l.cz));
+      if (at == null) continue;
+      if (at.x < -140 || at.x > size.width + 140) continue;
+      if (at.y < -80 || at.y > size.height + 80) continue;
+
+      // Signs matter most from far away; up close the town speaks for itself.
+      final d = at.depth;
+      final near = clampD((d - 26) / 30, 0, 1);
+      if (near <= 0.02) continue;
+      final alive = e.integrity;
+      final on = i == scene.active;
+
+      final ink = dark ? Colors.white : pal.ink;
+      final tp = TextPainter(
+        text: TextSpan(children: [
+          TextSpan(
+            text: '${e.symbol}  ',
+            style: const TextStyle(fontSize: 15),
+          ),
+          TextSpan(
+            text: e.name.toUpperCase(),
+            style: TextStyle(
+              color: ink.withValues(alpha: (on ? 0.95 : 0.66) * near),
+              fontSize: 11,
+              letterSpacing: 2.2,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ]),
+        textDirection: TextDirection.ltr,
+      )..layout();
+
+      final w = math.max(tp.width, 76.0);
+      final box = Rect.fromLTWH(at.x - w / 2 - 10, at.y - 14, w + 20, 46);
+      if (taken.any(box.overlaps)) continue;
+      taken.add(box);
+
+      // A plate behind it, so a name is legible over a roof of any colour.
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(box, const Radius.circular(13)),
+        Paint()
+          ..color = (dark ? Colors.black : Colors.white)
+              .withValues(alpha: (on ? 0.30 : 0.20) * near),
+      );
+      if (on) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(box, const Radius.circular(13)),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.2
+            ..color = pal.accent.withValues(alpha: 0.75 * near),
+        );
+      }
+      tp.paint(canvas, Offset(at.x - tp.width / 2, at.y - 9));
+
+      // Under the name: how much town there is, and how much of it is lit.
+      // Two towns side by side become two bars of different length, which is
+      // the comparison without a single number being read.
+      const bw = 62.0;
+      final bar = Rect.fromLTWH(at.x - bw / 2, at.y + 16, bw, 4);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(bar, const Radius.circular(2)),
+        Paint()..color = ink.withValues(alpha: 0.16 * near),
+      );
+      // Length is the size of the town, on a curve that keeps a young town
+      // visible and stops an old one running off the end.
+      final size01 = clampD(math.sqrt(e.placed / 900.0), 0.06, 1.0);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(bar.left, bar.top, bw * size01, 4),
+          const Radius.circular(2),
+        ),
+        Paint()
+          ..color = Color.lerp(
+            const Color(0xFF8E7A63),
+            const Color(0xFFF2C25B),
+            alive,
+          )!
+              .withValues(alpha: (0.35 + 0.6 * alive) * near),
+      );
+    }
+  }
+
   /// A few birds turning over the town.
   ///
   /// They cost almost nothing and they do something no amount of masonry can:
@@ -884,11 +1022,12 @@ class TownPainter extends CustomPainter {
     }
   }
 
-  /// The town itself.
-  void _collectTown(Projector p, Size size, TownLayout town) {
+  /// Every town in the valley, nearest piece first so the budget is spent
+  /// where the eye is. One ordering across all of them, so a far town cannot
+  /// eat the near one's detail.
+  void _collectTown(Projector p, Size size) {
     final pal = scene.palette;
     final light = pal.lightDir;
-    final decay = 1.0 - scene.integrity;
     final fx = scene.fx;
     final night = !pal.isDaylight;
 
@@ -896,8 +1035,9 @@ class TownPainter extends CustomPainter {
     var sweep = -1.0;
     var sweepFade = 0.0;
     final justDone = scene.finished;
-    if (justDone != null && justDone < town.buildings.length) {
-      final b = town.buildings[justDone];
+    final active = scene.town;
+    if (justDone != null && justDone < active.buildings.length) {
+      final b = active.buildings[justDone];
       const rise = 0.85; // seconds from footings to ridge
       final t = scene.finishedAge / rise;
       if (t < 1.7) {
@@ -906,36 +1046,43 @@ class TownPainter extends CustomPainter {
       }
     }
 
-    final take = math.min(scene.placed, town.pieces.length);
-    // Nearest first, so the detail budget is spent where the eye is.
+    // (town, piece) pairs, sorted together.
     final order = <int>[];
-    for (var i = 0; i < take; i++) {
-      order.add(i);
-    }
-    order.sort((a, b) {
-      double d(TownPiece q) {
-        final dx = q.cx - p.eye.x, dz = q.cz - p.eye.z;
-        return dx * dx + dz * dz;
+    final owners = <int>[];
+    for (var w = 0; w < scene.towns.length; w++) {
+      final e = scene.towns[w];
+      final take = math.min(e.placed, e.layout.pieces.length);
+      for (var i = 0; i < take; i++) {
+        order.add(i);
+        owners.add(w);
       }
+    }
+    final idx = List<int>.generate(order.length, (i) => i);
+    double far(int k) {
+      final q = scene.towns[owners[k]].layout.pieces[order[k]];
+      final dx = q.cx - p.eye.x, dz = q.cz - p.eye.z;
+      return dx * dx + dz * dz;
+    }
+    idx.sort((a, b) => far(a).compareTo(far(b)));
 
-      return d(town.pieces[a]).compareTo(d(town.pieces[b]));
-    });
-
-    for (var k = 0; k < order.length && k < scene.budget; k++) {
-      final piece = town.pieces[order[k]];
+    for (var k = 0; k < idx.length && k < scene.budget; k++) {
+      final w = owners[idx[k]];
+      final e = scene.towns[w];
+      final piece = e.layout.pieces[order[idx[k]]];
+      final decay = 1.0 - e.integrity;
       var lift = 0.0;
       var flash = 0.0;
       var squash = 1.0;
       // A finished building lights up from its footings to its ridge, one
       // course at a time. Not a flat flash: a wave you can watch climb, which
       // is the difference between being told it is done and seeing it finish.
-      if (sweep >= 0 && piece.building == scene.finished) {
+      if (w == scene.active && sweep >= 0 && piece.building == scene.finished) {
         final d = (piece.y0 - sweep).abs();
         if (d < 0.9) {
           flash = (1 - d / 0.9) * (1 - d / 0.9) * sweepFade;
         }
       }
-      if (fx != null && fx.brickIndex == piece.index) {
+      if (w == scene.active && fx != null && fx.brickIndex == piece.index) {
         lift = fx.yOffset;
         flash = fx.flash;
         // Squash on landing: the piece spreads as it takes the weight and then
@@ -943,13 +1090,14 @@ class TownPainter extends CustomPainter {
         // makes putting one down feel like anything at all.
         squash = fx.squash.$2;
       }
-      _emitPiece(p, piece, pal, light, decay, night, lift, flash, size,
-          squash: squash);
+      _emitPiece(p, e.layout, piece, pal, light, decay, night, lift, flash,
+          size, squash: squash);
     }
   }
 
   void _emitPiece(
     Projector p,
+    TownLayout home,
     TownPiece piece,
     Palette pal,
     V3 light,
@@ -972,7 +1120,7 @@ class TownPainter extends CustomPainter {
     // white, Marca ochre, Costa indigo. Most houses take the local colour and
     // the rest go their own way, which is what stops a town reading as one
     // material repeated — and what makes two towns two places.
-    final ch = scene.town.character;
+    final ch = home.character;
     Color wall() {
       final warm = hash01(h, 1);
       var c = Color.lerp(pal.stoneCool, pal.stoneWarm, 0.35 + warm * 0.55)!;

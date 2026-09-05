@@ -8,6 +8,8 @@ import '../model/appearance.dart';
 import '../model/piece.dart';
 import '../data/landmarks.dart';
 import '../model/store.dart';
+import 'habit_bar.dart';
+import 'habits_sheet.dart';
 import 'hold_button.dart';
 import 'journey_sheet.dart';
 import 'overlays.dart';
@@ -166,6 +168,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   tooltip: 'Ver todo el pueblo',
                   onTap: _wall.frameAll,
                 ),
+                if (store.habits.length > 1)
+                  GhostButton(
+                    icon: Icons.travel_explore,
+                    theme: t,
+                    tooltip: 'Ver todo el valle',
+                    onTap: _wall.frameValley,
+                  ),
                 GhostButton(
                   icon: Icons.center_focus_strong,
                   theme: t,
@@ -231,6 +240,12 @@ class _HomeScreenState extends State<HomeScreen> {
               theme: t,
               placed: store.total,
               plan: store.plan,
+              store: store,
+              onSelect: (i) {
+                widget.store.select(i);
+                _showWhisper(widget.store.habit.name);
+              },
+              onManage: _openHabits,
               wall: _wall,
               onPlace: () {
                 _wall.clearSelection();
@@ -251,6 +266,20 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
 
         ],
+      ),
+    );
+  }
+
+  void _openHabits({bool startNew = false}) {
+    Sensory.instance.tick();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => HabitsSheet(
+        store: widget.store,
+        theme: _theme,
+        startNew: startNew,
       ),
     );
   }
@@ -378,6 +407,9 @@ class _BottomDeck extends StatelessWidget {
     required this.onPlace,
     required this.placed,
     required this.plan,
+    required this.store,
+    required this.onSelect,
+    required this.onManage,
   });
 
   final UiTheme theme;
@@ -385,6 +417,9 @@ class _BottomDeck extends StatelessWidget {
   final VoidCallback onPlace;
   final int placed;
   final TownPlan plan;
+  final Store store;
+  final void Function(int index) onSelect;
+  final VoidCallback onManage;
 
   @override
   Widget build(BuildContext context) {
@@ -406,6 +441,13 @@ class _BottomDeck extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          HabitBar(
+            store: store,
+            theme: t,
+            onSelect: onSelect,
+            onManage: onManage,
+          ),
+          const SizedBox(height: 6),
           HoldToPlace(
             theme: t,
             onPlace: onPlace,

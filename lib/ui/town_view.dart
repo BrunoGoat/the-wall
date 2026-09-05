@@ -8,6 +8,7 @@ import '../core/math3.dart';
 import '../core/rng.dart';
 import '../engine/camera.dart';
 
+import '../data/character.dart';
 import '../data/landmarks.dart';
 import '../engine/town.dart';
 import '../engine/palette.dart';
@@ -30,6 +31,10 @@ class TownViewController {
   void setCharge(double v) => _state?.setCharge(v);
   void clearSelection() => _state?.clearSelection();
   void frameAll() => _state?.frameAll();
+  void frameValley() => _state?.frameValley();
+
+  /// True once there is more than one town to compare.
+  bool get hasValley => (_state?._entries.length ?? 1) > 1;
   void goToLatest() => _state?.goToLatest();
   void goTo(double x, double z) => _state?.goTo(x, z);
   void resetView() => _state?.resetView();
@@ -74,6 +79,12 @@ class _TownViewState extends State<TownView>
   late TownLayout _town;
   int _layoutFor = -1;
   int _slotFor = -1;
+
+  /// Every town in the valley, the neighbours included. A neighbour's layout
+  /// only changes when its own habit is built in, so they are kept rather than
+  /// rebuilt on every piece.
+  final Map<String, TownLayout> _valley = {};
+  List<TownEntry> _entries = const [];
 
   PlacementFx? _placement;
   PlaceResult? _pendingResult;
@@ -132,6 +143,20 @@ class _TownViewState extends State<TownView>
     });
   }
 
+  /// One town's layout, kept between frames unless its own count moved.
+  TownLayout _layoutOf(Habit h, int? override) {
+    final n = override ?? h.total;
+    final key = '${h.id}:$n';
+    final had = _valley[key];
+    if (had != null) return had;
+    // Only ever one layout per habit in flight: the old one is dropped the
+    // moment its count changes.
+    _valley.removeWhere((k, _) => k.startsWith('${h.id}:'));
+    final (cx, cz) = Habit.centreOf(h.slot);
+    return _valley[key] =
+        TownLayout(n, TownCharacter.forSlot(h.slot), cx: cx, cz: cz);
+  }
+
   /// Puts the camera where a town is best first seen: from its own plaza,
   /// far enough back to take it in.
   void _frameTown() {
@@ -162,9 +187,18 @@ class _TownViewState extends State<TownView>
   void _rebuildLayout() {
     final store = widget.store;
     final wasSlot = _slotFor;
-    _town = TownLayout(store.shownTotal, store.character,
-        cx: Habit.centreOf(store.habit.slot).$1,
-        cz: Habit.centreOf(store.habit.slot).$2);
+
+    _entries = [
+      for (final h in store.habits)
+        TownEntry(
+          layout: _layoutOf(h, h.id == store.habit.id ? store.shownTotal : null),
+          name: h.name,
+          symbol: h.symbol,
+          integrity: Store.integrityOf(h),
+          placed: h.id == store.habit.id ? store.shownTotal : h.total,
+        ),
+    ];
+    _town = _entries[store.active.clamp(0, _entries.length - 1)].layout;
     _layoutFor = store.shownTotal;
     _slotFor = store.habit.slot;
     _cam.wallLength = _town.radius * 2;
@@ -414,6 +448,26 @@ class _TownViewState extends State<TownView>
 
   // ---------------------------------------------------------------- camera
 
+  /// The whole valley: every town at once, from high enough to take them all
+  /// in. This is the view that answers how the habits are doing against each
+  /// other, so it is one tap away rather than a gesture nobody finds.
+  void frameValley() {
+    _touched();
+    var far = 20.0;
+    for (final e in _entries) {
+      final d = math.sqrt(e.layout.cx * e.layout.cx + e.layout.cz * e.layout.cz);
+      if (d + e.layout.radius > far) far = d + e.layout.radius;
+    }
+    _cam.travelTarget = 0;
+    _cam.focusZTarget = 0;
+    _cam.focusYTarget = 2.0;
+    _cam.wallLength = far * 2;
+    _cam.distanceTarget = clampD(far * 1.5, 20, OrbitCamera.maxDistance);
+    _cam.pitchTarget = 0.62;
+    _cam.follow = false;
+    Sensory.instance.tick();
+  }
+
   /// The whole of this town, from its own plaza.
   void frameAll() {
     _touched();
@@ -546,7 +600,8 @@ class _TownViewState extends State<TownView>
       },
       fx: _placement,
       budget: _budget,
-      town: _town,
+      towns: _entries,
+      active: widget.store.active.clamp(0, _entries.length - 1),
       finished: _finished,
       finishedAge: _finishedAge,
       selectedBrick: _selectedPiece,
