@@ -372,7 +372,11 @@ class _WallViewState extends State<WallView>
     _followPlacement(result.brick.index);
     if (wasDecaying) _displayIntegrity = before;
     _pendingResult = result;
-    _placement = PlacementFx(result.brick.index);
+    // In the town a piece is set down, not dropped from a crane: from high up
+    // it reads as a bug, and the anticipation is in the shadow closing under
+    // it rather than in the height it falls from.
+    _placement = PlacementFx(result.brick.index,
+        dropHeight: _city != null ? 2.3 : 5.2);
     setState(() {});
   }
 

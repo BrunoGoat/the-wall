@@ -19,6 +19,15 @@ const server = http.createServer((q,r)=>{let p=decodeURIComponent(q.url.split('?
   await page.goto(`http://127.0.0.1:${port}/`,{waitUntil:'load'});
   await page.waitForTimeout(14000);
 
+  // What it looks like while it is waiting: the ghost of the next piece.
+  await page.screenshot({path: path.join(outDir, 'a-idle.png')});
+  await page.mouse.move(220, 795);
+  await page.mouse.down();
+  await page.waitForTimeout(240);
+  await page.screenshot({path: path.join(outDir, 'b-held.png')});
+  await page.mouse.up();
+  await page.waitForTimeout(2600);
+
   // Hold the place button long enough for it to fire, then let go.
   const bx = 220, by = 795;
   await page.mouse.move(bx, by);
@@ -27,7 +36,7 @@ const server = http.createServer((q,r)=>{let p=decodeURIComponent(q.url.split('?
   await page.mouse.up();
 
   // The fall is ~0.36s and the flourish runs about two seconds.
-  const at = [80, 200, 340, 480, 700, 1000, 1500, 2200];
+  const at = [60, 130, 210, 300, 420, 620, 1000, 1800];
   let prev = 0;
   for (const ms of at) {
     await page.waitForTimeout(ms - prev); prev = ms;

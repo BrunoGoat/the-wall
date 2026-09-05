@@ -1214,7 +1214,10 @@ class WallPainter extends CustomPainter {
     // worn bare by the door and ragged at the edges where the grass wins.
     // A tidy square of grey reads as a concrete slab, which is the one thing a
     // medieval town must never look like.
-    final pad = Color.lerp(pal.ground, const Color(0xFF9A7B55), 0.42)!;
+    final pad = Color.lerp(
+        Color.lerp(pal.ground, const Color(0xFFB0946C), 0.72)!,
+        pal.skyLight,
+        0.10)!;
     const half = CityLayout.plotPitch * 0.46;
     for (final b in city.buildings) {
       if (b.placedPieces <= 0) continue;
@@ -1270,7 +1273,7 @@ class WallPainter extends CustomPainter {
         r,
         Paint()
           ..shader = ui.Gradient.radial(Offset(at.x, at.y), r, [
-            pal.ink.withValues(alpha: 0.26 * scene.integrity.clamp(0.5, 1.0)),
+            pal.ink.withValues(alpha: 0.20 * scene.integrity.clamp(0.5, 1.0)),
             pal.ink.withValues(alpha: 0),
           ]),
       );
@@ -1386,10 +1389,38 @@ class WallPainter extends CustomPainter {
       );
     }
 
+    final fx = scene.fx;
+
+    // The shadow of the piece still in the air, closing under it as it comes
+    // down. This is the whole of the anticipation: you can see exactly where it
+    // is going and exactly how long it has left.
+    if (!overlay && fx != null && !fx.landed) {
+      final piece = city.pieceFor(fx.brickIndex);
+      if (piece != null) {
+        final up = fx.yOffset;
+        final t = clampD(1 - up / 2.3, 0, 1);
+        final at = p.project(V3(piece.cx, math.max(piece.y0, 0.02), piece.cz));
+        if (at != null) {
+          final base = math.max(piece.w, piece.d) * 0.55;
+          final r = p.focal / at.depth * base * (1.7 - t * 0.85);
+          if (r > 1.5) {
+            canvas.drawCircle(
+              Offset(at.x, at.y),
+              r,
+              Paint()
+                ..shader = ui.Gradient.radial(Offset(at.x, at.y), r, [
+                  pal.ink.withValues(alpha: 0.10 + t * 0.30),
+                  pal.ink.withValues(alpha: 0),
+                ]),
+            );
+          }
+        }
+      }
+    }
+
     // The dust ring under a piece that has just landed. Drawn before the
     // masonry, because dust goes behind a wall; the gold below is light, and
     // light goes in front.
-    final fx = scene.fx;
     if (!overlay && fx != null && fx.landed) {
       final piece = city.pieceFor(fx.brickIndex);
       if (piece != null) {
