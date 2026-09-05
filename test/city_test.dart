@@ -1,6 +1,10 @@
+import 'dart:math' as math;
+
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:la_muralla/data/landmarks.dart';
 import 'package:la_muralla/engine/city.dart';
+import 'package:la_muralla/engine/mason.dart';
 
 void main() {
   group('one achievement is one piece', () {
@@ -49,8 +53,10 @@ void main() {
         final mine = city.pieces.where((p) => p.building == b.index).toList();
         if (mine.isEmpty) continue;
         // Something has to touch the ground, and every piece above it has to
-        // stand on something already built rather than hang in the air.
-        expect(mine.first.y0, closeTo(0, 1e-6), reason: '${b.name} floats');
+        // stand on something already built rather than hang in the air. Water
+        // and ploughed rows are cut into the ground, so they sit below it.
+        expect(mine.map((p) => p.y0).reduce(math.min), lessThan(0.001),
+            reason: '${b.name} floats');
         final tops = <double>[0];
         for (final p in mine) {
           final rests = tops.any((t) => (p.y0 - t).abs() < 0.02 || p.y0 < t);
@@ -75,7 +81,14 @@ void main() {
         for (final p in mine) {
           // A church has a nave and a bell tower, so the comparison is per
           // column: only a roof this piece actually stands over counts.
-          if (caps.contains(p.kind) || p.kind == PieceKind.chimney) continue;
+          const crowns = {
+            PieceKind.chimney,
+            PieceKind.sail,
+            PieceKind.banner,
+            PieceKind.dome,
+            PieceKind.spire,
+          };
+          if (caps.contains(p.kind) || crowns.contains(p.kind)) continue;
           for (final cap in mine) {
             if (!caps.contains(cap.kind) || !over(p, cap)) continue;
             expect(p.y0, lessThan(cap.y1 - 0.01),
@@ -97,11 +110,14 @@ void main() {
 
     test('a year of use meets several different landmarks', () {
       final city = CityLayout(900);
-      final kinds = city.buildings
+      final names = city.buildings
           .where((b) => b.isLandmark && b.finished)
-          .map((b) => b.kind)
-          .toSet();
-      expect(kinds.length, greaterThanOrEqualTo(3));
+          .map((b) => b.name)
+          .toList();
+      expect(names.length, greaterThanOrEqualTo(8),
+          reason: 'a year should meet a good handful of landmarks');
+      expect(names.toSet().length, names.length,
+          reason: 'and not the same one twice: \$names');
     });
   });
 
@@ -124,6 +140,85 @@ void main() {
       // A hundred times more achievements must not put the far side of town
       // a hundred times further away.
       expect(CityLayout(9000).radius, lessThan(CityLayout(90).radius * 12));
+    });
+  });
+
+  group('the catalogue', () {
+    test('there are at least a hundred different landmarks', () {
+      expect(landmarks.length, greaterThanOrEqualTo(100));
+    });
+
+    test('every landmark has its own id and its own name', () {
+      expect(landmarks.map((l) => l.id).toSet().length, landmarks.length);
+      expect(landmarks.map((l) => l.name).toSet().length, landmarks.length);
+    });
+
+    test('every tier has enough in it to keep a long town varied', () {
+      for (var t = 0; t < 3; t++) {
+        final n = landmarks.where((l) => l.tier == t).length;
+        expect(n, greaterThanOrEqualTo(20), reason: 'tier $t has only $n');
+      }
+    });
+
+    test('every landmark builds to exactly what it costs', () {
+      for (final l in landmarks) {
+        final m = Mason(0, 0, 12345, true);
+        l.build(m);
+        expect(m.count, greaterThanOrEqualTo(l.cost),
+            reason: '${l.name} lays ${m.count} pieces but costs ${l.cost}, so '
+                'the last ones would be padding');
+        expect(m.count, lessThanOrEqualTo(l.cost + 3),
+            reason: '${l.name} lays ${m.count} pieces but costs only ${l.cost}, '
+                'so it would never be finished');
+      }
+    });
+
+    test('every landmark stands on the ground and holds together', () {
+      for (final l in landmarks) {
+        final m = Mason(0, 0, 999, true);
+        l.build(m);
+        final built = m.finish(l.cost);
+        expect(built.first.y0, lessThan(0.001),
+            reason: '${l.name} starts in the air');
+        final tops = <double>[0];
+        for (final s in built) {
+          final rests =
+              s.y0 < 0.02 || tops.any((t) => s.y0 < t + 0.03);
+          expect(rests, isTrue,
+              reason: '${l.name}: a ${s.kind.name} hangs at ${s.y0}');
+          tops.add(s.y1);
+        }
+      }
+    });
+
+    test('no landmark sprawls further than its own plot allows', () {
+      for (final l in landmarks) {
+        final m = Mason(0, 0, 7, true);
+        l.build(m);
+        var reach = 0.0;
+        for (final s in m.finish(l.cost)) {
+          final r = math.max(
+              s.cx.abs() + s.w / 2, s.cz.abs() + s.d / 2);
+          if (r > reach) reach = r;
+        }
+        expect(reach, closeTo(l.reach, 1e-9),
+            reason: '${l.name} does not know how far it reaches');
+        // Nothing may be so big the town has to be laid out around it.
+        final allowed = l.tier >= 2 ? 7.0 : 4.0;
+        expect(reach, lessThanOrEqualTo(allowed),
+            reason: '${l.name} sprawls ${reach.toStringAsFixed(2)}');
+      }
+    });
+
+    test('a long life meets a hundred landmarks without repeating one', () {
+      final seen = <String>[];
+      for (var b = 0; b < 12000; b++) {
+        if (!CityPlan.isLandmarkSlot(b)) continue;
+        seen.add(CityPlan.landmarkFor(b).id);
+        if (seen.length >= 100) break;
+      }
+      expect(seen.length, 100, reason: 'only ${seen.length} landmarks come up');
+      expect(seen.toSet().length, 100, reason: 'a landmark came round twice');
     });
   });
 }

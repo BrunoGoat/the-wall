@@ -1305,6 +1305,9 @@ class WallPainter extends CustomPainter {
       return _weather(c, decay, s);
     }
 
+    Color stone() => _weather(
+        Color.lerp(pal.stoneCool, pal.stone, 0.55)!, decay, s);
+
     Color roofColour() {
       final t = hash01(h, 3);
       final base = t < 0.45
@@ -1337,7 +1340,450 @@ class WallPainter extends CustomPainter {
       case PieceKind.floor:
         _emitBox(p, piece, y0, y1, wall(), light, pal, 1.0, flash, size,
             windows: true, night: night, decay: decay);
+      case PieceKind.dome:
+        _emitDome(p, piece, y0, y1, roofColour(), light, pal, flash);
+      case PieceKind.arcade:
+        _emitArcade(p, piece, y0, y1, stone(), light, pal, flash, size);
+      case PieceKind.stair:
+        _emitStair(p, piece, y0, y1, stone(), light, pal, flash, size);
+      case PieceKind.field:
+        _emitField(p, piece, y0, pal, decay);
+      case PieceKind.water:
+        _emitWater(p, piece, y0, pal, night);
+      case PieceKind.tree:
+        _emitTree(p, piece, y0, y1, light, pal, decay, flash);
+      case PieceKind.palisade:
+        _emitPalisade(p, piece, y0, y1, light, pal, decay, flash);
+      case PieceKind.banner:
+        _emitBanner(p, piece, y0, y1, light, pal, flash);
+      case PieceKind.wheel:
+        _emitWheel(p, piece, y0, y1, light, pal, decay, flash);
+      case PieceKind.sail:
+        _emitSails(p, piece, y0, y1, light, pal, flash);
     }
+  }
+
+  // ------------------------------------------------- the landmark vocabulary
+
+  /// A dome: rings of quads narrowing to a cap. Cheap, and from any distance
+  /// the town is seen at it reads as a dome rather than as eight facets.
+  void _emitDome(
+    Projector p,
+    CityPiece piece,
+    double y0,
+    double y1,
+    Color albedo,
+    V3 light,
+    Palette pal,
+    double flash,
+  ) {
+    final cx = piece.cx, cz = piece.cz;
+    if (p.cameraOf(V3(cx, (y0 + y1) / 2, cz)).z <= p.near) return;
+    final rx = piece.w / 2, rz = piece.d / 2, rise = y1 - y0;
+    const rings = 3, sides = 8;
+
+    V3 at(int ring, int i) {
+      final t = ring / rings;
+      final k = math.cos(t * math.pi / 2);
+      final a = i * 2 * math.pi / sides;
+      return V3(cx + math.cos(a) * rx * k, y0 + math.sin(t * math.pi / 2) * rise,
+          cz + math.sin(a) * rz * k);
+    }
+
+    for (var ring = 0; ring < rings; ring++) {
+      for (var i = 0; i < sides; i++) {
+        final a = at(ring, i), b = at(ring, i + 1);
+        final c = at(ring + 1, i + 1), d = at(ring + 1, i);
+        final ang = (i + 0.5) * 2 * math.pi / sides;
+        final up = (ring + 0.5) / rings;
+        final n = V3(math.cos(ang) * (1 - up * 0.75), 0.35 + up * 0.9,
+                math.sin(ang) * (1 - up * 0.75))
+            .normalized;
+        _quad(p, a, b, c, d,
+            _hazeAt(_shade(n, albedo, light, pal, 1.0, flash, 0), p, cx, cz, pal)
+                .toARGB32());
+      }
+    }
+  }
+
+  /// A run of arches: the piers, and the wall above them with the openings
+  /// left dark. Drawn as solid masonry with the voids painted in, which from
+  /// outside is exactly what an arcade looks like.
+  void _emitArcade(
+    Projector p,
+    CityPiece piece,
+    double y0,
+    double y1,
+    Color albedo,
+    V3 light,
+    Palette pal,
+    double flash,
+    Size size,
+  ) {
+    final along = piece.alongX;
+    final len = along ? piece.w : piece.d;
+    final n = clampD(len / 0.95, 1, 8).round();
+    final e = p.eye;
+    final ht = y1 - y0;
+    final pierW = len / n * 0.34;
+    final step = len / n;
+    final start = (along ? piece.x0 : piece.z0) + step / 2;
+
+    // The band over the arches.
+    final headY = y0 + ht * 0.72;
+    _emitSlab(p, piece.cx, piece.cz, piece.w, piece.d, headY, y1, albedo, light,
+        pal, 1.0, flash);
+
+    final dark = Color.lerp(pal.ink, albedo, 0.22)!;
+    for (var i = 0; i <= n; i++) {
+      final c = start - step / 2 + i * step;
+      final px = along ? c : piece.cx;
+      final pz = along ? piece.cz : c;
+      _emitSlab(p, px, pz, along ? pierW : piece.w, along ? piece.d : pierW, y0,
+          headY, albedo, light, pal, 0.92, flash);
+    }
+    // The shadow inside each opening, on whichever face the camera can see.
+    for (var i = 0; i < n; i++) {
+      final c = start + i * step;
+      final w = step - pierW;
+      if (along) {
+        final z = e.z > piece.cz ? piece.z1 + 0.004 : piece.z0 - 0.004;
+        _quad(p, V3(c - w / 2, y0, z), V3(c + w / 2, y0, z),
+            V3(c + w / 2, headY, z), V3(c - w / 2, headY, z),
+            _hazeAt(dark, p, piece.cx, piece.cz, pal).toARGB32());
+      } else {
+        final x = e.x > piece.cx ? piece.x1 + 0.004 : piece.x0 - 0.004;
+        _quad(p, V3(x, y0, c - w / 2), V3(x, y0, c + w / 2),
+            V3(x, headY, c + w / 2), V3(x, headY, c - w / 2),
+            _hazeAt(dark, p, piece.cx, piece.cz, pal).toARGB32());
+      }
+    }
+    _registerPickAt(p, piece, size, (y0 + y1) / 2);
+  }
+
+  /// A flight of steps, drawn as three shallow treads.
+  void _emitStair(
+    Projector p,
+    CityPiece piece,
+    double y0,
+    double y1,
+    Color albedo,
+    V3 light,
+    Palette pal,
+    double flash,
+    Size size,
+  ) {
+    const steps = 3;
+    final rise = (y1 - y0) / steps;
+    final along = piece.alongX;
+    final run = along ? piece.d : piece.w;
+    for (var i = 0; i < steps; i++) {
+      final shrink = run * (i / steps) * 0.5;
+      _emitSlab(
+        p,
+        piece.cx,
+        piece.cz,
+        along ? piece.w : piece.w - shrink,
+        along ? piece.d - shrink : piece.d,
+        y0 + i * rise,
+        y0 + (i + 1) * rise,
+        albedo,
+        light,
+        pal,
+        0.9 + i * 0.04,
+        flash,
+      );
+    }
+    _registerPickAt(p, piece, size, y1);
+  }
+
+  /// Ploughed rows, flat on the ground.
+  void _emitField(
+      Projector p, CityPiece piece, double y0, Palette pal, double decay) {
+    final green = Color.lerp(
+        const Color(0xFF7E8A52), const Color(0xFFB09B58), hash01(piece.seed, 9))!;
+    final soil = Color.lerp(green, const Color(0xFF6B5A42), 0.55)!;
+    final along = piece.alongX;
+    final across = along ? piece.d : piece.w;
+    final rows = clampD(across / 0.28, 3, 12).round();
+    final y = y0 + 0.012;
+    for (var i = 0; i < rows; i++) {
+      final a = (i + 0.12) / rows, b = (i + 0.88) / rows;
+      final c = _hazeAt(
+          Color.lerp(i.isEven ? green : soil, pal.ground, decay * 0.4)!,
+          p,
+          piece.cx,
+          piece.cz,
+          pal);
+      if (along) {
+        final z0 = piece.z0 + across * a, z1 = piece.z0 + across * b;
+        _quad(p, V3(piece.x0, y, z0), V3(piece.x1, y, z0), V3(piece.x1, y, z1),
+            V3(piece.x0, y, z1), c.toARGB32());
+      } else {
+        final x0 = piece.x0 + across * a, x1 = piece.x0 + across * b;
+        _quad(p, V3(x0, y, piece.z0), V3(x0, y, piece.z1), V3(x1, y, piece.z1),
+            V3(x1, y, piece.z0), c.toARGB32());
+      }
+    }
+  }
+
+  /// Standing water. Takes the sky's colour, which is what makes it read as
+  /// water rather than as a blue rectangle.
+  void _emitWater(
+      Projector p, CityPiece piece, double y0, Palette pal, bool night) {
+    final sky = Color.lerp(pal.skyHorizon, pal.skyTop, 0.45)!;
+    final c = Color.lerp(sky, night ? pal.ink : pal.haze, 0.28)!;
+    final y = y0 + 0.05;
+    _quad(
+      p,
+      V3(piece.x0, y, piece.z1),
+      V3(piece.x1, y, piece.z1),
+      V3(piece.x1, y, piece.z0),
+      V3(piece.x0, y, piece.z0),
+      _hazeAt(c, p, piece.cx, piece.cz, pal).toARGB32(),
+    );
+  }
+
+  /// A tree: a trunk and a canopy of two stacked blocks, which at this scale
+  /// reads as a tree and costs eight faces.
+  void _emitTree(
+    Projector p,
+    CityPiece piece,
+    double y0,
+    double y1,
+    V3 light,
+    Palette pal,
+    double decay,
+    double flash,
+  ) {
+    final ht = y1 - y0;
+    final s = piece.seed;
+    final leaf = Color.lerp(
+      const Color(0xFF5A6E42),
+      const Color(0xFF87904E),
+      hash01(s, 11),
+    )!;
+    final autumn = Color.lerp(leaf, const Color(0xFF9A7A44), decay * 0.6)!;
+    final bark = const Color(0xFF6B573F);
+    final trunk = piece.w * 0.16;
+    _emitSlab(p, piece.cx, piece.cz, trunk, trunk, y0, y0 + ht * 0.42, bark,
+        light, pal, 0.85, flash);
+    _emitSlab(p, piece.cx, piece.cz, piece.w * 0.92, piece.d * 0.92,
+        y0 + ht * 0.34, y0 + ht * 0.78, autumn, light, pal, 1.0, flash);
+    _emitSlab(p, piece.cx, piece.cz, piece.w * 0.6, piece.d * 0.6,
+        y0 + ht * 0.74, y1, autumn, light, pal, 1.06, flash);
+  }
+
+  /// A run of stakes.
+  void _emitPalisade(
+    Projector p,
+    CityPiece piece,
+    double y0,
+    double y1,
+    V3 light,
+    Palette pal,
+    double decay,
+    double flash,
+  ) {
+    final along = piece.alongX;
+    final len = along ? piece.w : piece.d;
+    final n = clampD(len / 0.34, 2, 16).round();
+    final wood = _weather(const Color(0xFF7A6549), decay, piece.seed);
+    final step = len / n;
+    final start = (along ? piece.x0 : piece.z0) + step / 2;
+    for (var i = 0; i < n; i++) {
+      final c = start + i * step;
+      final top = y1 - hash01(piece.seed, 12, i) * (y1 - y0) * 0.18;
+      _emitSlab(
+        p,
+        along ? c : piece.cx,
+        along ? piece.cz : c,
+        along ? step * 0.6 : piece.w,
+        along ? piece.d : step * 0.6,
+        y0,
+        top,
+        wood,
+        light,
+        pal,
+        0.9,
+        flash,
+      );
+    }
+  }
+
+  /// A pole with a banner hanging from it. The one piece of the town allowed a
+  /// colour that is not stone, plaster or tile.
+  void _emitBanner(
+    Projector p,
+    CityPiece piece,
+    double y0,
+    double y1,
+    V3 light,
+    Palette pal,
+    double flash,
+  ) {
+    final ht = y1 - y0;
+    _emitSlab(p, piece.cx, piece.cz, 0.09, 0.09, y0, y1,
+        const Color(0xFF6B573F), light, pal, 0.9, flash);
+    final cloth = Color.lerp(pal.accent, const Color(0xFFB4462F),
+        hash01(piece.seed, 13) * 0.7)!;
+    final e = p.eye;
+    final w = ht * 0.42;
+    final top = y1 - ht * 0.08, bot = top - ht * 0.38;
+    final c = _hazeAt(cloth, p, piece.cx, piece.cz, pal).toARGB32();
+    if ((e.x - piece.cx).abs() > (e.z - piece.cz).abs()) {
+      final z0 = piece.cz + 0.04, z1 = piece.cz + 0.04 + w;
+      _quad(p, V3(piece.cx, bot, z0), V3(piece.cx, bot, z1),
+          V3(piece.cx, top, z1), V3(piece.cx, top, z0), c);
+    } else {
+      final x0 = piece.cx + 0.04, x1 = piece.cx + 0.04 + w;
+      _quad(p, V3(x0, bot, piece.cz), V3(x1, bot, piece.cz),
+          V3(x1, top, piece.cz), V3(x0, top, piece.cz), c);
+    }
+  }
+
+  /// A water wheel: a rim of paddles turning in a vertical plane.
+  void _emitWheel(
+    Projector p,
+    CityPiece piece,
+    double y0,
+    double y1,
+    V3 light,
+    Palette pal,
+    double decay,
+    double flash,
+  ) {
+    final r = (y1 - y0) / 2;
+    final cy = y0 + r;
+    final cx = piece.cx, cz = piece.cz;
+    final wood = _weather(const Color(0xFF6E5A42), decay, piece.seed);
+    final rim = _weather(const Color(0xFF8A7355), decay, piece.seed);
+    // The wheel turns across its short side: along a wall running east-west it
+    // stands in the east-west plane.
+    final flat = piece.alongX;
+    const spokes = 10;
+    final thick = r * 0.18;
+    for (var i = 0; i < spokes; i++) {
+      final a = i * 2 * math.pi / spokes;
+      final px = math.cos(a) * r * 0.86, py = math.sin(a) * r * 0.86;
+      _emitSlab(
+        p,
+        flat ? cx + px : cx,
+        flat ? cz : cz + px,
+        flat ? r * 0.2 : thick,
+        flat ? thick : r * 0.2,
+        cy + py - r * 0.12,
+        cy + py + r * 0.12,
+        i.isEven ? rim : wood,
+        light,
+        pal,
+        0.95,
+        flash,
+      );
+    }
+    _emitSlab(p, cx, cz, flat ? r * 0.3 : thick * 1.2,
+        flat ? thick * 1.2 : r * 0.3, cy - r * 0.16, cy + r * 0.16, wood, light,
+        pal, 0.88, flash);
+  }
+
+  /// Four sails on a windmill's cap.
+  void _emitSails(
+    Projector p,
+    CityPiece piece,
+    double y0,
+    double y1,
+    V3 light,
+    Palette pal,
+    double flash,
+  ) {
+    final r = (y1 - y0) / 2;
+    final cy = y0 + r;
+    final cx = piece.cx, cz = piece.cz;
+    final wood = const Color(0xFF6E5A42);
+    final cloth = Color.lerp(pal.stoneWarm, Colors.white, 0.45)!;
+    // Set at a slight angle so the four arms never line up with the roof.
+    final tilt = 0.38 + hash01(piece.seed, 14) * 0.5;
+    for (var i = 0; i < 4; i++) {
+      final a = tilt + i * math.pi / 2;
+      final dx = math.cos(a), dy = math.sin(a);
+      for (var k = 1; k <= 3; k++) {
+        final t = k / 3.2 * r;
+        _emitSlab(
+          p,
+          cx + dx * t,
+          cz,
+          r * 0.26,
+          0.1,
+          cy + dy * t - r * 0.12,
+          cy + dy * t + r * 0.12,
+          k == 3 ? wood : cloth,
+          light,
+          pal,
+          1.0,
+          flash,
+        );
+      }
+    }
+    _emitSlab(p, cx, cz, r * 0.22, 0.2, cy - r * 0.11, cy + r * 0.11, wood,
+        light, pal, 0.9, flash);
+  }
+
+  /// A box given by its middle and size rather than by a piece, for the parts
+  /// a landmark is assembled from.
+  void _emitSlab(
+    Projector p,
+    double cx,
+    double cz,
+    double w,
+    double d,
+    double y0,
+    double y1,
+    Color albedo,
+    V3 light,
+    Palette pal,
+    double ao,
+    double flash,
+  ) {
+    final x0 = cx - w / 2, x1 = cx + w / 2;
+    final z0 = cz - d / 2, z1 = cz + d / 2;
+    final e = p.eye;
+    if (p.cameraOf(V3(cx, (y0 + y1) / 2, cz)).z <= p.near) return;
+
+    Color face(V3 n, double k) =>
+        _hazeAt(_shade(n, albedo, light, pal, ao * k, flash, 0), p, cx, cz, pal);
+
+    if (e.z > z1) {
+      _quad(p, V3(x0, y0, z1), V3(x1, y0, z1), V3(x1, y1, z1), V3(x0, y1, z1),
+          face(const V3(0, 0, 1), 1.0).toARGB32());
+    } else if (e.z < z0) {
+      _quad(p, V3(x1, y0, z0), V3(x0, y0, z0), V3(x0, y1, z0), V3(x1, y1, z0),
+          face(const V3(0, 0, -1), 1.0).toARGB32());
+    }
+    if (e.x > x1) {
+      _quad(p, V3(x1, y0, z1), V3(x1, y0, z0), V3(x1, y1, z0), V3(x1, y1, z1),
+          face(const V3(1, 0, 0), 0.94).toARGB32());
+    } else if (e.x < x0) {
+      _quad(p, V3(x0, y0, z0), V3(x0, y0, z1), V3(x0, y1, z1), V3(x0, y1, z0),
+          face(const V3(-1, 0, 0), 0.94).toARGB32());
+    }
+    if (e.y > y1) {
+      _quad(p, V3(x0, y1, z1), V3(x1, y1, z1), V3(x1, y1, z0), V3(x0, y1, z0),
+          face(const V3(0, 1, 0), 1.04).toARGB32());
+    }
+  }
+
+  /// Makes a piece tappable without it having drawn a box of its own.
+  void _registerPickAt(Projector p, CityPiece piece, Size size, double y) {
+    final at = p.project(V3(piece.cx, y, piece.cz));
+    if (at == null) return;
+    if (at.x < 0 || at.x > size.width || at.y < 0 || at.y > size.height) return;
+    picks.add(PickTarget(
+      piece.index,
+      at.x,
+      at.y,
+      math.max(8.0, p.focal / at.depth * piece.w * 0.4),
+      scene.labelledBricks.contains(piece.index),
+    ));
   }
 
   Color _weather(Color c, double decay, int seed) {
