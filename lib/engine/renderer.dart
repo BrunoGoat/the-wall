@@ -2046,13 +2046,21 @@ class WallPainter extends CustomPainter {
     Size size,
     CityLayout city,
   ) {
+    // Nearest first, so when two names collide it is the one further away that
+    // gives up its place.
+    final show = <(double, Offset2, String)>[];
     for (final b in city.buildings) {
       if (!b.isLandmark || !b.finished) continue;
       if (scene.placed < b.firstPiece + b.cost) continue;
       final at = p.project(V3(b.cx, b.peakY + 0.5, b.cz));
       if (at == null) continue;
       if (at.x < -120 || at.x > size.width + 120) continue;
-      _drawLabel(canvas, at, b.name.toUpperCase(), size);
+      show.add((at.depth, at, b.name.toUpperCase()));
+    }
+    show.sort((a, b) => a.$1.compareTo(b.$1));
+    final taken = <Rect>[];
+    for (final row in show) {
+      _drawLabel(canvas, row.$2, row.$3, size, taken: taken);
     }
   }
 
@@ -2258,6 +2266,7 @@ class WallPainter extends CustomPainter {
     String name,
     Size size, {
     double? at,
+    List<Rect>? taken,
   }) {
     final depth = at ?? top.depth;
     final fade = clampD(1 - (depth - 24) / 18, 0, 1);
@@ -2292,6 +2301,19 @@ class WallPainter extends CustomPainter {
     if (right > left) cx = clampD(cx, left, right);
 
     final origin = Offset(cx - glow.width / 2, top.y - glow.height / 2);
+
+    // A town has a lot of names in it. Two of them written across each other
+    // are worth less than one of them alone, so a name that would land on one
+    // already written simply is not written.
+    if (taken != null) {
+      final box = Rect.fromLTWH(
+          origin.dx - 6, origin.dy - 3, glow.width + 12, glow.height + 14);
+      for (final other in taken) {
+        if (box.overlaps(other)) return;
+      }
+      taken.add(box);
+    }
+
     glow.paint(canvas, origin);
 
     // A hairline under it, to tie the name to the thing it names.
