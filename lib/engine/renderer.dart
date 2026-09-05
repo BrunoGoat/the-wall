@@ -1263,7 +1263,7 @@ class WallPainter extends CustomPainter {
     // Where the buildings are, at a coarse grid, so a tuft can be skipped
     // without asking a hundred and fifty houses one at a time.
     final reachEarly = clampD(scene.camera.distance * 2.0, 12, 62);
-    final step = clampD(reachEarly / 34, 0.5, 1.4);
+    final step = clampD(reachEarly / 52, 0.34, 1.0);
     final built = <int>{};
     for (final b in city.buildings) {
       final gx = (b.cx / step).round(), gz = (b.cz / step).round();
@@ -1282,13 +1282,13 @@ class WallPainter extends CustomPainter {
     final n = (reach / step).ceil();
     final ox = (e.x / step).round(), oz = (e.z / step).round();
     final base = Color.lerp(pal.ground, const Color(0xFF6B8F3E), 0.45)!;
-    final green = Color.lerp(base, const Color(0xFF74AB3F), 0.75)!;
-    final pale = Color.lerp(base, const Color(0xFFA6C955), 0.8)!;
+    final green = Color.lerp(base, const Color(0xFF5E8F35), 0.7)!;
+    final pale = Color.lerp(base, const Color(0xFF8FB44A), 0.7)!;
     var drawn = 0;
 
     for (var ix = -n; ix <= n; ix++) {
       for (var iz = -n; iz <= n; iz++) {
-        if (drawn > 1500) return;
+        if (drawn > 2600) return;
         final gx = ox + ix, gz = oz + iz;
         if (built.contains(gx * 8192 + gz)) continue;
         final x = gx * step + hashJitter(step * 0.42, gx, gz, 3);
@@ -1298,7 +1298,7 @@ class WallPainter extends CustomPainter {
         if (dist > reach || dist < 0.6) continue;
 
         // Different sizes, so it never reads as a stamped pattern.
-        final h = hashRange(0.11, 0.32, gx, gz, 5);
+        final h = hashRange(0.055, 0.155, gx, gz, 5);
         final lean = _gust(x, z) * _windForce;
         final tone = Color.lerp(green, pale, hash01(gx, gz, 6))!;
         // Fades out at the far edge instead of ending in a hard ring.
@@ -1309,14 +1309,14 @@ class WallPainter extends CustomPainter {
             .toARGB32();
 
         // Only the near tufts are worth three blades.
-        final blades = dist < reach * 0.45 ? (h > 0.19 ? 3 : 2) : 1;
+        final blades = dist < reach * 0.4 ? 2 : 1;
         for (var k = 0; k < blades; k++) {
-          final bx = x + hashJitter(0.13, gx, gz, 7 + k);
-          final bz = z + hashJitter(0.13, gx, gz, 11 + k);
+          final bx = x + hashJitter(0.09, gx, gz, 7 + k);
+          final bz = z + hashJitter(0.09, gx, gz, 11 + k);
           final bh = h * hashRange(0.62, 1.0, gx, gz, 15 + k);
           final tipX = bx + lean * bh * 0.75;
           final tipZ = bz + lean * bh * 0.30;
-          final wide = bh * 0.13;
+          final wide = bh * 0.085;
           _quad(
             p,
             V3(bx - wide, 0.004, bz),
@@ -1648,15 +1648,26 @@ class WallPainter extends CustomPainter {
       // The crop stands a little proud of the soil, and leans.
       final h = i.isEven ? y + 0.10 : y;
       final push = i.isEven ? lean : 0.0;
+      final V3 q0, q1, q2, q3;
       if (along) {
         final z0 = piece.z0 + across * a, z1 = piece.z0 + across * b;
-        _quad(p, V3(piece.x0 + push, h, z0), V3(piece.x1 + push, h, z0),
-            V3(piece.x1, y, z1), V3(piece.x0, y, z1), c.toARGB32());
+        q0 = V3(piece.x0 + push, h, z0);
+        q1 = V3(piece.x1 + push, h, z0);
+        q2 = V3(piece.x1, y, z1);
+        q3 = V3(piece.x0, y, z1);
       } else {
         final x0 = piece.x0 + across * a, x1 = piece.x0 + across * b;
-        _quad(p, V3(x0, h, piece.z0 + push), V3(x0, h, piece.z1 + push),
-            V3(x1, y, piece.z1), V3(x1, y, piece.z0), c.toARGB32());
+        q0 = V3(x0, h, piece.z0 + push);
+        q1 = V3(x0, h, piece.z1 + push);
+        q2 = V3(x1, y, piece.z1);
+        q3 = V3(x1, y, piece.z0);
       }
+      var far = p.cameraOf(q0).z;
+      for (final v in [q1, q2, q3]) {
+        final z = p.cameraOf(v).z;
+        if (z > far) far = z;
+      }
+      _quad(p, q0, q1, q2, q3, c.toARGB32(), depthOverride: far);
     }
   }
 
@@ -1665,16 +1676,28 @@ class WallPainter extends CustomPainter {
   void _emitWater(
       Projector p, CityPiece piece, double y0, Palette pal, bool night) {
     final y = y0 + 0.05;
-    final deep = night ? const Color(0xFF1B3A57) : const Color(0xFF1E7A93);
-    final lit = night ? const Color(0xFF32587E) : const Color(0xFF44BCC4);
-    final foam = night ? const Color(0xFF9FB6CE) : const Color(0xFFF2FBFA);
+    final deep = night ? const Color(0xFF1E3A52) : const Color(0xFF35707B);
+    final lit = night ? const Color(0xFF33556F) : const Color(0xFF5C9AA0);
+    // Foam is water with air in it, not paint: it keeps the water's own colour
+    // underneath, which is what stops it reading as a white sticker.
+    final foam = Color.lerp(
+        night ? const Color(0xFF8FA4B8) : const Color(0xFFE8F4F2), deep, 0.32)!;
     final cx = piece.cx, cz = piece.cz;
 
     int tint(Color c) => _hazeAt(c, p, cx, cz, pal).toARGB32();
 
+    // A flat sheet lying on the ground is sorted by its farthest corner, not
+    // its middle: a long ribbon of water running past a house has its centre
+    // nearer than the house's, and would otherwise be painted over the wall.
     void plate(double x0, double x1, double z0, double z1, double h, Color c) {
-      _quad(p, V3(x0, h, z1), V3(x1, h, z1), V3(x1, h, z0), V3(x0, h, z0),
-          tint(c));
+      final a = V3(x0, h, z1), b = V3(x1, h, z1);
+      final d = V3(x1, h, z0), e = V3(x0, h, z0);
+      var far = p.cameraOf(a).z;
+      for (final v in [b, d, e]) {
+        final z = p.cameraOf(v).z;
+        if (z > far) far = z;
+      }
+      _quad(p, a, b, d, e, tint(c), depthOverride: far);
     }
 
     plate(piece.x0, piece.x1, piece.z0, piece.z1, y, deep);
@@ -1691,13 +1714,14 @@ class WallPainter extends CustomPainter {
       if (z + thick > piece.z1) continue;
       final inset = w * 0.06;
       plate(piece.x0 + inset, piece.x1 - inset, z, z + thick,
-          y + 0.004 + i * 0.002, Color.lerp(deep, lit, 0.75)!);
+          y + 0.004 + i * 0.002, Color.lerp(deep, lit, 0.55)!);
     }
 
     // Foam: a frill round the edge that breathes with the wind, so still water
     // still looks alive.
     final swell = 0.014 + 0.012 * _windForce;
-    final rim = math.min(w, d) * (0.055 + 0.03 * _windForce);
+    final rim = math.min(
+        math.min(w, d) * (0.05 + 0.025 * _windForce), 0.13);
     if (rim < 0.02) return;
     final fy = y + 0.012;
     for (var side = 0; side < 4; side++) {
