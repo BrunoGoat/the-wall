@@ -307,6 +307,52 @@ class CityPlan {
     return pool[hash32(b, 0x71c3, 5) % pool.length];
   }
 
+  /// What the town is putting up right now, how much of it is left, and
+  /// whether it is one of the hundred and twelve landmarks.
+  ///
+  /// A pure walk over the plan, so the label at the top of the screen never
+  /// needs a laid-out town to say what is being built.
+  static (String, int, bool)? underway(int placed) {
+    var cursor = 0;
+    for (var b = 0; b < 20000; b++) {
+      final mark = isLandmarkSlot(b) ? landmarkFor(b) : null;
+      final cost = mark?.cost ?? buildingCost[kindFor(b)]!;
+      if (placed < cursor + cost) {
+        final name = mark?.name ?? buildingName[kindFor(b)]!;
+        return (name, cursor + cost - placed, mark != null);
+      }
+      cursor += cost;
+    }
+    return null;
+  }
+
+  /// Every landmark the town has built or is about to, with the achievement
+  /// it starts at and what it costs. Enough to show the road ahead without
+  /// laying out a town to do it.
+  static List<(Landmark, int)> landmarksAround(int placed, {int ahead = 500}) {
+    final out = <(Landmark, int)>[];
+    var cursor = 0;
+    for (var b = 0; b < 20000; b++) {
+      final mark = isLandmarkSlot(b) ? landmarkFor(b) : null;
+      final cost = mark?.cost ?? buildingCost[kindFor(b)]!;
+      if (mark != null) out.add((mark, cursor));
+      cursor += cost;
+      if (cursor > placed + ahead) break;
+    }
+    return out;
+  }
+
+  /// How many buildings the town has finished.
+  static int finishedBuildings(int placed) {
+    var cursor = 0, n = 0;
+    for (var b = 0; b < 20000; b++) {
+      cursor += costOf(b);
+      if (cursor > placed) break;
+      n++;
+    }
+    return n;
+  }
+
   /// What it costs to build the bth building, whatever it turns out to be.
   static int costOf(int b) =>
       isLandmarkSlot(b) ? landmarkFor(b).cost : buildingCost[kindFor(b)]!;

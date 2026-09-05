@@ -2378,11 +2378,13 @@ class WallPainter extends CustomPainter {
     if (windows) _emitWindows(p, piece, y0, y1, pal, night, decay);
   }
 
-  /// The windows of one storey.
+  /// The windows of one storey, and whether anybody is home.
   ///
-  /// At night a lit window is one achievement showing from the outside, which
-  /// is the whole town's worth of them read in a single glance — the thing the
-  /// wall could never do.
+  /// This is where the town says how you are doing. A lit window is one
+  /// achievement showing from the outside; a whole town of them read in a
+  /// single glance is the thing the wall could never do. And when the days
+  /// start going by without a piece, they go out one by one — which says
+  /// "nobody has been here" far better than moss on a wall ever did.
   void _emitWindows(
     Projector p,
     CityPiece piece,
@@ -2398,16 +2400,34 @@ class WallPainter extends CustomPainter {
     final e = p.eye;
     final s = piece.seed;
 
+    // How much of the town is still lived in. Falls away fast at the end so
+    // the last stretch of neglect is the one you actually notice.
+    final life = clampD(1 - decay, 0, 1);
+    final lifeCurve = life * life * (3 - 2 * life);
+    // A window is boarded once the place has been empty a good while, and
+    // which ones go first never changes.
+    final boarded = decay > 0.30 && hash01(s, 72) < (decay - 0.30) * 1.5;
+
     void row(bool onZ, double at, double from, double to, double outward) {
       final span = to - from;
       final n = math.max(1, (span / 0.62).floor());
       for (var i = 0; i < n; i++) {
         final c = from + span * (i + 0.5) / n;
-        final lit = night && hash01(s, 70, i) > 0.30 + decay * 0.45;
+        // Each window has its own place in the queue: the same ones go dark
+        // first every time, so the town empties from the edges of a habit
+        // rather than flickering at random.
+        final rank = hash01(s, 70, i);
+        final lit = night && rank < 0.72 * lifeCurve;
+        final shut = !lit && (boarded || hash01(s, 73, i) < decay * 0.8);
         final colour = lit
-            ? const Color(0xFFFFD79A)
-            : Color.lerp(pal.ink, pal.stoneCool, 0.30)!;
+            ? Color.lerp(const Color(0xFF7A5C2E), const Color(0xFFFFD79A),
+                0.35 + 0.65 * lifeCurve)!
+            : Color.lerp(pal.ink, pal.stoneCool, night ? 0.12 : 0.30)!;
         const hw = 0.15;
+        final wc = lit
+            ? colour
+            : _hazeAt(colour, p, piece.cx, piece.cz, pal);
+
         if (onZ) {
           _quad(
             p,
@@ -2415,8 +2435,7 @@ class WallPainter extends CustomPainter {
             V3(c + hw, wy0, outward),
             V3(c + hw, wy1, outward),
             V3(c - hw, wy1, outward),
-            (lit ? colour : _hazeAt(colour, p, piece.cx, piece.cz, pal))
-                .toARGB32(),
+            wc.toARGB32(),
           );
         } else {
           _quad(
@@ -2425,9 +2444,31 @@ class WallPainter extends CustomPainter {
             V3(outward, wy0, c + hw),
             V3(outward, wy1, c + hw),
             V3(outward, wy1, c - hw),
-            (lit ? colour : _hazeAt(colour, p, piece.cx, piece.cz, pal))
-                .toARGB32(),
+            wc.toARGB32(),
           );
+        }
+        if (!shut) continue;
+
+        // Two planks nailed across an empty window.
+        final plank = _hazeAt(
+                _weather(const Color(0xFF7A6549), decay, s), p, piece.cx,
+                piece.cz, pal)
+            .toARGB32();
+        for (var k = 0; k < 2; k++) {
+          final my = wy0 + (wy1 - wy0) * (k == 0 ? 0.28 : 0.66);
+          final th = (wy1 - wy0) * 0.13;
+          final out2 = outward + (outward > 0 ? 0.004 : -0.004);
+          if (onZ) {
+            _quad(p, V3(c - hw * 1.25, my - th, out2),
+                V3(c + hw * 1.25, my - th, out2),
+                V3(c + hw * 1.25, my + th, out2),
+                V3(c - hw * 1.25, my + th, out2), plank);
+          } else {
+            _quad(p, V3(out2, my - th, c - hw * 1.25),
+                V3(out2, my - th, c + hw * 1.25),
+                V3(out2, my + th, c + hw * 1.25),
+                V3(out2, my + th, c - hw * 1.25), plank);
+          }
         }
       }
     }

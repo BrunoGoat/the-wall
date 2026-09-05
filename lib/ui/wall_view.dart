@@ -292,8 +292,11 @@ class _WallViewState extends State<WallView>
       if (piece.kind != PieceKind.chimney) continue;
       final dx = piece.cx - _cam.travel, dz = piece.cz - _cam.focusZ;
       if (dx * dx + dz * dz > 26 * 26) continue;
-      // Not every hearth is lit, and the same ones stay lit.
-      if (hash01(piece.seed, 91) > 0.62) continue;
+      // Not every hearth is lit, the same ones stay lit — and they go out as
+      // the days go by without anybody laying a piece. A town with no smoke
+      // over it is the most legible way of saying nobody has been here.
+      final lit = 0.62 * _displayIntegrity * _displayIntegrity;
+      if (hash01(piece.seed, 91) > lit) continue;
       found++;
       if (_ambientCounter % 4 != 0) continue;
       _fx.smoke(piece.cx, piece.y1 + 0.06, piece.cz, wx, wz);
@@ -470,8 +473,11 @@ class _WallViewState extends State<WallView>
       });
       widget.onWhisper('${building.name} en pie');
     }
-    if (result?.milestoneCompleted != null) {
-      widget.onMilestoneComplete(result!.milestoneCompleted!);
+    // The wall's milestones do not belong in a town: it has a hundred and
+    // twelve of its own, and they are announced by the building being
+    // finished, not by a card about a bastion.
+    if (result != null && result.repaired) {
+      widget.onWhisper('El pueblo vuelve a encenderse');
     }
   }
 

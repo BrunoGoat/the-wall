@@ -53,7 +53,8 @@ class _AppearanceSheetState extends State<AppearanceSheet> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 2),
             child: Text(
-              'Se cambia sobre la muralla, en vivo. No toca ningún ladrillo.',
+              'Se cambia sobre la muralla, en vivo. No toca ningún ladrillo. '
+              'Sólo aplica al modo muralla.',
               style: t.bodySoft.copyWith(fontSize: 12),
             ),
           ),

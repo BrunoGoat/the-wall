@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'fx/sensory.dart';
+import 'data/lexicon.dart';
 import 'model/appearance.dart';
 import 'model/wall_store.dart';
 import 'ui/home_screen.dart';
@@ -83,17 +84,17 @@ class _LaMurallaAppState extends State<LaMurallaApp> {
   }
 }
 
-/// The first half-second: the wall, before there is a wall.
+/// The first half-second: the thing, before there is a thing.
 class _Opening extends StatelessWidget {
   const _Opening();
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Color(0xFF9FB6D8),
+    return Scaffold(
+      backgroundColor: const Color(0xFF9FB6D8),
       body: Center(
         child: Text(
-          'LA MURALLA',
+          Lexicon.of.title,
           style: TextStyle(
             color: Color(0xCC241F16),
             fontSize: 15,

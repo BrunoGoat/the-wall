@@ -7,6 +7,7 @@ import '../engine/palette.dart';
 import '../fx/sensory.dart';
 import '../model/appearance.dart';
 import '../model/models.dart';
+import '../data/lexicon.dart';
 import '../model/wall_store.dart';
 import 'hold_button.dart';
 import 'journey_sheet.dart';
@@ -60,11 +61,12 @@ class _HomeScreenState extends State<HomeScreen> {
   void _greet() {
     final s = widget.store;
     if (s.total == 0) {
-      _showWhisper('Mantené el botón para colocar tu primer ladrillo',
+      _showWhisper(Lexicon.of.firstPrompt,
           duration: const Duration(seconds: 6));
     } else if (s.integrityAtLaunch < 0.92) {
       final days = s.daysIdle.floor();
-      _showWhisper('$days días sin ladrillos. La muralla se está resintiendo.',
+      final w = Lexicon.of;
+      _showWhisper('$days días sin ${w.units}. ${w.decayWhisper}',
           duration: const Duration(seconds: 5));
     }
   }
@@ -166,13 +168,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 GhostButton(
                   icon: Icons.zoom_out_map,
                   theme: t,
-                  tooltip: 'Ver toda la muralla',
+                  tooltip: Lexicon.of.seeAll,
                   onTap: _wall.frameAll,
                 ),
                 GhostButton(
                   icon: Icons.center_focus_strong,
                   theme: t,
-                  tooltip: 'Ir al último ladrillo',
+                  tooltip: Lexicon.of.goLatest,
                   onTap: _wall.goToLatest,
                 ),
                 GhostButton(
@@ -317,7 +319,7 @@ class _TopBar extends StatelessWidget {
                     const SizedBox(width: 8),
                     Padding(
                       padding: const EdgeInsets.only(bottom: 2),
-                      child: Text('LADRILLOS',
+                      child: Text(Lexicon.of.unitsCaps,
                           style: t.label.copyWith(shadows: t.halo)),
                     ),
                     if (days > 0) ...[
@@ -338,8 +340,10 @@ class _TopBar extends StatelessWidget {
                 const SizedBox(height: 5),
                 Text(
                   decaying
-                      ? 'La muralla se deteriora · un ladrillo la repara'
-                      : store.nextEventLabel,
+                      ? Lexicon.of.decayLine
+                      : (Lexicon.isTown
+                          ? Lexicon.nextEvent(store.total)
+                          : store.nextEventLabel),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -444,7 +448,7 @@ class _PreviewBanner extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'VISTA DE ${store.shownTotal} LADRILLOS',
+              'VISTA DE ${store.shownTotal} ${Lexicon.of.unitsCaps}',
               style: TextStyle(
                 color: t.accent,
                 fontSize: 10.5,

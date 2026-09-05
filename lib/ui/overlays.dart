@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import '../data/lexicon.dart';
 
 import '../data/milestones.dart';
 import 'papyrus.dart';
@@ -74,7 +75,8 @@ class MilestoneOverlay extends StatelessWidget {
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      'levantado con ${type.brickCost} ladrillos tuyos',
+                      'levantado con ${type.brickCost} '
+                      '${Lexicon.of.units} tuyas',
                       style: TextStyle(
                         color: theme.fgFaint,
                         fontSize: 11,
@@ -168,7 +170,8 @@ class StoneCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'LADRILLO $number · ${formatDate(when)}',
+                  '${Lexicon.of.unit.toUpperCase()} $number · '
+                  '${formatDate(when)}',
                   style: t.label.copyWith(fontSize: 9.5, letterSpacing: 1.4),
                 ),
                 const SizedBox(height: 7),
@@ -291,7 +294,10 @@ class _LabelSheetState extends State<LabelSheet> {
               ),
             ),
             const SizedBox(height: 18),
-            Text('LEYENDA DEL LADRILLO ${widget.number}', style: t.label),
+            Text(
+                'LEYENDA DE ${Lexicon.isTown ? 'LA PIEZA' : 'EL LADRILLO'} '
+                '${widget.number}',
+                style: t.label),
             const SizedBox(height: 4),
             Text(
               'Opcional. Para acordarte de qué fue este.',

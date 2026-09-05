@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../data/lexicon.dart';
+import '../engine/city.dart';
 import '../model/appearance.dart';
 import '../model/models.dart';
 import '../fx/sensory.dart';
@@ -76,11 +78,13 @@ class _JourneySheetState extends State<JourneySheet> {
               Expanded(
                 child: switch (_tab) {
                   0 => _Summary(store: widget.store, theme: t),
-                  1 => _Milestones(
-                      store: widget.store,
-                      theme: t,
-                      onGoTo: widget.onGoTo,
-                      structureX: widget.structureX),
+                  1 => Lexicon.isTown
+                      ? _TownMilestones(store: widget.store, theme: t)
+                      : _Milestones(
+                          store: widget.store,
+                          theme: t,
+                          onGoTo: widget.onGoTo,
+                          structureX: widget.structureX),
                   _ => _Legends(
                       store: widget.store,
                       theme: t,
@@ -97,7 +101,7 @@ class _JourneySheetState extends State<JourneySheet> {
   }
 
   Widget _tabs(UiTheme t) {
-    const labels = ['LA MURALLA', 'HITOS', 'LEYENDAS'];
+    final labels = Lexicon.of.tabs;
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(3, (i) {
@@ -149,18 +153,21 @@ class _Summary extends StatelessWidget {
       children: [
         Row(
           children: [
-            _stat(t, '${store.total}', 'LADRILLOS'),
+            _stat(t, '${store.total}', Lexicon.of.unitsCaps),
             _stat(t, '${store.wallLengthMeters.toStringAsFixed(0)} m', 'LARGO'),
             _stat(t, '${store.streak}', 'RACHA'),
             _stat(t, '${store.bestStreak}', 'MEJOR'),
           ],
         ),
         const SizedBox(height: 26),
-        Text('NIVEL DE LA MURALLA', style: t.label),
+        Text(Lexicon.isTown ? 'LO QUE LLEVA EN PIE' : 'NIVEL DE LA MURALLA',
+            style: t.label),
         const SizedBox(height: 10),
-        _TierBar(store: store, theme: t),
+        if (Lexicon.isTown) _TownBar(store: store, theme: t)
+        else _TierBar(store: store, theme: t),
         const SizedBox(height: 26),
-        Text('ESTADO DE LA MURALLA', style: t.label),
+        Text(Lexicon.isTown ? 'ESTADO DEL PUEBLO' : 'ESTADO DE LA MURALLA',
+            style: t.label),
         const SizedBox(height: 10),
         ClipRRect(
           borderRadius: BorderRadius.circular(4),
@@ -178,10 +185,10 @@ class _Summary extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           integrity > 0.99
-              ? 'Intacta. Cada día que sumás un ladrillo se mantiene así.'
+              ? Lexicon.of.stateIntact
               : integrity > 0.6
-                  ? 'Empieza a resentirse. Un solo ladrillo la repara entera.'
-                  : 'Se está viniendo abajo. Un ladrillo alcanza para frenarlo.',
+                  ? Lexicon.of.stateSlipping
+                  : Lexicon.of.stateFalling,
           style: t.bodySoft,
         ),
         const SizedBox(height: 28),
@@ -216,7 +223,7 @@ class _Summary extends StatelessWidget {
         Text(store.nextEventLabel, style: t.body),
         const SizedBox(height: 6),
         Text(
-          'Un ladrillo es siempre un logro. Nunca un lote.',
+          Lexicon.of.creed,
           style: t.bodySoft.copyWith(fontStyle: FontStyle.italic),
         ),
         const SizedBox(height: 30),
@@ -224,6 +231,8 @@ class _Summary extends StatelessWidget {
         const SizedBox(height: 6),
         _SoundToggles(theme: t),
         const SizedBox(height: 4),
+        // The pointing is masonry: in a town there are no joints to look at.
+        if (!Lexicon.isTown)
         _SheetRow(
           theme: t,
           icon: Icons.grain,
@@ -238,9 +247,8 @@ class _Summary extends StatelessWidget {
         _SheetRow(
           theme: t,
           icon: Icons.tune,
-          title: 'Ver la muralla a futuro',
-          subtitle: 'Cómo se vería con 100, 500 o 5000 ladrillos. '
-              'No toca los tuyos.',
+          title: Lexicon.of.futureTitle,
+          subtitle: Lexicon.of.futureBlurb,
           open: (nav) => DebugSheet(store: store, theme: t),
         ),
       ],
@@ -257,6 +265,62 @@ class _Summary extends StatelessWidget {
           ],
         ),
       );
+}
+
+/// How much of the town is standing, and what it is working on.
+///
+/// The wall has levels because it grows upward in bands; a town does not. What
+/// it has instead is a count of finished buildings, which is the thing anybody
+/// would actually say out loud about a town.
+class _TownBar extends StatelessWidget {
+  const _TownBar({required this.store, required this.theme});
+  final WallStore store;
+  final UiTheme theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = theme;
+    final built = CityPlan.finishedBuildings(store.total);
+    final work = CityPlan.underway(store.total);
+    final left = work?.$2 ?? 0;
+    final name = work?.$1 ?? '';
+    final cost = left > 0 ? left : 1;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text('$built', style: t.number.copyWith(fontSize: 26)),
+            const SizedBox(width: 8),
+            Text(built == 1 ? 'EDIFICIO EN PIE' : 'EDIFICIOS EN PIE',
+                style: t.label),
+          ],
+        ),
+        if (work != null) ...[
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: 1 - left / (cost + 0.0001),
+              minHeight: 7,
+              backgroundColor: t.fg.withValues(alpha: 0.10),
+              valueColor: AlwaysStoppedAnimation(t.accent),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            left == 1
+                ? 'Una pieza más y $name queda en pie'
+                : '$name · faltan $left piezas',
+            style: t.bodySoft,
+          ),
+        ],
+      ],
+    );
+  }
 }
 
 /// How high the wall has climbed, and how far the next level still is.
@@ -506,6 +570,100 @@ class _SoundTogglesState extends State<_SoundToggles> {
   }
 }
 
+/// The town's own hundred and twelve, read as a road: what is standing, what
+/// is going up right now, and what is still to come.
+class _TownMilestones extends StatelessWidget {
+  const _TownMilestones({required this.store, required this.theme});
+  final WallStore store;
+  final UiTheme theme;
+
+  static const _icons = [
+    Icons.water_drop_outlined,
+    Icons.storefront_outlined,
+    Icons.account_balance_outlined,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final t = theme;
+    final placed = store.total;
+    final rows = CityPlan.landmarksAround(placed);
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(22, 14, 22, 40),
+      itemCount: rows.length,
+      itemBuilder: (context, i) {
+        final (mark, first) = rows[i];
+        final done = placed >= first + mark.cost;
+        final active = placed > first && !done;
+        final locked = placed <= first;
+        final progress = active ? (placed - first) / mark.cost : 0.0;
+
+        return Opacity(
+          opacity: locked ? 0.45 : 1,
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(
+              color: t.fg.withValues(alpha: active ? 0.07 : 0.035),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: active ? t.accent.withValues(alpha: 0.5) : t.stroke,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  locked ? Icons.lock_outline : _icons[mark.tier],
+                  size: 26,
+                  color: locked
+                      ? t.fg.withValues(alpha: 0.34)
+                      : (active ? t.accent : t.fg.withValues(alpha: 0.78)),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        // An unbuilt landmark keeps its name to itself: half of
+                        // what a road ahead is worth is not knowing all of it.
+                        locked ? 'Hito ${i + 1}' : mark.name,
+                        style: t.body.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        done
+                            ? 'En pie · ${mark.cost} piezas'
+                            : active
+                                ? 'En obra · ${placed - first} de ${mark.cost}'
+                                : 'Empieza en la pieza ${first + 1}',
+                        style: t.bodySoft.copyWith(fontSize: 11.5),
+                      ),
+                      if (active) ...[
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(3),
+                          child: LinearProgressIndicator(
+                            value: progress,
+                            minHeight: 5,
+                            backgroundColor: t.fg.withValues(alpha: 0.10),
+                            valueColor: AlwaysStoppedAnimation(t.accent),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _Milestones extends StatelessWidget {
   const _Milestones({
     required this.store,
@@ -656,14 +814,14 @@ class _Legends extends StatelessWidget {
         children: [
           const SizedBox(height: 26),
           Text(
-            'BITÁCORA DE LA MURALLA',
+            Lexicon.of.logTitle,
             textAlign: TextAlign.center,
             style: Papyrus.body(13, w: FontWeight.w700, c: Papyrus.ink)
                 .copyWith(letterSpacing: 2.6),
           ),
           const SizedBox(height: 6),
           Text(
-            '· ${Papyrus.roman(store.total)} piedras asentadas ·',
+            '· ${Papyrus.roman(store.total)} ${Lexicon.of.logCount} ·',
             textAlign: TextAlign.center,
             style: Papyrus.body(11.5, c: Papyrus.inkFaint)
                 .copyWith(letterSpacing: 1.2),
@@ -686,10 +844,7 @@ class _Legends extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Tocá cualquier piedra de la muralla y dejale una leyenda: '
-            '“Leí”, “Corrí”, lo que quieras. No hace falta —la piedra ya '
-            'está puesta— pero lo que se escribe queda en esta bitácora, y '
-            'dentro de un año esto va a ser una historia.',
+            Lexicon.of.noteInvite,
             textAlign: TextAlign.center,
             style: Papyrus.body(14, c: Papyrus.inkSoft),
           ),
@@ -737,7 +892,7 @@ class _Legends extends StatelessWidget {
       ..add(const PapyrusRule(wide: true))
       ..add(const SizedBox(height: 10))
       ..add(Text(
-        'Y la muralla sigue creciendo.',
+        Lexicon.isTown ? 'Y el pueblo sigue creciendo.' : 'Y la muralla sigue creciendo.',
         textAlign: TextAlign.center,
         style: Papyrus.body(12.5, c: Papyrus.inkFaint)
             .copyWith(fontStyle: FontStyle.italic),

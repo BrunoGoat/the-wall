@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../data/lexicon.dart';
 
 import '../fx/sensory.dart';
 import '../model/wall_store.dart';
@@ -61,10 +62,11 @@ class _DebugSheetState extends State<DebugSheet> {
             ),
           ),
           const SizedBox(height: 18),
-          Text('VER LA MURALLA A FUTURO', style: t.label),
+          Text(Lexicon.of.futureTitle.toUpperCase(), style: t.label),
           const SizedBox(height: 5),
           Text(
-            'Sólo mira. Tus ${store.total} ladrillos reales quedan intactos.',
+            'Sólo mira. Tus ${store.total} ${Lexicon.of.units} reales '
+            'quedan intactas.',
             style: t.bodySoft.copyWith(fontSize: 12),
           ),
           const SizedBox(height: 20),
@@ -74,8 +76,9 @@ class _DebugSheetState extends State<DebugSheet> {
             children: [
               Text('$shown', style: t.number.copyWith(fontSize: 40)),
               const SizedBox(width: 9),
-              Text('LADRILLOS', style: t.label),
+              Text(Lexicon.of.unitsCaps, style: t.label),
               const Spacer(),
+              if (!Lexicon.isTown)
               Text(
                 'nivel ${WallStore.tierNameFor(shown)}',
                 style: TextStyle(
