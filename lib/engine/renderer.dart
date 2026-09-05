@@ -150,6 +150,7 @@ class WallPainter extends CustomPainter {
       _drawGround(canvas, size, horizonY);
       _drawRanges(canvas, p, size, horizonY);
       _drawCityGround(canvas, p, city);
+      _drawMeadow(p, size, city);
       _collectCity(p, size, city);
       _flush(canvas);
       _drawCityLabels(canvas, p, size, city);
@@ -288,14 +289,19 @@ class WallPainter extends CustomPainter {
     if (hy > size.height) return;
     final rect = Rect.fromLTWH(0, hy, size.width, size.height - hy);
     if (rect.height <= 0) return;
+    // The wall stands on a dry plain; the town stands in a meadow. The same
+    // ground, read to suit what is built on it.
+    final meadow = scene.city != null && pal.isDaylight;
+    final near = meadow
+        ? Color.lerp(pal.ground, const Color(0xFF6B8F3E), 0.45)!
+        : pal.ground;
+    final far = meadow
+        ? Color.lerp(pal.groundFar, const Color(0xFF7E9A4C), 0.38)!
+        : pal.groundFar;
     canvas.drawRect(
       rect,
-      Paint()
-        ..shader = ui.Gradient.linear(
-          Offset(0, hy),
-          Offset(0, size.height),
-          [pal.groundFar, pal.ground],
-        ),
+      Paint()..shader = ui.Gradient.linear(
+          Offset(0, hy), Offset(0, size.height), [far, near]),
     );
   }
 
@@ -1182,9 +1188,12 @@ class WallPainter extends CustomPainter {
   Color _hazeAt(Color c, Projector p, double x, double z, Palette pal) {
     final dx = x - p.eye.x, dz = z - p.eye.z;
     final dist = math.sqrt(dx * dx + dz * dz);
-    final t = 1 - math.exp(-dist * 0.0125);
+    // The town is meant to be looked at, not squinted through: it keeps far
+    // more of its colour than the wall's long silhouette ever needed to.
+    final city = scene.city != null;
+    final t = 1 - math.exp(-dist * (city ? 0.0052 : 0.0125));
     if (t < 0.004) return c;
-    return Color.lerp(c, pal.haze, t * 0.85)!;
+    return Color.lerp(c, pal.haze, t * (city ? 0.55 : 0.85))!;
   }
 
   /// The lanes between the blocks, and the shadow each building sits in.
@@ -1242,6 +1251,86 @@ class WallPainter extends CustomPainter {
     }
   }
 
+  /// The meadow the town stands in: tufts of grass leaning with the wind.
+  ///
+  /// Not a texture — a few hundred real blades, sized and coloured apart, near
+  /// the camera only, and never where a building already stands. It is what
+  /// turns a flat green field into ground.
+  void _drawMeadow(Projector p, Size size, CityLayout city) {
+    final pal = scene.palette;
+    if (!pal.isDaylight && pal.starAlpha > 0.6) return;
+
+    // Where the buildings are, at a coarse grid, so a tuft can be skipped
+    // without asking a hundred and fifty houses one at a time.
+    final reachEarly = clampD(scene.camera.distance * 2.0, 12, 62);
+    final step = clampD(reachEarly / 34, 0.5, 1.4);
+    final built = <int>{};
+    for (final b in city.buildings) {
+      final gx = (b.cx / step).round(), gz = (b.cz / step).round();
+      // Only the plot itself is bare: the lanes between the houses are grass,
+      // which is most of what the eye actually sees at street level.
+      final pad = (1.2 / step).floor();
+      for (var dx = -pad; dx <= pad; dx++) {
+        for (var dz = -pad; dz <= pad; dz++) {
+          built.add((gx + dx) * 8192 + (gz + dz));
+        }
+      }
+    }
+
+    final e = p.eye;
+    final reach = reachEarly;
+    final n = (reach / step).ceil();
+    final ox = (e.x / step).round(), oz = (e.z / step).round();
+    final base = Color.lerp(pal.ground, const Color(0xFF6B8F3E), 0.45)!;
+    final green = Color.lerp(base, const Color(0xFF74AB3F), 0.75)!;
+    final pale = Color.lerp(base, const Color(0xFFA6C955), 0.8)!;
+    var drawn = 0;
+
+    for (var ix = -n; ix <= n; ix++) {
+      for (var iz = -n; iz <= n; iz++) {
+        if (drawn > 1500) return;
+        final gx = ox + ix, gz = oz + iz;
+        if (built.contains(gx * 8192 + gz)) continue;
+        final x = gx * step + hashJitter(step * 0.42, gx, gz, 3);
+        final z = gz * step + hashJitter(step * 0.42, gx, gz, 4);
+        final dx = x - e.x, dz = z - e.z;
+        final dist = math.sqrt(dx * dx + dz * dz);
+        if (dist > reach || dist < 0.6) continue;
+
+        // Different sizes, so it never reads as a stamped pattern.
+        final h = hashRange(0.11, 0.32, gx, gz, 5);
+        final lean = _gust(x, z) * _windForce;
+        final tone = Color.lerp(green, pale, hash01(gx, gz, 6))!;
+        // Fades out at the far edge instead of ending in a hard ring.
+        final fade = clampD((reach - dist) / (reach * 0.28), 0, 1);
+        if (fade < 0.05) continue;
+        final c = _hazeAt(Color.lerp(base, tone, 0.45 + 0.55 * fade)!, p, x, z,
+                pal)
+            .toARGB32();
+
+        // Only the near tufts are worth three blades.
+        final blades = dist < reach * 0.45 ? (h > 0.19 ? 3 : 2) : 1;
+        for (var k = 0; k < blades; k++) {
+          final bx = x + hashJitter(0.13, gx, gz, 7 + k);
+          final bz = z + hashJitter(0.13, gx, gz, 11 + k);
+          final bh = h * hashRange(0.62, 1.0, gx, gz, 15 + k);
+          final tipX = bx + lean * bh * 0.75;
+          final tipZ = bz + lean * bh * 0.30;
+          final wide = bh * 0.13;
+          _quad(
+            p,
+            V3(bx - wide, 0.004, bz),
+            V3(bx + wide, 0.004, bz),
+            V3(tipX + wide * 0.18, bh, tipZ),
+            V3(tipX - wide * 0.18, bh, tipZ),
+            c,
+          );
+        }
+        drawn++;
+      }
+    }
+  }
+
   /// The town itself.
   void _collectCity(Projector p, Size size, CityLayout city) {
     final pal = scene.palette;
@@ -1296,11 +1385,21 @@ class WallPainter extends CustomPainter {
     final h = hash32(piece.building, 0x51ed, 3);
     final y0 = piece.y0 + lift, y1 = piece.y1 + lift;
     // A house is plaster over stone: pale walls, a stone base, a warm roof.
+    // Plaster takes a limewash, and in a town every house picks its own: warm
+    // white mostly, but enough ochre, rose and pale blue among them that the
+    // place reads as lived in rather than as one material repeated.
     Color wall() {
       final warm = hash01(h, 1);
       var c = Color.lerp(pal.stoneCool, pal.stoneWarm, 0.35 + warm * 0.55)!;
-      if (hash01(h, 2) < 0.22) {
-        c = Color.lerp(c, const Color(0xFF9A7C55), 0.35)!;
+      final wash = hash01(h, 2);
+      if (wash < 0.16) {
+        c = Color.lerp(c, const Color(0xFFD8A64C), 0.42)!;
+      } else if (wash < 0.28) {
+        c = Color.lerp(c, const Color(0xFFC9836E), 0.36)!;
+      } else if (wash < 0.36) {
+        c = Color.lerp(c, const Color(0xFF7FA3B8), 0.30)!;
+      } else if (wash < 0.44) {
+        c = Color.lerp(c, const Color(0xFFA8B47A), 0.28)!;
       }
       return _weather(c, decay, s);
     }
@@ -1310,10 +1409,12 @@ class WallPainter extends CustomPainter {
 
     Color roofColour() {
       final t = hash01(h, 3);
-      final base = t < 0.45
-          ? const Color(0xFF9A5B44)
-          : (t < 0.78 ? const Color(0xFF6E6A63) : const Color(0xFF8A7448));
-      return _weather(Color.lerp(base, pal.stone, 0.18)!, decay, s);
+      final base = t < 0.46
+          ? const Color(0xFFC05C38) // tile
+          : (t < 0.76
+              ? const Color(0xFF5B6B72) // slate
+              : const Color(0xFFA8853A)); // thatch
+      return _weather(Color.lerp(base, pal.stone, 0.08)!, decay, s);
     }
 
     switch (piece.kind) {
@@ -1362,6 +1463,25 @@ class WallPainter extends CustomPainter {
         _emitSails(p, piece, y0, y1, light, pal, flash);
     }
   }
+
+  // ------------------------------------------------------------------ wind
+
+  /// One travelling gust, in -1..1.
+  ///
+  /// Everything that moves in the town moves to this same field, so the grass,
+  /// the crops, the trees and the banners all lean the same way at the same
+  /// moment. A dozen things each fidgeting to their own clock reads as noise;
+  /// a dozen things leaning together reads as weather.
+  double _gust(double x, double z, [double phase = 0]) {
+    final t = scene.time;
+    final a = math.sin(x * 0.36 + z * 0.23 - t * 1.25 + phase);
+    final b = math.sin(x * 0.11 - z * 0.17 - t * 0.51 + phase * 0.6);
+    return a * 0.62 + b * 0.38;
+  }
+
+  /// How hard it is blowing just now, so there are calm spells and gusty ones
+  /// instead of one endless breeze.
+  double get _windForce => 0.42 + 0.58 * (0.5 + 0.5 * math.sin(scene.time * 0.31));
 
   // ------------------------------------------------- the landmark vocabulary
 
@@ -1497,51 +1617,108 @@ class WallPainter extends CustomPainter {
     _registerPickAt(p, piece, size, y1);
   }
 
-  /// Ploughed rows, flat on the ground.
+  /// Ploughed rows, and the crop standing in them rippling with the wind.
   void _emitField(
       Projector p, CityPiece piece, double y0, Palette pal, double decay) {
-    final green = Color.lerp(
-        const Color(0xFF7E8A52), const Color(0xFFB09B58), hash01(piece.seed, 9))!;
-    final soil = Color.lerp(green, const Color(0xFF6B5A42), 0.55)!;
+    final s = piece.seed;
+    // Real crop colours rather than a wash of the ground tone: young green,
+    // ripe barley, the deep green of a kitchen garden.
+    final t = hash01(s, 9);
+    final crop = t < 0.36
+        ? const Color(0xFF6FA341)
+        : (t < 0.72 ? const Color(0xFFC9A94A) : const Color(0xFF4E8C46));
+    final soil = const Color(0xFF6B563E);
     final along = piece.alongX;
     final across = along ? piece.d : piece.w;
-    final rows = clampD(across / 0.28, 3, 12).round();
+    final rows = clampD(across / 0.26, 3, 14).round();
     final y = y0 + 0.012;
+    final sway = 0.055 * _windForce;
+
     for (var i = 0; i < rows; i++) {
-      final a = (i + 0.12) / rows, b = (i + 0.88) / rows;
+      final lean = _gust(piece.cx, piece.cz, i * 0.5) * sway;
+      final a = (i + 0.10) / rows, b = (i + 0.86) / rows;
+      final ripe = Color.lerp(crop, const Color(0xFFE0C86A),
+          0.18 * (0.5 + 0.5 * _gust(piece.cx, piece.cz, i * 0.9)))!;
       final c = _hazeAt(
-          Color.lerp(i.isEven ? green : soil, pal.ground, decay * 0.4)!,
+          Color.lerp(i.isEven ? ripe : soil, pal.ground, decay * 0.45)!,
           p,
           piece.cx,
           piece.cz,
           pal);
+      // The crop stands a little proud of the soil, and leans.
+      final h = i.isEven ? y + 0.10 : y;
+      final push = i.isEven ? lean : 0.0;
       if (along) {
         final z0 = piece.z0 + across * a, z1 = piece.z0 + across * b;
-        _quad(p, V3(piece.x0, y, z0), V3(piece.x1, y, z0), V3(piece.x1, y, z1),
-            V3(piece.x0, y, z1), c.toARGB32());
+        _quad(p, V3(piece.x0 + push, h, z0), V3(piece.x1 + push, h, z0),
+            V3(piece.x1, y, z1), V3(piece.x0, y, z1), c.toARGB32());
       } else {
         final x0 = piece.x0 + across * a, x1 = piece.x0 + across * b;
-        _quad(p, V3(x0, y, piece.z0), V3(x0, y, piece.z1), V3(x1, y, piece.z1),
-            V3(x1, y, piece.z0), c.toARGB32());
+        _quad(p, V3(x0, h, piece.z0 + push), V3(x0, h, piece.z1 + push),
+            V3(x1, y, piece.z1), V3(x1, y, piece.z0), c.toARGB32());
       }
     }
   }
 
-  /// Standing water. Takes the sky's colour, which is what makes it read as
-  /// water rather than as a blue rectangle.
+  /// Standing water: a colour of its own, bands of light running across it,
+  /// and foam where it meets the bank.
   void _emitWater(
       Projector p, CityPiece piece, double y0, Palette pal, bool night) {
-    final sky = Color.lerp(pal.skyHorizon, pal.skyTop, 0.45)!;
-    final c = Color.lerp(sky, night ? pal.ink : pal.haze, 0.28)!;
     final y = y0 + 0.05;
-    _quad(
-      p,
-      V3(piece.x0, y, piece.z1),
-      V3(piece.x1, y, piece.z1),
-      V3(piece.x1, y, piece.z0),
-      V3(piece.x0, y, piece.z0),
-      _hazeAt(c, p, piece.cx, piece.cz, pal).toARGB32(),
-    );
+    final deep = night ? const Color(0xFF1B3A57) : const Color(0xFF1E7A93);
+    final lit = night ? const Color(0xFF32587E) : const Color(0xFF44BCC4);
+    final foam = night ? const Color(0xFF9FB6CE) : const Color(0xFFF2FBFA);
+    final cx = piece.cx, cz = piece.cz;
+
+    int tint(Color c) => _hazeAt(c, p, cx, cz, pal).toARGB32();
+
+    void plate(double x0, double x1, double z0, double z1, double h, Color c) {
+      _quad(p, V3(x0, h, z1), V3(x1, h, z1), V3(x1, h, z0), V3(x0, h, z0),
+          tint(c));
+    }
+
+    plate(piece.x0, piece.x1, piece.z0, piece.z1, y, deep);
+
+    // Bands of reflected light travelling across it. Each sits a hair higher
+    // than the last so they never fight each other for the same depth.
+    final w = piece.w, d = piece.d;
+    const bands = 3;
+    for (var i = 0; i < bands; i++) {
+      final phase = scene.time * 0.33 + i * 0.41 + hash01(piece.seed, 21, i);
+      final t = phase - phase.floorToDouble();
+      final z = piece.z0 + d * t;
+      final thick = d * (0.05 + 0.03 * math.sin(scene.time * 1.1 + i));
+      if (z + thick > piece.z1) continue;
+      final inset = w * 0.06;
+      plate(piece.x0 + inset, piece.x1 - inset, z, z + thick,
+          y + 0.004 + i * 0.002, Color.lerp(deep, lit, 0.75)!);
+    }
+
+    // Foam: a frill round the edge that breathes with the wind, so still water
+    // still looks alive.
+    final swell = 0.014 + 0.012 * _windForce;
+    final rim = math.min(w, d) * (0.055 + 0.03 * _windForce);
+    if (rim < 0.02) return;
+    final fy = y + 0.012;
+    for (var side = 0; side < 4; side++) {
+      final wob = rim * (0.7 + 0.5 * _gust(cx, cz, side * 1.7).abs());
+      switch (side) {
+        case 0:
+          plate(piece.x0, piece.x1, piece.z0, piece.z0 + wob, fy, foam);
+        case 1:
+          plate(piece.x0, piece.x1, piece.z1 - wob, piece.z1, fy, foam);
+        case 2:
+          plate(piece.x0, piece.x0 + wob, piece.z0, piece.z1, fy, foam);
+        case 3:
+          plate(piece.x1 - wob, piece.x1, piece.z0, piece.z1, fy, foam);
+      }
+    }
+    // And a lick of white further in on the windward side.
+    final lick = rim * 0.6 * (0.5 + 0.5 * math.sin(scene.time * 1.7));
+    if (lick > 0.01) {
+      plate(piece.x0 + rim, piece.x1 - rim, piece.z0 + rim,
+          piece.z0 + rim + lick, y + swell, foam);
+    }
   }
 
   /// A tree: a trunk and a canopy of two stacked blocks, which at this scale
@@ -1628,20 +1805,37 @@ class WallPainter extends CustomPainter {
     final ht = y1 - y0;
     _emitSlab(p, piece.cx, piece.cz, 0.09, 0.09, y0, y1,
         const Color(0xFF6B573F), light, pal, 0.9, flash);
-    final cloth = Color.lerp(pal.accent, const Color(0xFFB4462F),
-        hash01(piece.seed, 13) * 0.7)!;
+    // The one thing in the town allowed a colour that is not stone, plaster
+    // or tile, and the one thing that flies.
+    final pick = hash01(piece.seed, 13);
+    final cloth = pick < 0.34
+        ? const Color(0xFFC0392B)
+        : (pick < 0.67 ? const Color(0xFFE0A32E) : const Color(0xFF2E6FA8));
     final e = p.eye;
-    final w = ht * 0.42;
-    final top = y1 - ht * 0.08, bot = top - ht * 0.38;
+    final gust = _gust(piece.cx, piece.cz, piece.seed * 0.0007);
+    final fly = ht * (0.30 + 0.18 * _windForce * (0.5 + 0.5 * gust));
+    final top = y1 - ht * 0.08, bot = top - ht * 0.34;
+    // The free corner lifts and falls; the hoist stays on the pole.
+    final wave = ht * 0.11 * gust * _windForce;
     final c = _hazeAt(cloth, p, piece.cx, piece.cz, pal).toARGB32();
+    final shade =
+        _hazeAt(Color.lerp(cloth, Colors.black, 0.22)!, p, piece.cx, piece.cz,
+                pal)
+            .toARGB32();
     if ((e.x - piece.cx).abs() > (e.z - piece.cz).abs()) {
-      final z0 = piece.cz + 0.04, z1 = piece.cz + 0.04 + w;
-      _quad(p, V3(piece.cx, bot, z0), V3(piece.cx, bot, z1),
-          V3(piece.cx, top, z1), V3(piece.cx, top, z0), c);
+      final z0 = piece.cz + 0.04, z1 = piece.cz + 0.04 + fly;
+      _quad(p, V3(piece.cx, bot, z0), V3(piece.cx, bot + wave, z1),
+          V3(piece.cx, top + wave, z1), V3(piece.cx, top, z0), c);
+      _quad(p, V3(piece.cx, bot, z0), V3(piece.cx, bot + wave, z1),
+          V3(piece.cx, bot + wave - ht * 0.06, z1),
+          V3(piece.cx, bot - ht * 0.02, z0), shade);
     } else {
-      final x0 = piece.cx + 0.04, x1 = piece.cx + 0.04 + w;
-      _quad(p, V3(x0, bot, piece.cz), V3(x1, bot, piece.cz),
-          V3(x1, top, piece.cz), V3(x0, top, piece.cz), c);
+      final x0 = piece.cx + 0.04, x1 = piece.cx + 0.04 + fly;
+      _quad(p, V3(x0, bot, piece.cz), V3(x1, bot + wave, piece.cz),
+          V3(x1, top + wave, piece.cz), V3(x0, top, piece.cz), c);
+      _quad(p, V3(x0, bot, piece.cz), V3(x1, bot + wave, piece.cz),
+          V3(x1, bot + wave - ht * 0.06, piece.cz),
+          V3(x0, bot - ht * 0.02, piece.cz), shade);
     }
   }
 
@@ -1713,12 +1907,11 @@ class WallPainter extends CustomPainter {
         pal, 0.88, flash);
   }
 
-  /// Four sails on a windmill's cap.
+  /// Four sails on a windmill's cap, turning.
   ///
-  /// Laid as a cross rather than as a saltire: the renderer draws boxes square
-  /// to the world, and three little blocks stepping along a diagonal read as
-  /// three little blocks. A cross of four long arms reads, from any distance,
-  /// as a windmill.
+  /// Drawn as flat quads in the plane of the cap rather than as boxes, which is
+  /// what lets them sit at any angle — and a windmill whose sails go round is
+  /// the single most alive thing in the town.
   void _emitSails(
     Projector p,
     CityPiece piece,
@@ -1730,47 +1923,39 @@ class WallPainter extends CustomPainter {
   ) {
     final r = (y1 - y0) / 2;
     final cy = y0 + r;
-    final cx = piece.cx, cz = piece.cz;
+    final cx = piece.cx, cz = piece.cz - 0.16;
     const wood = Color(0xFF5A4835);
-    final cloth = Color.lerp(pal.stoneWarm, const Color(0xFF8A7355), 0.42)!;
-    final bar = r * 0.16;
-    final panel = r * 0.40;
+    final cloth = Color.lerp(const Color(0xFFF6EBD2), pal.stoneWarm, 0.18)!;
+    final shade = Color.lerp(cloth, const Color(0xFF8A6E4A), 0.30)!;
 
-    void span(double x, double w, double d, double a, double b, Color c,
+    // The wheel turns at the wind's own pace, and freewheels a little when the
+    // gust drops, so it never looks like a clock hand.
+    final turn = scene.time * (0.55 + 0.75 * _windForce) +
+        hash01(piece.seed, 17) * 6.28;
+
+    void blade(double ang, double from, double to, double halfW, Color c,
         double ao) {
-      // Stood clear of the cap, so the arms are never half-eaten by the roof.
-      _emitSlab(p, x, cz + (d < 0.07 ? -0.16 : -0.06), w, d.abs(),
-          math.min(a, b), math.max(a, b), c, light, pal, ao, flash);
-    }
-
-    void arm(double dx, double dy) {
-      // The stock: one long thin member from the hub outwards.
-      span(
-        cx + dx * r * 0.5,
-        dx == 0 ? bar : r * 0.98,
-        0.09,
-        cy + (dy == 0 ? -bar / 2 : dy * r * 0.02),
-        cy + (dy == 0 ? bar / 2 : dy * r * 0.98),
-        wood,
-        0.95,
-      );
-      // The cloth, wider, on the outer half of the stock.
-      span(
-        cx + dx * r * 0.62,
-        dx == 0 ? panel : r * 0.62,
-        0.05,
-        cy + (dy == 0 ? -panel / 2 : dy * r * 0.34),
-        cy + (dy == 0 ? panel / 2 : dy * r * 0.94),
-        cloth,
-        1.06,
+      final dx = math.cos(ang), dy = math.sin(ang);
+      final nx = -dy * halfW, ny = dx * halfW;
+      _quad(
+        p,
+        V3(cx + dx * from + nx, cy + dy * from + ny, cz),
+        V3(cx + dx * to + nx, cy + dy * to + ny, cz),
+        V3(cx + dx * to - nx, cy + dy * to - ny, cz),
+        V3(cx + dx * from - nx, cy + dy * from - ny, cz),
+        _hazeAt(_shade(const V3(0, 0, -1), c, light, pal, ao, flash, 0), p, cx,
+                cz, pal)
+            .toARGB32(),
       );
     }
 
-    arm(1, 0);
-    arm(-1, 0);
-    arm(0, 1);
-    arm(0, -1);
-    _emitSlab(p, cx, cz - 0.1, r * 0.3, 0.26, cy - r * 0.15, cy + r * 0.15,
+    for (var i = 0; i < 4; i++) {
+      final a = turn + i * math.pi / 2;
+      // The cloth first, then the stock over it, so the frame reads on top.
+      blade(a, r * 0.30, r * 0.98, r * 0.20, i.isEven ? cloth : shade, 1.06);
+      blade(a, r * 0.06, r * 1.0, r * 0.055, wood, 0.95);
+    }
+    _emitSlab(p, cx, cz + 0.06, r * 0.28, 0.22, cy - r * 0.14, cy + r * 0.14,
         wood, light, pal, 0.88, flash);
   }
 
