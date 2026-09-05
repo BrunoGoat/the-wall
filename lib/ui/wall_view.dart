@@ -127,6 +127,11 @@ class _WallViewState extends State<WallView>
     if (camPitch != -999) _cam.pitchTarget = camPitch * math.pi / 180;
     if (camDist != -999) _cam.distanceTarget = camDist.toDouble();
     if (camAt != -999) _cam.travelTarget = _layout.length * camAt / 100;
+    // Aims the town camera at a spot on the ground while judging a landmark.
+    const camX = int.fromEnvironment('CAM_X', defaultValue: -999);
+    const camZ = int.fromEnvironment('CAM_Z', defaultValue: -999);
+    if (camX != -999) _cam.travelTarget = camX / 10;
+    if (camZ != -999) _cam.focusZTarget = camZ / 10;
     _cam.snap();
     _ticker = createTicker(_tick)..start();
     widget.store.addListener(_onStoreChanged);
@@ -275,10 +280,10 @@ class _WallViewState extends State<WallView>
       final piece = city.pieceFor(index);
       if (piece == null) return;
       _cam.follow = true;
+      _cam.travelTo(piece.cx);
+      _cam.focusZTarget = piece.cz;
       _cam.focusYTarget = clampD(piece.y1 + 0.6, 1.0, 6.0);
-      if (_cam.distanceTarget > city.radius * 2.6) {
-        _cam.distanceTarget = city.radius * 2.0;
-      }
+      if (_cam.distanceTarget > 20) _cam.distanceTarget = 15;
       return;
     }
     final slot = _layout.slotFor(index);
@@ -400,6 +405,7 @@ class _WallViewState extends State<WallView>
     final city = _city;
     if (city != null) {
       _cam.travelTarget = 0;
+      _cam.focusZTarget = 0;
       _cam.focusYTarget = 1.8;
       _cam.distanceTarget = clampD(city.radius * 2.4, 9, 90);
       _cam.pitchTarget = 0.52;

@@ -20,6 +20,10 @@ class OrbitCamera {
   double travel = 0;
   double focusY = 1.15;
 
+  /// Across the wall's axis. Always zero for the wall, which is straight; the
+  /// town spreads both ways from its plaza and needs the second freedom.
+  double focusZ = 0;
+
   double yaw = 0.62;
   double pitch = 0.30;
   double distance = 9.0;
@@ -29,6 +33,7 @@ class OrbitCamera {
   /// like a camera rather than a teleport.
   double travelTarget = 0;
   double focusYTarget = 1.15;
+  double focusZTarget = 0;
   double yawTarget = 0.62;
   double pitchTarget = 0.30;
   double distanceTarget = 9.0;
@@ -44,6 +49,7 @@ class OrbitCamera {
   void snap() {
     travel = travelTarget;
     focusY = focusYTarget;
+    focusZ = focusZTarget;
     yaw = yawTarget;
     pitch = pitchTarget;
     distance = distanceTarget;
@@ -95,6 +101,7 @@ class OrbitCamera {
     final k = 1 - math.exp(-dt * 7.5);
     travel += (travelTarget - travel) * k;
     focusY += (focusYTarget - focusY) * k;
+    focusZ += (focusZTarget - focusZ) * k;
     yaw += angleDelta(yaw, yawTarget) * k;
     pitch += (pitchTarget - pitch) * k;
     distance += (distanceTarget - distance) * k;
@@ -102,7 +109,7 @@ class OrbitCamera {
     if (shake < 0.0005) shake = 0;
   }
 
-  V3 get target => V3(travel, focusY, 0);
+  V3 get target => V3(travel, focusY, focusZ);
 
   V3 get eye {
     final cp = math.cos(pitch);

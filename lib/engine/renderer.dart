@@ -1714,6 +1714,11 @@ class WallPainter extends CustomPainter {
   }
 
   /// Four sails on a windmill's cap.
+  ///
+  /// Laid as a cross rather than as a saltire: the renderer draws boxes square
+  /// to the world, and three little blocks stepping along a diagonal read as
+  /// three little blocks. A cross of four long arms reads, from any distance,
+  /// as a windmill.
   void _emitSails(
     Projector p,
     CityPiece piece,
@@ -1726,33 +1731,47 @@ class WallPainter extends CustomPainter {
     final r = (y1 - y0) / 2;
     final cy = y0 + r;
     final cx = piece.cx, cz = piece.cz;
-    final wood = const Color(0xFF6E5A42);
-    final cloth = Color.lerp(pal.stoneWarm, Colors.white, 0.45)!;
-    // Set at a slight angle so the four arms never line up with the roof.
-    final tilt = 0.38 + hash01(piece.seed, 14) * 0.5;
-    for (var i = 0; i < 4; i++) {
-      final a = tilt + i * math.pi / 2;
-      final dx = math.cos(a), dy = math.sin(a);
-      for (var k = 1; k <= 3; k++) {
-        final t = k / 3.2 * r;
-        _emitSlab(
-          p,
-          cx + dx * t,
-          cz,
-          r * 0.26,
-          0.1,
-          cy + dy * t - r * 0.12,
-          cy + dy * t + r * 0.12,
-          k == 3 ? wood : cloth,
-          light,
-          pal,
-          1.0,
-          flash,
-        );
-      }
+    const wood = Color(0xFF5A4835);
+    final cloth = Color.lerp(pal.stoneWarm, const Color(0xFF8A7355), 0.42)!;
+    final bar = r * 0.16;
+    final panel = r * 0.40;
+
+    void span(double x, double w, double d, double a, double b, Color c,
+        double ao) {
+      // Stood clear of the cap, so the arms are never half-eaten by the roof.
+      _emitSlab(p, x, cz + (d < 0.07 ? -0.16 : -0.06), w, d.abs(),
+          math.min(a, b), math.max(a, b), c, light, pal, ao, flash);
     }
-    _emitSlab(p, cx, cz, r * 0.22, 0.2, cy - r * 0.11, cy + r * 0.11, wood,
-        light, pal, 0.9, flash);
+
+    void arm(double dx, double dy) {
+      // The stock: one long thin member from the hub outwards.
+      span(
+        cx + dx * r * 0.5,
+        dx == 0 ? bar : r * 0.98,
+        0.09,
+        cy + (dy == 0 ? -bar / 2 : dy * r * 0.02),
+        cy + (dy == 0 ? bar / 2 : dy * r * 0.98),
+        wood,
+        0.95,
+      );
+      // The cloth, wider, on the outer half of the stock.
+      span(
+        cx + dx * r * 0.62,
+        dx == 0 ? panel : r * 0.62,
+        0.05,
+        cy + (dy == 0 ? -panel / 2 : dy * r * 0.34),
+        cy + (dy == 0 ? panel / 2 : dy * r * 0.94),
+        cloth,
+        1.06,
+      );
+    }
+
+    arm(1, 0);
+    arm(-1, 0);
+    arm(0, 1);
+    arm(0, -1);
+    _emitSlab(p, cx, cz - 0.1, r * 0.3, 0.26, cy - r * 0.15, cy + r * 0.15,
+        wood, light, pal, 0.88, flash);
   }
 
   /// A box given by its middle and size rather than by a piece, for the parts
@@ -2269,7 +2288,10 @@ class WallPainter extends CustomPainter {
     List<Rect>? taken,
   }) {
     final depth = at ?? top.depth;
-    final fade = clampD(1 - (depth - 24) / 18, 0, 1);
+    // How far a name carries depends on how far back the camera has gone: from
+    // across the valley the town should still say what its landmarks are.
+    final far = math.max(24.0, scene.camera.distance * 1.15);
+    final fade = clampD(1 - (depth - far) / (far * 0.75), 0, 1);
     if (fade <= 0.02) return;
     final dark = _isDarkSky();
     final glow = TextPainter(

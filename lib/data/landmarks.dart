@@ -407,7 +407,7 @@ final List<Landmark> landmarks = [
     m.shaft(1.85, 5, 0.72, taper: 0.09);
     m.parapet(1.9, 1.9, 0.3);
     m.spire(1.75, 1.75, 1.0);
-    m.sails(3.4, dz: -1.0, at: 4.3);
+    m.sails(3.8, dz: -1.25, at: 4.15);
     m.door(0.55, 0.85, dz: 1.0);
     m.stair(0.9, 0.4, 0.8, dz: 1.5);
     m.outbuilding(1.2, 1.0, 0.8, 0.45, dx: 2.0, dz: 1.4);
