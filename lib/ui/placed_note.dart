@@ -60,7 +60,9 @@ class _PlacedNoteState extends State<PlacedNote> {
 
   void _arm() {
     _fade?.cancel();
-    _fade = Timer(const Duration(seconds: 7), () {
+    // Long enough to actually think of something to write. Seven seconds was
+    // not: it was gone before the thumb reached the field.
+    _fade = Timer(const Duration(seconds: 12), () {
       if (mounted && _text.text.trim().isEmpty) widget.onDismiss();
     });
   }
