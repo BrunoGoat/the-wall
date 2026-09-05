@@ -123,6 +123,10 @@ class WallPainter extends CustomPainter {
 
   int _faceCount = 0;
 
+  /// Where the lit windows landed on screen this frame, so their light can be
+  /// laid over the town after the masonry is down. x, y, radius, strength.
+  final List<double> _lamps = [];
+
   _Face? _nextFace() {
     if (_faceCount >= _facePool.length) return null;
     return _facePool[_faceCount++];
@@ -132,6 +136,7 @@ class WallPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     picks.clear();
     _faceCount = 0;
+    _lamps.clear();
 
     final cam = scene.camera;
     // Cover a continuous stretch of wall with the stones the budget allows,
@@ -161,6 +166,7 @@ class WallPainter extends CustomPainter {
       _drawRings(canvas, p, city, overlay: false);
       _collectCity(p, size, city);
       _flush(canvas);
+      _drawLamps(canvas, size);
       _drawBirds(canvas, p, size, city);
       _drawRings(canvas, p, city, overlay: true);
       _drawCityGhost(canvas, p, size, city);
@@ -1447,6 +1453,32 @@ class WallPainter extends CustomPainter {
     }
   }
 
+  /// The light the lit windows throw, laid over the town once its walls are
+  /// down. Half of what a town at night is, is the glow around the windows
+  /// rather than the windows themselves.
+  void _drawLamps(Canvas canvas, Size size) {
+    if (_lamps.isEmpty) return;
+    const warm = Color(0xFFFFC978);
+    final paint = Paint()..blendMode = BlendMode.plus;
+    for (var i = 0; i < _lamps.length; i += 4) {
+      final x = _lamps[i], y = _lamps[i + 1];
+      final r = _lamps[i + 2] * 3.4, k = _lamps[i + 3];
+      if (x < -r || x > size.width + r || y < -r || y > size.height + r) {
+        continue;
+      }
+      paint.shader = ui.Gradient.radial(Offset(x, y), r, [
+        warm.withValues(alpha: 0.20 * k),
+        warm.withValues(alpha: 0.07 * k),
+        const Color(0x00000000),
+      ], [
+        0.0,
+        0.38,
+        1.0,
+      ]);
+      canvas.drawCircle(Offset(x, y), r, paint);
+    }
+  }
+
   /// A few birds turning over the town.
   ///
   /// They cost almost nothing and they do something no amount of masonry can:
@@ -2427,6 +2459,26 @@ class WallPainter extends CustomPainter {
         final wc = lit
             ? colour
             : _hazeAt(colour, p, piece.cx, piece.cz, pal);
+
+        // A lit window is a light, not a yellow rectangle. Remember where it
+        // fell so a glow can be laid over the town once the walls are down.
+        if (lit && _lamps.length < 4 * 220) {
+          final at = p.project(V3(
+            onZ ? c : outward,
+            (wy0 + wy1) / 2,
+            onZ ? outward : c,
+          ));
+          if (at != null) {
+            final r = p.focal / at.depth * 0.34;
+            if (r > 1.2) {
+              _lamps
+                ..add(at.x)
+                ..add(at.y)
+                ..add(math.min(r, 34))
+                ..add(clampD(1 - decay * 0.7, 0.2, 1.0));
+            }
+          }
+        }
 
         if (onZ) {
           _quad(

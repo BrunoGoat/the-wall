@@ -181,11 +181,31 @@ class _HoldToPlaceState extends State<HoldToPlace>
       onPointerUp: (_) => _release(),
       onPointerCancel: (_) => _release(),
       child: SizedBox(
-        width: 150,
-        height: 122,
+        width: 210,
+        height: widget.hint == null ? 122 : 142,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // Above the button, not below it: what this piece finishes is the
+            // reason to press, and it has to be readable before the thumb is
+            // over the ring — and there is no room under it anyway.
+            if (widget.hint != null) ...[
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 220),
+                opacity: _charge > 0.02 ? 0.0 : 1.0,
+                child: Text(
+                  widget.hint!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: t.fg.withValues(alpha: 0.46),
+                    shadows: t.halo,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
             Transform.scale(
               scale: scale,
               child: SizedBox(
@@ -217,21 +237,6 @@ class _HoldToPlaceState extends State<HoldToPlace>
                   ? 'EN OBRA'
                   : (_charge > 0.02 ? 'SOSTENÉ' : 'MANTENER')),
             ),
-            if (widget.hint != null) ...[
-              const SizedBox(height: 5),
-              AnimatedOpacity(
-                duration: const Duration(milliseconds: 220),
-                opacity: _charge > 0.02 ? 0.0 : 1.0,
-                child: Text(
-                  widget.hint!,
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    color: t.fg.withValues(alpha: 0.42),
-                    shadows: t.halo,
-                  ),
-                ),
-              ),
-            ],
           ],
         ),
       ),

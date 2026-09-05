@@ -125,24 +125,38 @@ class TownLandmarkOverlay extends StatelessWidget {
     final t = theme;
     return GestureDetector(
       onTap: onDismiss,
-      child: Container(
-        color: Colors.black.withValues(alpha: 0.42),
-        child: Center(
+      child: DecoratedBox(
+        // Darkest at the bottom, clear at the top: the card sits low and the
+        // thing it is about stays where you can see it turning.
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.black.withValues(alpha: 0.04),
+              Colors.black.withValues(alpha: 0.30),
+              Colors.black.withValues(alpha: 0.52),
+            ],
+            stops: const [0.0, 0.42, 1.0],
+          ),
+        ),
+        child: Align(
+          alignment: const Alignment(0, 0.72),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 340),
+            constraints: const BoxConstraints(maxWidth: 336),
             child: Padding(
-              padding: const EdgeInsets.all(26),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Frosted(
                 theme: t,
                 strong: true,
-                radius: 28,
-                padding: const EdgeInsets.fromLTRB(26, 30, 26, 26),
+                radius: 26,
+                padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(_icons[mark.tier],
-                        size: 62, color: t.fg.withValues(alpha: 0.88)),
-                    const SizedBox(height: 20),
+                        size: 40, color: t.fg.withValues(alpha: 0.88)),
+                    const SizedBox(height: 14),
                     Text(
                       'HITO $ordinal DEL PUEBLO',
                       style: TextStyle(
@@ -152,24 +166,24 @@ class TownLandmarkOverlay extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     Text(
                       mark.name,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: t.fg,
-                        fontSize: 26,
+                        fontSize: 24,
                         fontFamily: Papyrus.serif,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 12),
                     Text(
                       mark.blurb,
                       textAlign: TextAlign.center,
                       style: t.bodySoft.copyWith(fontStyle: FontStyle.italic),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
                     Text(
                       'levantado con ${mark.cost} piezas tuyas',
                       style: TextStyle(

@@ -508,8 +508,11 @@ class _WallViewState extends State<WallView>
       _cam.follow = false;
       _cam.travelTo(building.cx);
       _cam.focusZTarget = building.cz;
-      _cam.focusYTarget = clampD(building.peakY * 0.5, 1.0, 5.0);
-      _cam.distanceTarget = clampD(building.peakY * 2.8 + 4.5, 10, 30);
+      // Aimed a little low, so the building sits in the upper half of the
+      // screen and the card that comes up has somewhere to go.
+      _cam.focusYTarget = clampD(building.peakY * 0.18, 0.3, 2.2);
+      _cam.pitchTarget = clampD(_cam.pitchTarget, 0.14, 0.34);
+      _cam.distanceTarget = clampD(building.peakY * 2.6 + 4.0, 9, 28);
       Future.delayed(const Duration(milliseconds: 220), () {
         Sensory.instance.milestone();
       });
