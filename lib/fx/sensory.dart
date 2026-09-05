@@ -20,8 +20,103 @@ class Sensory {
   bool get muted => _muted;
   bool get hapticsOff => _hapticsOff;
 
-  void setMuted(bool v) => _muted = v;
+  void setMuted(bool v) {
+    _muted = v;
+    for (final p in _amb) {
+      try {
+        p.setVolume(v ? 0 : _ambAt[_amb.indexOf(p)]);
+      } catch (_) {}
+    }
+  }
   void setHapticsOff(bool v) => _hapticsOff = v;
+
+  // ------------------------------------------------------------- ambience
+
+  /// The three layers of the valley's own noise. They stack rather than swap:
+  /// the field is always there, the town murmur comes in as the place grows,
+  /// and the busy layer only once it is both big and lived in.
+  static const List<String> _layers = [
+    'amb_field.wav',
+    'amb_town.wav',
+    'amb_life.wav',
+  ];
+  final List<AudioPlayer> _amb = [];
+  final List<double> _ambAt = [0, 0, 0];
+  bool _ambReady = false;
+
+  /// One-shots, and which of them belong to a town that is doing well.
+  static const List<String> _alive = ['bell.wav', 'cock.wav'];
+  static const List<String> _empty = ['crow.wav', 'creak.wav'];
+  double _sinceOneShot = 0;
+
+  Future<void> _initAmbience() async {
+    if (_ambReady) return;
+    try {
+      for (final name in _layers) {
+        final p = AudioPlayer();
+        await p.setReleaseMode(ReleaseMode.loop);
+        await p.setVolume(0);
+        await p.play(AssetSource('sfx/$name'));
+        _amb.add(p);
+      }
+      _ambReady = true;
+    } catch (_) {
+      _ambReady = false;
+    }
+  }
+
+  /// How loud the valley is, from how big and how lit the town in front of you
+  /// is.
+  ///
+  /// A big, kept-up town is a place with people in it and sounds like one. A
+  /// small or abandoned one is not silent — that would read as broken — it just
+  /// keeps the wind and loses the voices, which is what nobody home sounds
+  /// like.
+  Future<void> ambience(double size01, double integrity) async {
+    if (!_ambReady || _muted) {
+      if (_muted) {
+        for (final p in _amb) {
+          try {
+            await p.setVolume(0);
+          } catch (_) {}
+        }
+      }
+      return;
+    }
+    final life = size01.clamp(0.0, 1.0) * (0.35 + 0.65 * integrity);
+    final want = [
+      0.30 + 0.10 * (1 - life),
+      0.46 * _ramp(life, 0.08, 0.55),
+      0.40 * _ramp(life, 0.42, 0.95),
+    ];
+    for (var i = 0; i < _amb.length && i < want.length; i++) {
+      // Eased, so walking between two towns is a change of place rather than a
+      // switch being thrown.
+      final next = _ambAt[i] + (want[i] - _ambAt[i]) * 0.10;
+      if ((next - _ambAt[i]).abs() < 0.004) continue;
+      _ambAt[i] = next;
+      try {
+        await _amb[i].setVolume(next);
+      } catch (_) {}
+    }
+  }
+
+  static double _ramp(double v, double a, double b) =>
+      ((v - a) / (b - a)).clamp(0.0, 1.0);
+
+  /// Every so often, one sound that says what kind of place this is.
+  void ambientOneShot(double dt, double size01, double integrity) {
+    if (_muted || !_ready) return;
+    _sinceOneShot += dt;
+    // Busy towns speak up often; a quiet one only now and then.
+    final gap = 26.0 - 16.0 * size01.clamp(0.0, 1.0) * integrity;
+    if (_sinceOneShot < gap) return;
+    _sinceOneShot = 0;
+    final alive = integrity > 0.6 && size01 > 0.10;
+    final pool = alive ? _alive : _empty;
+    final pick = pool[DateTime.now().microsecond % pool.length];
+    _play(pick, volume: alive ? 0.30 : 0.24);
+  }
 
   Future<void> init() async {
     if (_ready) return;
@@ -36,6 +131,7 @@ class Sensory {
     } catch (_) {
       _ready = false;
     }
+    await _initAmbience();
   }
 
   Future<void> _play(String asset, {double volume = 1.0}) async {
