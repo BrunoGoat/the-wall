@@ -9,6 +9,7 @@ import '../core/rng.dart';
 import '../data/milestones.dart';
 import '../data/pacing.dart';
 import '../engine/camera.dart';
+import '../data/landmarks.dart';
 import '../engine/city.dart';
 import '../engine/layout.dart';
 import '../engine/palette.dart';
@@ -46,6 +47,7 @@ class WallView extends StatefulWidget {
     required this.store,
     required this.controller,
     required this.onMilestoneComplete,
+    required this.onTownLandmark,
     required this.onStoneTapped,
     required this.onWhisper,
     required this.onPaletteChanged,
@@ -54,6 +56,9 @@ class WallView extends StatefulWidget {
   final WallStore store;
   final WallViewController controller;
   final void Function(PlanSegment seg) onMilestoneComplete;
+
+  /// A landmark of the town finished, and which number it is.
+  final void Function(Landmark mark, int ordinal) onTownLandmark;
   final void Function(Brick brick) onStoneTapped;
   final void Function(String message) onWhisper;
   final void Function(Palette palette) onPaletteChanged;
@@ -83,6 +88,10 @@ class _WallViewState extends State<WallView>
   /// The building that has just been finished, and how long since.
   int? _finished;
   double _finishedAge = 99;
+
+  /// A landmark being shown off: the camera turns slowly around it.
+  int? _showcase;
+  double _showcaseAge = 0;
 
   double _displayIntegrity = 1;
   double? _repairSweep;
@@ -225,6 +234,7 @@ class _WallViewState extends State<WallView>
       _finishedAge += dt;
       if (_finishedAge > 2.6) _finished = null;
     }
+    _turnAround(dt);
 
     final p = _placement;
     if (p != null) {
@@ -263,6 +273,36 @@ class _WallViewState extends State<WallView>
 
     if (mounted) setState(() {});
   }
+
+  /// The slow turn around a finished landmark, and the slower one the town
+  /// takes on its own when nobody has touched it for a while.
+  ///
+  /// A town that sits perfectly still is a photograph. One that keeps turning,
+  /// a degree every few seconds, is a place you keep watching without deciding
+  /// to — which is exactly what it should be doing while you are not building.
+  void _turnAround(double dt) {
+    if (_city == null) return;
+    final show = _showcase;
+    if (show != null) {
+      _showcaseAge += dt;
+      if (_showcaseAge > 6.5) {
+        _showcase = null;
+      } else {
+        _cam.yawTarget += dt * 0.28;
+        _cam.follow = false;
+        return;
+      }
+    }
+    _idleFor += dt;
+    if (_idleFor > 5.0) {
+      // Eases in over a couple of seconds so it never starts with a jolt.
+      final k = clampD((_idleFor - 5.0) / 2.5, 0, 1);
+      _cam.yawTarget += dt * 0.05 * k;
+    }
+  }
+
+  double _idleFor = 0;
+  void _touched() => _idleFor = 0;
 
   int _ambientCounter = 0;
 
@@ -364,6 +404,8 @@ class _WallViewState extends State<WallView>
   // --------------------------------------------------------------- placing
 
   void placeBrick() {
+    _touched();
+    _showcase = null;
     final store = widget.store;
     final wasDecaying = store.integrity < 0.995;
     final before = store.integrity;
@@ -471,7 +513,21 @@ class _WallViewState extends State<WallView>
       Future.delayed(const Duration(milliseconds: 220), () {
         Sensory.instance.milestone();
       });
-      widget.onWhisper('${building.name} en pie');
+      final mark = building.landmark;
+      if (mark != null) {
+        var ordinal = 0;
+        for (final b in city.buildings) {
+          if (b.isLandmark && b.index <= building.index) ordinal++;
+        }
+        // The camera takes a slow turn around it while the card is up: it is
+        // the one moment where the thing itself is worth looking at from more
+        // than one side.
+        _showcase = building.index;
+        _showcaseAge = 0;
+        widget.onTownLandmark(mark, ordinal);
+      } else {
+        widget.onWhisper('${building.name} en pie');
+      }
     }
     // The wall's milestones do not belong in a town: it has a hundred and
     // twelve of its own, and they are announced by the building being
@@ -536,9 +592,11 @@ class _WallViewState extends State<WallView>
 
   void _onScaleStart(ScaleStartDetails d) {
     _lastScale = 1;
+    _touched();
   }
 
   void _onScaleUpdate(ScaleUpdateDetails d) {
+    _touched();
     if (d.pointerCount >= 2) {
       final f = d.scale / (_lastScale == 0 ? 1 : _lastScale);
       _lastScale = d.scale;

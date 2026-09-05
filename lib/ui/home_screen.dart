@@ -7,6 +7,7 @@ import '../engine/palette.dart';
 import '../fx/sensory.dart';
 import '../model/appearance.dart';
 import '../model/models.dart';
+import '../data/landmarks.dart';
 import '../data/lexicon.dart';
 import '../model/wall_store.dart';
 import 'hold_button.dart';
@@ -28,6 +29,9 @@ class _HomeScreenState extends State<HomeScreen> {
   late UiTheme _theme = UiTheme(Palette.forMoment(12, 1));
 
   MilestoneReveal? _revealMilestone;
+
+  /// A landmark of the town, and which number it is, waiting to be shown.
+  (Landmark, int)? _revealTown;
   String? _whisper;
   Timer? _whisperTimer;
   Brick? _selected;
@@ -117,6 +121,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   _revealMilestone =
                       MilestoneReveal(seg.type!, seg.milestoneNo + 1);
                 });
+              },
+              onTownLandmark: (mark, ordinal) {
+                if (Appearance.instance.rapid) return;
+                setState(() => _revealTown = (mark, ordinal));
               },
               onStoneTapped: (brick) => setState(() => _selected = brick),
               onWhisper: _showWhisper,
@@ -234,6 +242,7 @@ class _HomeScreenState extends State<HomeScreen> {
             bottom: 0,
             child: _BottomDeck(
               theme: t,
+              placed: store.total,
               wall: _wall,
               onPlace: () {
                 _wall.clearSelection();
@@ -242,6 +251,16 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
           ),
+
+          if (_revealTown != null)
+            Positioned.fill(
+              child: TownLandmarkOverlay(
+                mark: _revealTown!.$1,
+                ordinal: _revealTown!.$2,
+                theme: t,
+                onDismiss: () => setState(() => _revealTown = null),
+              ),
+            ),
 
           if (_revealMilestone != null)
             Positioned.fill(
@@ -376,11 +395,13 @@ class _BottomDeck extends StatelessWidget {
     required this.theme,
     required this.wall,
     required this.onPlace,
+    required this.placed,
   });
 
   final UiTheme theme;
   final WallViewController wall;
   final VoidCallback onPlace;
+  final int placed;
 
   @override
   Widget build(BuildContext context) {
@@ -419,6 +440,7 @@ class _BottomDeck extends StatelessWidget {
             onPlace: onPlace,
             onCharge: wall.setCharge,
             rapid: Appearance.instance.rapid,
+            hint: Lexicon.isTown ? Lexicon.buttonHint(placed) : null,
           ),
         ],
       ),

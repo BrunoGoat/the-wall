@@ -116,6 +116,21 @@ class Lexicon {
   /// How many of something, with the right word after it.
   String count(int n) => '$n ${n == 1 ? unit : units}';
 
+  /// What this piece finishes, said under the button.
+  ///
+  /// The pull to put one more down is strongest when you can see exactly what
+  /// it completes. "faltan 2 para el Granero" is a different feeling from a
+  /// button that says only "mantener".
+  static String? buttonHint(int placed) {
+    if (!isTown) return null;
+    final work = CityPlan.underway(placed);
+    if (work == null) return null;
+    final left = work.$2;
+    if (left == 1) return 'esta termina ${work.$1}';
+    if (left <= 4) return 'faltan $left para ${work.$1}';
+    return null;
+  }
+
   /// What the town or the wall is working on right now.
   static String nextEvent(int placed) {
     if (!isTown) return '';

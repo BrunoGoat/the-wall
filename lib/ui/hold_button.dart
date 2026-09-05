@@ -21,6 +21,7 @@ class HoldToPlace extends StatefulWidget {
     required this.theme,
     required this.onPlace,
     required this.onCharge,
+    this.hint,
     this.enabled = true,
     this.rapid = false,
   });
@@ -30,6 +31,10 @@ class HoldToPlace extends StatefulWidget {
 
   /// Reports 0..1 while charging, so the wall can react to it.
   final void Function(double charge) onCharge;
+
+  /// What this piece is going towards, said under the button. The pull to put
+  /// one more down is strongest when you can see what it finishes.
+  final String? hint;
   final bool enabled;
 
   /// Testing aid: keep laying stones for as long as the button is held,
@@ -212,6 +217,21 @@ class _HoldToPlaceState extends State<HoldToPlace>
                   ? 'EN OBRA'
                   : (_charge > 0.02 ? 'SOSTENÉ' : 'MANTENER')),
             ),
+            if (widget.hint != null) ...[
+              const SizedBox(height: 5),
+              AnimatedOpacity(
+                duration: const Duration(milliseconds: 220),
+                opacity: _charge > 0.02 ? 0.0 : 1.0,
+                child: Text(
+                  widget.hint!,
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    color: t.fg.withValues(alpha: 0.42),
+                    shadows: t.halo,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

@@ -153,6 +153,14 @@ void main() {
       expect(landmarks.map((l) => l.name).toSet().length, landmarks.length);
     });
 
+    test('every landmark has something said about it, once, and its own', () {
+      for (final l in landmarks) {
+        expect(l.blurb.length, greaterThan(24), reason: l.name);
+        expect(l.blurb.endsWith('.'), isTrue, reason: l.name);
+      }
+      expect(landmarks.map((l) => l.blurb).toSet().length, landmarks.length);
+    });
+
     test('every tier has enough in it to keep a long town varied', () {
       for (var t = 0; t < 3; t++) {
         final n = landmarks.where((l) => l.tier == t).length;

@@ -3059,10 +3059,14 @@ class WallPainter extends CustomPainter {
     final pal = scene.palette;
     final decay = 1 - scene.integrity;
     if (decay > 0.05) {
-      canvas.drawRect(
-        Offset.zero & size,
-        Paint()..color = pal.haze.withValues(alpha: 0.10 + decay * 0.16),
-      );
+      // The wall fades into the weather when it is left; a town does not fog
+      // over, it goes cold and quiet. Grey mist over a town reads as bad
+      // visibility. A cold, dim town reads as nobody home.
+      final veil = scene.city != null
+          ? Color.lerp(pal.ink, const Color(0xFF3E4758), 0.55)!
+              .withValues(alpha: 0.06 + decay * 0.20)
+          : pal.haze.withValues(alpha: 0.10 + decay * 0.16);
+      canvas.drawRect(Offset.zero & size, Paint()..color = veil);
     }
     // A soft vignette to hold the eye on the wall.
     canvas.drawRect(
