@@ -1,19 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../data/character.dart';
+import '../data/symbols.dart';
 import '../fx/sensory.dart';
 import '../model/store.dart';
+import 'habit_sigil.dart';
 import 'style.dart';
-
-/// The symbols a habit can wear.
-///
-/// A grid rather than a keyboard: picking is one tap, it always renders, and
-/// nobody has to know how to type an emoji on their phone.
-const List<String> habitSymbols = [
-  '📖', '🏃', '💪', '🧘', '🚭', '💧', '🥗', '😴',
-  '✍️', '🎸', '🎨', '🧹', '💊', '🦷', '☎️', '🌱',
-  '🧠', '💻', '🪙', '🚲', '🏊', '🐕', '🍳', '🎯',
-];
 
 /// Making a habit, and everything you can change about one afterwards.
 class HabitsSheet extends StatefulWidget {
@@ -118,7 +110,7 @@ class _HabitsSheetState extends State<HabitsSheet> {
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: t.stroke),
                     ),
-                    child: Text(_symbol, style: const TextStyle(fontSize: 26)),
+                    child: HabitSigil(symbol: _symbol, color: t.accent, size: 30),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -162,7 +154,13 @@ class _HabitsSheetState extends State<HabitsSheet> {
                             color: s == _symbol ? t.accent : t.stroke,
                           ),
                         ),
-                        child: Text(s, style: const TextStyle(fontSize: 19)),
+                        child: HabitSigil(
+                          symbol: s,
+                          color: s == _symbol
+                              ? t.accent
+                              : t.fg.withValues(alpha: 0.62),
+                          size: 21,
+                        ),
                       ),
                     ),
                 ],

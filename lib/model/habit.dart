@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../data/symbols.dart';
 import 'piece.dart';
 
 /// One habit, and the town it is building.
@@ -24,8 +25,9 @@ class Habit {
 
   String name;
 
-  /// One character, usually an emoji. Flies on the town's banners and stands
-  /// over it in the wide view.
+  /// Which drawn mark this habit wears: an id from [habitSymbols], never a
+  /// font character. It stands over the town in the wide view, which is how
+  /// four towns are told apart from far enough away to see all of them.
   String symbol;
 
   /// Where in the valley this habit's town stands. Assigned when the habit is
@@ -84,7 +86,9 @@ class Habit {
     return Habit(
       id: j['id'] as String? ?? 'h0',
       name: j['n'] as String? ?? 'Mi hábito',
-      symbol: j['s'] as String? ?? '🏠',
+      // Older saves hold an emoji here. They are read back as the mark that
+      // means the same thing, so nobody's habit changes what it is about.
+      symbol: resolveHabitSymbol(j['s'] as String?),
       slot: (j['slot'] as num?)?.toInt() ?? 0,
       createdAt: DateTime.fromMillisecondsSinceEpoch(
           (j['c'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch),

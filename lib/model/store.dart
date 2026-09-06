@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/pacing.dart';
+import '../data/symbols.dart';
 import '../data/character.dart';
 import '../engine/town.dart';
 import 'habit.dart';
@@ -89,7 +90,7 @@ class Store extends ChangeNotifier {
     final h = Habit(
       id: 'h${DateTime.now().microsecondsSinceEpoch}',
       name: name.trim().isEmpty ? 'Sin nombre' : name.trim(),
-      symbol: symbol.isEmpty ? '🏠' : symbol,
+      symbol: resolveHabitSymbol(symbol),
       slot: _freeSlot(),
       createdAt: DateTime.now(),
     );
@@ -104,7 +105,7 @@ class Store extends ChangeNotifier {
     if (index < 0 || index >= habits.length) return;
     final h = habits[index];
     if (name != null && name.trim().isNotEmpty) h.name = name.trim();
-    if (symbol != null && symbol.isNotEmpty) h.symbol = symbol;
+    if (symbol != null && symbol.isNotEmpty) h.symbol = resolveHabitSymbol(symbol);
     _save();
     notifyListeners();
   }
@@ -153,7 +154,7 @@ class Store extends ChangeNotifier {
       habits.add(Habit(
         id: 'h0',
         name: 'Mi hábito',
-        symbol: '🏠',
+        symbol: kDefaultHabitSymbol,
         slot: 0,
         createdAt: DateTime.now(),
       ));
@@ -183,7 +184,7 @@ class Store extends ChangeNotifier {
       habits.add(Habit(
         id: 'h0',
         name: 'Mi hábito',
-        symbol: '🏠',
+        symbol: kDefaultHabitSymbol,
         slot: 0,
         createdAt: list.first.placedAt,
         pieces: list,
@@ -359,7 +360,7 @@ class Store extends ChangeNotifier {
     habits.add(Habit(
       id: 'h${DateTime.now().microsecondsSinceEpoch}',
       name: 'Mi hábito',
-      symbol: '🏠',
+      symbol: kDefaultHabitSymbol,
       slot: 0,
       createdAt: DateTime.now(),
     ));

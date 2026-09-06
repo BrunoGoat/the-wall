@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../core/math3.dart';
 import '../core/rng.dart';
 import '../fx/effects.dart';
+import '../ui/habit_sigil.dart';
 import 'camera.dart';
 import 'town.dart';
 import 'landscape.dart';
@@ -826,26 +827,25 @@ class TownPainter extends CustomPainter {
       final on = i == scene.active;
 
       final ink = dark ? Colors.white : pal.ink;
+      final fade = (on ? 0.95 : 0.66) * near;
       final tp = TextPainter(
-        text: TextSpan(children: [
-          TextSpan(
-            text: '${e.symbol}  ',
-            style: const TextStyle(fontSize: 15),
+        text: TextSpan(
+          text: e.name.toUpperCase(),
+          style: TextStyle(
+            color: ink.withValues(alpha: fade),
+            fontSize: 11,
+            letterSpacing: 2.2,
+            fontWeight: FontWeight.w700,
           ),
-          TextSpan(
-            text: e.name.toUpperCase(),
-            style: TextStyle(
-              color: ink.withValues(alpha: (on ? 0.95 : 0.66) * near),
-              fontSize: 11,
-              letterSpacing: 2.2,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ]),
+        ),
         textDirection: TextDirection.ltr,
       )..layout();
 
-      final w = math.max(tp.width, 76.0);
+      // The habit's own drawn mark, painted rather than typed: it is the same
+      // hand that drew the landmarks, and it looks the same on every phone.
+      const glyph = 16.0;
+      final content = glyph + 9 + tp.width;
+      final w = math.max(content, 76.0);
       final cx = clampD(at.x, w / 2 + 14, size.width - w / 2 - 14);
       final box = Rect.fromLTWH(cx - w / 2 - 10, at.y - 14, w + 20, 46);
       if (taken.any(box.overlaps)) continue;
@@ -867,7 +867,14 @@ class TownPainter extends CustomPainter {
             ..color = pal.accent.withValues(alpha: 0.75 * near),
         );
       }
-      tp.paint(canvas, Offset(cx - tp.width / 2, at.y - 9));
+      final left = cx - content / 2;
+      HabitSigils.draw(
+        canvas,
+        Rect.fromLTWH(left, at.y - 9 + (tp.height - glyph) / 2, glyph, glyph),
+        e.symbol,
+        ink.withValues(alpha: fade),
+      );
+      tp.paint(canvas, Offset(left + glyph + 9, at.y - 9));
 
       // Under the name: how much town there is, and how much of it is lit.
       // Two towns side by side become two bars of different length, which is

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../fx/sensory.dart';
 import '../model/habit.dart';
 import '../model/store.dart';
+import 'habit_sigil.dart';
 import 'style.dart';
 
 /// The row of habits, right above the button.
@@ -99,9 +100,11 @@ class _Chip extends StatelessWidget {
             children: [
               // Dimmed when the habit has been left: the row of symbols is
               // itself a small readout of how every habit is going.
-              Opacity(
-                opacity: 0.35 + 0.65 * lit,
-                child: Text(habit.symbol, style: const TextStyle(fontSize: 17)),
+              HabitSigil(
+                symbol: habit.symbol,
+                color: (on ? t.accent : t.fg)
+                    .withValues(alpha: 0.42 + 0.58 * lit),
+                size: 19,
               ),
               const SizedBox(width: 8),
               Text(

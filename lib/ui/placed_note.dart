@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../fx/sensory.dart';
 import '../model/habit.dart';
+import 'habit_sigil.dart';
 import 'style.dart';
 
 /// The card that comes up the moment a piece lands.
@@ -98,7 +99,7 @@ class _PlacedNoteState extends State<PlacedNote> {
         padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
         child: Row(
           children: [
-            Text(h.symbol, style: const TextStyle(fontSize: 20)),
+            HabitSigil(symbol: h.symbol, color: t.accent, size: 22),
             const SizedBox(width: 11),
             Expanded(
               child: Column(

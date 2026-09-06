@@ -53,7 +53,7 @@ class _PuebloAppState extends State<PuebloApp> {
     const valley = String.fromEnvironment('VALLEY');
     if (valley.isNotEmpty && store.habits.length == 1) {
       const names = ['Leer', 'Correr', 'Estudiar', 'Guitarra', 'Nadar'];
-      const symbols = ['📖', '🏃', '🧠', '🎸', '🏊'];
+      const symbols = ['libro', 'carrera', 'pesa', 'laud', 'ola'];
       final parts = valley.split(',');
       for (var i = 0; i < parts.length && i < names.length; i++) {
         final bits = parts[i].split(':');
