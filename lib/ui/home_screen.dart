@@ -126,6 +126,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 setState(() => _justPlaced = piece);
               },
               onStoneTapped: (brick) => setState(() => _selected = brick),
+              onTownTapped: (i) {
+                store.select(i);
+                _showWhisper(store.habit.name);
+              },
               onWhisper: _showWhisper,
               onPaletteChanged: (p) {
                 final next = UiTheme(p);
@@ -275,6 +279,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 _showWhisper(widget.store.habit.name);
               },
               onManage: _openHabits,
+              onAdd: () => _openHabits(startNew: true),
               wall: _wall,
               onPlace: () {
                 _wall.clearSelection();
@@ -439,6 +444,7 @@ class _BottomDeck extends StatelessWidget {
     required this.store,
     required this.onSelect,
     required this.onManage,
+    required this.onAdd,
   });
 
   final UiTheme theme;
@@ -449,6 +455,7 @@ class _BottomDeck extends StatelessWidget {
   final Store store;
   final void Function(int index) onSelect;
   final VoidCallback onManage;
+  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -475,6 +482,7 @@ class _BottomDeck extends StatelessWidget {
             theme: t,
             onSelect: onSelect,
             onManage: onManage,
+            onAdd: onAdd,
           ),
           const SizedBox(height: 6),
           HoldToPlace(

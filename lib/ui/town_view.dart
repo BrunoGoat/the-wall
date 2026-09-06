@@ -53,6 +53,7 @@ class TownView extends StatefulWidget {
     required this.onTownLandmark,
     required this.onPlaced,
     required this.onStoneTapped,
+    required this.onTownTapped,
     required this.onWhisper,
     required this.onPaletteChanged,
   });
@@ -66,6 +67,10 @@ class TownView extends StatefulWidget {
   /// A piece has just been laid, and which one it is.
   final void Function(Piece piece) onPlaced;
   final void Function(Piece piece) onStoneTapped;
+
+  /// The sign over another town was tapped: go and live there.
+  final void Function(int index) onTownTapped;
+
   final void Function(String message) onWhisper;
   final void Function(Palette palette) onPaletteChanged;
 
@@ -79,6 +84,7 @@ class _TownViewState extends State<TownView>
   final OrbitCamera _cam = OrbitCamera();
   final EffectSystem _fx = EffectSystem();
   final List<PickTarget> _picks = [];
+  final List<SignHit> _signs = [];
 
   late TownLayout _town;
   int _layoutFor = -1;
@@ -558,6 +564,23 @@ class _TownViewState extends State<TownView>
 
   void _onTapUp(TapUpDetails d) {
     final pos = d.localPosition;
+
+    // The signs come first. From across the valley a sign is the only thing
+    // you can read about a town, and reading it and tapping it should be the
+    // same gesture as going there.
+    for (final s in _signs) {
+      if (!s.rect.contains(pos)) continue;
+      if (s.town == widget.store.active) {
+        // Already yours: frame it properly instead of doing nothing.
+        _frameTown();
+        Sensory.instance.tick();
+        return;
+      }
+      Sensory.instance.tick();
+      widget.onTownTapped(s.town);
+      return;
+    }
+
     PickTarget? best;
     var bestD = double.infinity;
     for (final t in _picks) {
@@ -638,7 +661,7 @@ class _TownViewState extends State<TownView>
           Sensory.instance.tick();
         },
         child: CustomPaint(
-          painter: TownPainter(scene, _picks),
+          painter: TownPainter(scene, _picks, _signs),
           size: Size.infinite,
           isComplex: true,
           willChange: true,

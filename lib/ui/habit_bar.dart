@@ -19,12 +19,18 @@ class HabitBar extends StatelessWidget {
     required this.theme,
     required this.onSelect,
     required this.onManage,
+    required this.onAdd,
   });
 
   final Store store;
   final UiTheme theme;
   final void Function(int index) onSelect;
+
+  /// Tapping the habit you are already on: edit this one.
   final VoidCallback onManage;
+
+  /// Tapping the plus: found a new one. Not the same thing at all.
+  final VoidCallback onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -54,7 +60,7 @@ class HabitBar extends StatelessWidget {
                 }
               },
             ),
-          _AddChip(theme: t, onTap: onManage, enabled: store.canAddHabit),
+          _AddChip(theme: t, onTap: onAdd, enabled: store.canAddHabit),
         ],
       ),
     );

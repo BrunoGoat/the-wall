@@ -49,6 +49,17 @@ class PickTarget {
   final bool labelled;
 }
 
+/// Where a town's sign landed on screen, so it can be tapped.
+///
+/// The sign is the only thing you can read about a town from the far side of
+/// the valley; tapping the thing you are reading and being taken there is what
+/// anybody expects it to do.
+class SignHit {
+  const SignHit(this.town, this.rect);
+  final int town;
+  final Rect rect;
+}
+
 class TownScene {
   TownScene({
     required this.placed,
@@ -121,10 +132,13 @@ class _Face {
 /// Draws the whole world: sky, ground, the wall in full detail nearby, and its
 /// own silhouette receding into the haze when it gets long.
 class TownPainter extends CustomPainter {
-  TownPainter(this.scene, this.picks);
+  TownPainter(this.scene, this.picks, this.signs);
 
   final TownScene scene;
   final List<PickTarget> picks;
+
+  /// Filled every frame: where each town's sign is, for the gesture layer.
+  final List<SignHit> signs;
 
   static final List<_Face> _facePool = List.generate(16000, (_) => _Face());
   static final Float64List _clipA = Float64List(96);
@@ -145,6 +159,7 @@ class TownPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     picks.clear();
+    signs.clear();
     _faceCount = 0;
     _lamps.clear();
 
@@ -850,6 +865,8 @@ class TownPainter extends CustomPainter {
       final box = Rect.fromLTWH(cx - w / 2 - 10, at.y - 14, w + 20, 46);
       if (taken.any(box.overlaps)) continue;
       taken.add(box);
+      // Generous: a sign is small and a thumb is not.
+      signs.add(SignHit(i, box.inflate(8)));
 
       // A plate behind it, so a name is legible over a roof of any colour.
       canvas.drawRRect(
@@ -968,6 +985,9 @@ class TownPainter extends CustomPainter {
     final step = clampD(reachEarly / 52, 0.34, 1.0);
     final built = <int>{};
     for (final b in town.buildings) {
+      // Nothing built here yet: it is still meadow, and clearing the grass off
+      // it would show the street of a house nobody has earned.
+      if (b.placedPieces <= 0) continue;
       final gx = (b.cx / step).round(), gz = (b.cz / step).round();
       // Only the plot itself is bare: the lanes between the houses are grass,
       // which is most of what the eye actually sees at street level.
@@ -1173,13 +1193,15 @@ class TownPainter extends CustomPainter {
       case PieceKind.chimney:
         _emitBox(p, piece, y0, y1,
             _weather(const Color(0xFF8C6A52), decay, s), light, pal, 0.92,
-            flash, size);
+            flash, size,
+            sortDepth: _proudOfRoof(p, home, piece, y1));
       case PieceKind.parapet:
         _emitBox(p, piece, y0, y1,
             _weather(Color.lerp(pal.stoneCool, pal.stone, 0.62)!, decay, s),
             light, pal, 0.95, flash, size);
       case PieceKind.dormer:
-        _emitBox(p, piece, y0, y1, roofColour(), light, pal, 1.0, flash, size);
+        _emitBox(p, piece, y0, y1, roofColour(), light, pal, 1.0, flash, size,
+            sortDepth: _proudOfRoof(p, home, piece, y1));
       case PieceKind.porch:
         _emitBox(p, piece, y0, y1, wall(), light, pal, 0.9, flash, size);
       case PieceKind.floor:
@@ -1254,6 +1276,7 @@ class TownPainter extends CustomPainter {
           cz + math.sin(a) * rz * k);
     }
 
+    final e = p.eye;
     for (var ring = 0; ring < rings; ring++) {
       for (var i = 0; i < sides; i++) {
         final a = at(ring, i), b = at(ring, i + 1);
@@ -1263,6 +1286,11 @@ class TownPainter extends CustomPainter {
         final n = V3(math.cos(ang) * (1 - up * 0.75), 0.35 + up * 0.9,
                 math.sin(ang) * (1 - up * 0.75))
             .normalized;
+        // The far half of a dome is behind the near half. Drawing it is one
+        // more thing for the depth sort to put in the wrong order.
+        if ((e.x - a.x) * n.x + (e.y - a.y) * n.y + (e.z - a.z) * n.z <= 0) {
+          continue;
+        }
         _quad(p, a, b, c, d,
             _hazeAt(_shade(n, albedo, light, pal, 1.0, flash, 0), p, cx, cz, pal)
                 .toARGB32());
@@ -1771,6 +1799,27 @@ class TownPainter extends CustomPainter {
     }
   }
 
+  /// The depth at which a piece that stands out of its own roof should sort.
+  ///
+  /// A chimney is not beside its roof, it is *through* it, and two solids that
+  /// interpenetrate have no correct order by their middles — which is why the
+  /// chimneys came and went as the camera swung round. So it is given the
+  /// depth of the front of its own building instead. Nothing that building
+  /// owns can then paint over it, and anything genuinely nearer than the
+  /// building still can.
+  ///
+  /// Only while the camera is above it: below the ridge the roof really does
+  /// hide the chimney behind it, and that is worth keeping honest.
+  double? _proudOfRoof(
+      Projector p, TownLayout home, TownPiece piece, double top) {
+    if (p.eye.y <= top) return null;
+    if (piece.building < 0 || piece.building >= home.buildings.length) {
+      return null;
+    }
+    final b = home.buildings[piece.building];
+    return p.cameraOf(V3(b.cx, top, b.cz)).z - b.reach - 0.2;
+  }
+
   /// Makes a piece tappable without it having drawn a box of its own.
   void _registerPickAt(Projector p, TownPiece piece, Size size, double y) {
     final at = p.project(V3(piece.cx, y, piece.cz));
@@ -1807,6 +1856,7 @@ class TownPainter extends CustomPainter {
     bool windows = false,
     bool night = false,
     double decay = 0,
+    double? sortDepth,
   }) {
     final x0 = piece.x0, x1 = piece.x1, z0 = piece.z0, z1 = piece.z1;
     final e = p.eye;
@@ -1824,21 +1874,21 @@ class TownPainter extends CustomPainter {
     final before = _faceCount;
     if (e.z > z1) {
       _quad(p, V3(x0, y0, z1), V3(x1, y0, z1), V3(x1, y1, z1), V3(x0, y1, z1),
-          face(const V3(0, 0, 1), 1.0).toARGB32());
+          face(const V3(0, 0, 1), 1.0).toARGB32(), depthOverride: sortDepth);
     } else if (e.z < z0) {
       _quad(p, V3(x1, y0, z0), V3(x0, y0, z0), V3(x0, y1, z0), V3(x1, y1, z0),
-          face(const V3(0, 0, -1), 1.0).toARGB32());
+          face(const V3(0, 0, -1), 1.0).toARGB32(), depthOverride: sortDepth);
     }
     if (e.x > x1) {
       _quad(p, V3(x1, y0, z1), V3(x1, y0, z0), V3(x1, y1, z0), V3(x1, y1, z1),
-          face(const V3(1, 0, 0), 0.94).toARGB32());
+          face(const V3(1, 0, 0), 0.94).toARGB32(), depthOverride: sortDepth);
     } else if (e.x < x0) {
       _quad(p, V3(x0, y0, z0), V3(x0, y0, z1), V3(x0, y1, z1), V3(x0, y1, z0),
-          face(const V3(-1, 0, 0), 0.94).toARGB32());
+          face(const V3(-1, 0, 0), 0.94).toARGB32(), depthOverride: sortDepth);
     }
     if (e.y > y1) {
       _quad(p, V3(x0, y1, z1), V3(x1, y1, z1), V3(x1, y1, z0), V3(x0, y1, z0),
-          face(const V3(0, 1, 0), 1.04).toARGB32());
+          face(const V3(0, 1, 0), 1.04).toARGB32(), depthOverride: sortDepth);
     }
     if (_faceCount > before) {
       _registerPick(_facePool[before], piece.index, size);
@@ -1867,6 +1917,20 @@ class TownPainter extends CustomPainter {
     final wy0 = y0 + h * 0.34, wy1 = y0 + h * 0.74;
     final e = p.eye;
     final s = piece.seed;
+    final my = (y0 + y1) / 2;
+
+    // A window belongs to its wall and must be painted straight after it,
+    // whatever angle the wall is seen from. Sorting it by its own middle is
+    // not enough: a long wall seen obliquely has a nearer middle than a window
+    // at its far end, so the wall paints over its own windows — which is the
+    // flicker you see the moment the camera swings round. Pinning the window
+    // just in front of the depth its wall will sort at settles it for good.
+    double wallDepth(bool onZ, double outward) => p
+            .cameraOf(onZ
+                ? V3((piece.x0 + piece.x1) / 2, my, outward)
+                : V3(outward, my, (piece.z0 + piece.z1) / 2))
+            .z -
+        0.05;
 
     // How much of the town is still lived in. Falls away fast at the end so
     // the last stretch of neglect is the one you actually notice.
@@ -1877,6 +1941,8 @@ class TownPainter extends CustomPainter {
     final boarded = decay > 0.30 && hash01(s, 72) < (decay - 0.30) * 1.5;
 
     void row(bool onZ, double at, double from, double to, double outward) {
+      final glass = wallDepth(onZ, outward);
+      final board = glass - 0.03;
       final span = to - from;
       final n = math.max(1, (span / 0.62).floor());
       for (var i = 0; i < n; i++) {
@@ -1924,6 +1990,7 @@ class TownPainter extends CustomPainter {
             V3(c + hw, wy1, outward),
             V3(c - hw, wy1, outward),
             wc.toARGB32(),
+            depthOverride: glass,
           );
         } else {
           _quad(
@@ -1933,6 +2000,7 @@ class TownPainter extends CustomPainter {
             V3(outward, wy1, c + hw),
             V3(outward, wy1, c - hw),
             wc.toARGB32(),
+            depthOverride: glass,
           );
         }
         if (!shut) continue;
@@ -1943,19 +2011,21 @@ class TownPainter extends CustomPainter {
                 piece.cz, pal)
             .toARGB32();
         for (var k = 0; k < 2; k++) {
-          final my = wy0 + (wy1 - wy0) * (k == 0 ? 0.28 : 0.66);
+          final py = wy0 + (wy1 - wy0) * (k == 0 ? 0.28 : 0.66);
           final th = (wy1 - wy0) * 0.13;
           final out2 = outward + (outward > 0 ? 0.004 : -0.004);
           if (onZ) {
-            _quad(p, V3(c - hw * 1.25, my - th, out2),
-                V3(c + hw * 1.25, my - th, out2),
-                V3(c + hw * 1.25, my + th, out2),
-                V3(c - hw * 1.25, my + th, out2), plank);
+            _quad(p, V3(c - hw * 1.25, py - th, out2),
+                V3(c + hw * 1.25, py - th, out2),
+                V3(c + hw * 1.25, py + th, out2),
+                V3(c - hw * 1.25, py + th, out2), plank,
+                depthOverride: board);
           } else {
-            _quad(p, V3(out2, my - th, c - hw * 1.25),
-                V3(out2, my - th, c + hw * 1.25),
-                V3(out2, my + th, c + hw * 1.25),
-                V3(out2, my + th, c - hw * 1.25), plank);
+            _quad(p, V3(out2, py - th, c - hw * 1.25),
+                V3(out2, py - th, c + hw * 1.25),
+                V3(out2, py + th, c + hw * 1.25),
+                V3(out2, py + th, c - hw * 1.25), plank,
+                depthOverride: board);
           }
         }
       }
@@ -1998,32 +2068,68 @@ class TownPainter extends CustomPainter {
         );
 
     final rise = y1 - y0;
+    final e = p.eye;
+
+    // Only the slopes turned towards the camera, exactly as a box only draws
+    // the sides you can see. Emitting all four and trusting the depth sort was
+    // where the roofs went wrong: the far slope is the one the sun is on, so
+    // when the sort slipped it was a white wedge that came through the front
+    // of the roof — the fault you see the moment the camera swings round.
+    bool faces(V3 point, V3 n) =>
+        (e.x - point.x) * n.x + (e.y - point.y) * n.y + (e.z - point.z) * n.z >
+        0;
+
     if (piece.alongX) {
       // Ridge runs east to west; the slopes face north and south.
       final run = (z1 - z0) / 2;
       final nA = V3(0, run, rise).normalized;
       final nB = V3(0, run, -rise).normalized;
-      _quad(p, V3(x0, y0, z1), V3(x1, y0, z1), V3(x1, y1, mz), V3(x0, y1, mz),
-          face(nA, 1.0).toARGB32());
-      _quad(p, V3(x1, y0, z0), V3(x0, y0, z0), V3(x0, y1, mz), V3(x1, y1, mz),
-          face(nB, 0.92).toARGB32());
-      _tri(p, V3(x1, y0, z0), V3(x1, y0, z1), V3(x1, y1, mz),
-          face(const V3(1, 0, 0), 0.88).toARGB32());
-      _tri(p, V3(x0, y0, z1), V3(x0, y0, z0), V3(x0, y1, mz),
-          face(const V3(-1, 0, 0), 0.88).toARGB32());
+      final end = _gableEnd(face(nA, 1.0), face(nB, 0.92));
+      if (faces(V3(mx, y0, z1), nA)) {
+        _quad(p, V3(x0, y0, z1), V3(x1, y0, z1), V3(x1, y1, mz),
+            V3(x0, y1, mz), face(nA, 1.0).toARGB32());
+      }
+      if (faces(V3(mx, y0, z0), nB)) {
+        _quad(p, V3(x1, y0, z0), V3(x0, y0, z0), V3(x0, y1, mz),
+            V3(x1, y1, mz), face(nB, 0.92).toARGB32());
+      }
+      if (e.x > x1) {
+        _tri(p, V3(x1, y0, z0), V3(x1, y0, z1), V3(x1, y1, mz), end);
+      } else if (e.x < x0) {
+        _tri(p, V3(x0, y0, z1), V3(x0, y0, z0), V3(x0, y1, mz), end);
+      }
     } else {
       final run = (x1 - x0) / 2;
       final nA = V3(run, rise, 0).normalized;
       final nB = V3(-run, rise, 0).normalized;
-      _quad(p, V3(x1, y0, z0), V3(x1, y0, z1), V3(mx, y1, z1), V3(mx, y1, z0),
-          face(nA, 1.0).toARGB32());
-      _quad(p, V3(x0, y0, z1), V3(x0, y0, z0), V3(mx, y1, z0), V3(mx, y1, z1),
-          face(nB, 0.92).toARGB32());
-      _tri(p, V3(x0, y0, z1), V3(x1, y0, z1), V3(mx, y1, z1),
-          face(const V3(0, 0, 1), 0.88).toARGB32());
-      _tri(p, V3(x1, y0, z0), V3(x0, y0, z0), V3(mx, y1, z0),
-          face(const V3(0, 0, -1), 0.88).toARGB32());
+      final end = _gableEnd(face(nA, 1.0), face(nB, 0.92));
+      if (faces(V3(x1, y0, mz), nA)) {
+        _quad(p, V3(x1, y0, z0), V3(x1, y0, z1), V3(mx, y1, z1),
+            V3(mx, y1, z0), face(nA, 1.0).toARGB32());
+      }
+      if (faces(V3(x0, y0, mz), nB)) {
+        _quad(p, V3(x0, y0, z1), V3(x0, y0, z0), V3(mx, y1, z0),
+            V3(mx, y1, z1), face(nB, 0.92).toARGB32());
+      }
+      if (e.z > z1) {
+        _tri(p, V3(x0, y0, z1), V3(x1, y0, z1), V3(mx, y1, z1), end);
+      } else if (e.z < z0) {
+        _tri(p, V3(x1, y0, z0), V3(x0, y0, z0), V3(mx, y1, z0), end);
+      }
     }
+  }
+
+  /// The end of a roof, in tone.
+  ///
+  /// Shaded on its own outward normal a gable can come out paler than both of
+  /// the slopes it closes, and a white wedge beside a tan roof does not read
+  /// as the end of the roof — it reads as a hole in it. So it is always the
+  /// darker slope, a shade darker again: the end of a roof is in its own
+  /// shadow, and it can never out-shine the roof.
+  int _gableEnd(Color a, Color b) {
+    double lum(Color c) => c.r * 0.299 + c.g * 0.587 + c.b * 0.114;
+    final dark = lum(a) <= lum(b) ? a : b;
+    return Color.lerp(dark, const Color(0xFF000000), 0.14)!.toARGB32();
   }
 
   /// A spire: four faces to a point.
@@ -2043,7 +2149,13 @@ class TownPainter extends CustomPainter {
     if (p.cameraOf(V3(mx, (y0 + y1) / 2, mz)).z <= p.near) return;
     final rise = y1 - y0;
 
+    final e = p.eye;
+
     void side(V3 a, V3 b, V3 n, double k) {
+      // The two faces round the back of a spire are never seen and, drawn,
+      // are only something for the depth sort to get wrong.
+      final mxp = (a.x + b.x) / 2, mzp = (a.z + b.z) / 2;
+      if ((e.x - mxp) * n.x + (e.y - y0) * n.y + (e.z - mzp) * n.z <= 0) return;
       _tri(
         p,
         a,
