@@ -1983,8 +1983,11 @@ class TownPainter extends CustomPainter {
     // And when the frame is already carrying a whole town, the cuts are the
     // first thing to give up: a coarse roof is better than a missing house.
     final room = _faceCount < _facePool.length * 0.55;
+    // Fine enough that a piece of slope is small beside the things that stand
+    // on it: the order can still be wrong, but only ever by one piece, and a
+    // piece this size is not something anybody sees.
     int cuts(double len) =>
-        room ? (len * px / 30).ceil().clamp(1, 5) : 1;
+        room ? (len * px / 17).ceil().clamp(1, 9) : 1;
 
     /// One slope, from the eave [a]-[b] up to the ridge [d]-[c].
     void slope(V3 a, V3 b, V3 c, V3 d, int colour) {
@@ -2082,7 +2085,7 @@ class TownPainter extends CustomPainter {
       // roof is cut: a whole face cannot be ordered against a thing standing
       // on it, and a band can.
       final n2 = _faceCount < _facePool.length * 0.55
-          ? (_span(a, apex) * px / 30).ceil().clamp(1, 4)
+          ? (_span(a, apex) * px / 20).ceil().clamp(1, 6)
           : 1;
       V3 lerp3(V3 f, V3 t, double q) =>
           V3(f.x + (t.x - f.x) * q, f.y + (t.y - f.y) * q,
