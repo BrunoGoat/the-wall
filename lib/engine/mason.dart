@@ -83,10 +83,6 @@ class Mason {
 
   final List<Spec> out = [];
 
-  /// Every roof laid so far, so anything that comes up through one knows where
-  /// its tiles are.
-  final List<_Roof> _roofs = [];
-
   /// The top of what has been laid so far.
   double y = 0;
 
@@ -132,21 +128,7 @@ class Mason {
   }) {
     final base = at ?? y;
     _add(k, dx, dz, w, d, base, base + ht, along: along);
-    if (k == PieceKind.roof) {
-      _roofs.add(_Roof(dx, dz, w, d, base, ht, along ?? alongX));
-    }
     if (!ridge && at == null) y += ht;
-  }
-
-  /// How high the tiles are over a spot, or the course line where no roof
-  /// covers it.
-  double _tilesAt(double dx, double dz) {
-    var top = y;
-    for (final r in _roofs) {
-      final s = r.surfaceAt(dx, dz);
-      if (s != null && s > top) top = s;
-    }
-    return top;
   }
 
   /// A storey with windows in it.
@@ -182,27 +164,16 @@ class Mason {
           {double dx = 0, double dz = 0}) =>
       box(PieceKind.parapet, w, d, ht, dx: dx, dz: dz);
 
-  /// A chimney comes out *through* a roof, so it is laid from the tiles up.
-  ///
-  /// Started at the wall head it would be a tall box with most of its length
-  /// buried in the roof, and no renderer that sorts whole faces can decide
-  /// which half of a buried box to draw: from one side the roof swallows the
-  /// chimney whole, from the other the chimney shows all the way down to the
-  /// eaves. Standing it on the tiles there is nothing buried to argue about.
   void chimney(double side, double ht, {double dx = 0, double dz = 0}) =>
-      box(PieceKind.chimney, side, side, ht,
-          dx: dx, dz: dz, ridge: true, at: _tilesAt(dx, dz) - 0.08);
+      box(PieceKind.chimney, side, side, ht, dx: dx, dz: dz, ridge: true);
 
   /// A door, which belongs on the ground whatever has been built above it.
   void door(double w, double ht, {double dx = 0, double dz = 0}) =>
       box(PieceKind.porch, w, 0.44, ht, dx: dx, dz: dz, at: 0);
 
-  /// A dormer straddles the tiles: half in the roof, half out of it. Laid from
-  /// the wall head it was buried nearly whole, which is the same argument the
-  /// chimney was having.
   void dormer(double w, double ht, {double dx = 0, double dz = 0, double? at}) =>
       box(PieceKind.dormer, w, w * 0.85, ht,
-          dx: dx, dz: dz, ridge: true, at: at ?? _tilesAt(dx, dz) - ht * 0.45);
+          dx: dx, dz: dz, ridge: true, at: at);
 
   // ------------------------------------------------------------- the ground
 
@@ -309,25 +280,5 @@ class Mason {
       out.add(out.last);
     }
     return out.length > want ? out.sublist(0, want) : out;
-  }
-}
-
-/// A roof that has been laid, and how high its tiles are over any spot.
-class _Roof {
-  const _Roof(this.dx, this.dz, this.w, this.d, this.base, this.rise,
-      this.alongX);
-  final double dx, dz, w, d, base, rise;
-  final bool alongX;
-
-  /// The height of the tiles above a point, or null when the point is not
-  /// under this roof at all.
-  double? surfaceAt(double x, double z) {
-    final hw = w / 2, hd = d / 2;
-    if (hw <= 0 || hd <= 0) return null;
-    if ((x - dx).abs() > hw || (z - dz).abs() > hd) return null;
-    // Flat at the ridge, down to the eaves across the slope.
-    final across =
-        alongX ? (z - dz).abs() / hd : (x - dx).abs() / hw;
-    return base + rise * (1 - across);
   }
 }

@@ -93,6 +93,11 @@ class _GalleryScreenState extends State<GalleryScreen>
     super.initState();
     _rebuild();
     _frame();
+    // Fixed framing for development screenshots.
+    const camYaw = int.fromEnvironment('CAM_YAW', defaultValue: -999);
+    const camPitch = int.fromEnvironment('CAM_PITCH', defaultValue: -999);
+    if (camYaw != -999) _cam.yawTarget = camYaw * math.pi / 180;
+    if (camPitch != -999) _cam.pitchTarget = camPitch * math.pi / 180;
     _cam.snap();
     _ticker = createTicker(_tick)..start();
   }
