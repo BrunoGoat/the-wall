@@ -179,12 +179,21 @@ class Mason {
 
   /// A dormer straddles the tiles: half in the roof, half standing out of it.
   ///
-  /// Laid from the wall head it is buried nearly to its own top, and the
-  /// little that shows sticks out below the eaves instead of out of the slope,
-  /// which is a notch in the roof rather than a window in it.
-  void dormer(double w, double ht, {double dx = 0, double dz = 0, double? at}) =>
-      box(PieceKind.dormer, w, w * 0.85, ht,
-          dx: dx, dz: dz, ridge: true, at: at ?? _tilesAt(dx, dz) - ht * 0.42);
+  /// Laid from the wall head it is buried nearly to its own top, and the little
+  /// that shows sticks out below the eaves instead of out of the slope, which
+  /// is a notch in the roof rather than a window in it.
+  ///
+  /// [dz] is down the slope and [dx] along the ridge, whichever way round this
+  /// building's roof happens to run — the mason knows which way that is, and a
+  /// recipe should not have to. Written straight into world axes a dormer half
+  /// the time lands on the ridge itself, where it stands clear of the roof
+  /// like a box somebody left on top of it.
+  void dormer(double w, double ht, {double dx = 0, double dz = 0, double? at}) {
+    final ox = alongX ? dx : dz;
+    final oz = alongX ? dz : dx;
+    box(PieceKind.dormer, w, w * 0.85, ht,
+        dx: ox, dz: oz, ridge: true, at: at ?? _tilesAt(ox, oz) - ht * 0.42);
+  }
 
   /// How high the tiles are over a spot, or the course line where no roof
   /// covers it.
