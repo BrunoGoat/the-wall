@@ -20,15 +20,14 @@ const server = http.createServer((q,r)=>{let p=decodeURIComponent(q.url.split('?
   const shot = async n => { await page.screenshot({path: path.join(outDir, n+'.png')}); console.log('shot', n); };
 
   // the active chip opens the sheet
-  await page.mouse.click(128, 787);
-  await page.waitForTimeout(1400);
+  await page.mouse.click(72, 702);
+  await page.waitForTimeout(1600);
   await shot('sheet');
 
   // dismiss, then lay a piece to see the card
-  await page.keyboard.press('Escape');
-  await page.mouse.click(220, 300);
-  await page.waitForTimeout(900);
-  const BTN = {x: 220, y: 812};
+  await page.mouse.click(220, 120);
+  await page.waitForTimeout(1200);
+  const BTN = {x: 220, y: 800};
   await page.mouse.move(BTN.x, BTN.y); await page.mouse.down();
   await page.waitForTimeout(2100); await page.mouse.up();
   await page.waitForTimeout(1800);
