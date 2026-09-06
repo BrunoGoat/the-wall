@@ -4,7 +4,10 @@ import 'package:flutter/services.dart';
 import 'fx/sensory.dart';
 import 'model/appearance.dart';
 import 'model/store.dart';
+import 'engine/palette.dart';
+import 'ui/gallery_screen.dart';
 import 'ui/home_screen.dart';
+import 'ui/style.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -74,6 +77,9 @@ class _PuebloAppState extends State<PuebloApp> {
     Sensory.instance.init();
   }
 
+  static const int _gallery =
+      int.fromEnvironment('GALLERY', defaultValue: -1);
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -87,7 +93,14 @@ class _PuebloAppState extends State<PuebloApp> {
         ),
         scaffoldBackgroundColor: const Color(0xFF9FB6D8),
       ),
-      home: store.loaded ? HomeScreen(store: store) : const _Opening(),
+      // Straight into the exhibition hall, for looking at one recipe without
+      // walking through the app to reach it. Off unless compiled in.
+      home: !store.loaded
+          ? const _Opening()
+          : (_gallery >= 0
+              ? GalleryScreen(theme: UiTheme(Palette.forMoment(11, 1)),
+                  start: _gallery)
+              : HomeScreen(store: store)),
     );
   }
 }

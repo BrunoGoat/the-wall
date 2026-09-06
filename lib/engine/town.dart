@@ -399,6 +399,58 @@ class TownLayout {
     _build();
   }
 
+  /// One structure on its own, in an empty world.
+  ///
+  /// Nothing about the catalogue is visible from inside a town: a landmark
+  /// turns up once every few hundred achievements, and half of them nobody
+  /// will reach for a year. This builds exactly one of them, at the origin, so
+  /// every recipe can be looked at, walked around, and watched going up piece
+  /// by piece — which is the only way to catch a chimney standing on thin air
+  /// before somebody earns it.
+  TownLayout.showcase(
+    this.character, {
+    Landmark? landmark,
+    BuildingKind? kind,
+    required this.placed,
+    int seed = 0,
+  })  : plan = TownPlan.of(character),
+        plotPitch = character.plotPitch,
+        cx = 0,
+        cz = 0 {
+    final building = TownBuilding(
+      index: 0,
+      kind: landmark == null ? (kind ?? BuildingKind.house) : null,
+      landmark: landmark,
+      firstPiece: 0,
+      cx: 0,
+      cz: 0,
+      seed: hash32(seed, 0x5A11, 7),
+    );
+    for (final p in _piecesOf(building)) {
+      if (pieces.length > placed) break;
+      pieces.add(TownPiece(
+        index: pieces.length,
+        building: 0,
+        kind: p.kind,
+        cx: p.cx,
+        cz: p.cz,
+        w: p.w,
+        d: p.d,
+        y0: p.y0,
+        y1: p.y1,
+        seed: hash32(building.seed, pieces.length, 31),
+        alongX: p.alongX,
+      ));
+      if (p.y1 > building.peakY) building.peakY = p.y1;
+    }
+    final built = math.min(pieces.length, placed);
+    building.placedPieces = built;
+    _cap(0, built);
+    _perch(0, built);
+    buildings.add(building);
+    radius = building.reach + 1.5;
+  }
+
   /// Where in the valley this town stands. Every habit has its own plot, so
   /// several towns can be looked at side by side without any of them moving.
   final double cx, cz;

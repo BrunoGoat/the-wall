@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../data/landmarks.dart';
 import '../engine/town.dart';
 import '../model/habit.dart';
 import '../model/appearance.dart';
@@ -8,6 +9,7 @@ import '../model/piece.dart';
 import '../fx/sensory.dart';
 import '../model/store.dart';
 import 'debug_sheet.dart';
+import 'gallery_screen.dart';
 import 'papyrus.dart';
 import 'style.dart';
 
@@ -225,6 +227,15 @@ class _Summary extends StatelessWidget {
           subtitle: 'Cómo se vería con 100, 500 o 5000 piezas. No toca las tuyas.',
           open: (nav) => DebugSheet(store: store, theme: t),
         ),
+        _PageRow(
+          theme: t,
+          icon: Icons.view_in_ar,
+          title: 'El expositor',
+          subtitle:
+              'Las ${landmarks.length + BuildingKind.values.length} estructuras '
+              'que el pueblo sabe construir, una por una y pieza a pieza.',
+          open: () => GalleryScreen(theme: t),
+        ),
       ],
     );
   }
@@ -333,6 +344,57 @@ class _RapidToggleState extends State<_RapidToggle> {
 ///
 /// Every one of them opens without a scrim: they are all judgements about the
 /// wall, and you cannot make those against a dimmed wall.
+/// A row that leaves the sheet behind for a whole screen of its own.
+class _PageRow extends StatelessWidget {
+  const _PageRow({
+    required this.theme,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.open,
+  });
+
+  final UiTheme theme;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget Function() open;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = theme;
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () {
+        Sensory.instance.tick();
+        final nav = Navigator.of(context);
+        nav.pop();
+        nav.push(MaterialPageRoute<void>(builder: (_) => open()));
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
+          children: [
+            Icon(icon, size: 19, color: t.fgSoft),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: t.body),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: t.bodySoft.copyWith(fontSize: 12)),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, size: 18, color: t.fgFaint),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _SheetRow extends StatelessWidget {
   const _SheetRow({
     required this.theme,
