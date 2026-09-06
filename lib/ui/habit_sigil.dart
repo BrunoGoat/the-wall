@@ -263,13 +263,13 @@ final Map<String, void Function(_Pen)> _glyphs = {
   // ----------------------------------------------------------------- oficios
   'pluma': (p) {
     p.fill((q) {
-      q.moveTo(93, 4);
-      q.cubicTo(66, 16, 50, 34, 44, 56);
-      q.cubicTo(66, 50, 85, 30, 93, 4);
+      q.moveTo(94, 3);
+      q.cubicTo(62, 14, 44, 34, 38, 58);
+      q.cubicTo(64, 52, 86, 30, 94, 3);
       q.close();
     });
-    p.poly(5, [48, 52, 20, 87]);
-    p.shape([9, 97, 23, 82, 27, 87]);
+    p.poly(6, [43, 54, 19, 87]);
+    p.shape([8, 98, 22, 81, 27, 87]);
   },
   'laud': (p) {
     // A big body and a short neck: at the size a town sign draws it, a small
@@ -472,20 +472,22 @@ final Map<String, void Function(_Pen)> _glyphs = {
     p.rect(28, 80, 72, 91, round: 4);
   },
   'bolsa': (p) {
-    p.line(6, (q) {
-      q.moveTo(34, 27);
-      q.cubicTo(38, 9, 62, 9, 66, 27);
+    p.line(5, (q) {
+      q.moveTo(31, 30);
+      q.cubicTo(36, 13, 64, 13, 69, 30);
     });
-    p.rect(30, 27, 70, 37, round: 4);
     p.fill((q) {
-      q.moveTo(34, 37);
-      q.lineTo(66, 37);
-      q.cubicTo(84, 47, 92, 63, 88, 77);
-      q.cubicTo(84, 91, 68, 97, 50, 97);
-      q.cubicTo(32, 97, 16, 91, 12, 77);
-      q.cubicTo(8, 63, 16, 47, 34, 37);
+      q.moveTo(39, 31);
+      q.lineTo(61, 31);
+      q.cubicTo(79, 38, 96, 58, 93, 76);
+      q.cubicTo(90, 91, 73, 98, 50, 98);
+      q.cubicTo(27, 98, 10, 91, 7, 76);
+      q.cubicTo(4, 58, 21, 38, 39, 31);
       q.close();
     });
+    // The knot, one lobe either side of the pinch.
+    p.dot(32, 33, 9);
+    p.dot(68, 33, 9);
   },
   'llave': (p) {
     p.ring(28, 50, 17, 8);
