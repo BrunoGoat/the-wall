@@ -1808,10 +1808,14 @@ class TownPainter extends CustomPainter {
       _quad(p, V3(x0, y0, z0), V3(x0, y0, z1), V3(x0, y1, z1), V3(x0, y1, z0),
           face(const V3(-1, 0, 0), 0.94).toARGB32(), depthOverride: sortDepth);
     }
-    // The top is only worth drawing when there is nothing standing on it.
+    // The top is only worth drawing when there is nothing standing on it — but
+    // then it must be drawn, or a half-built house is an open box you can see
+    // straight into. Kept below the sunlit sides: a course of masonry waiting
+    // for the next one is not a light, and on a limewashed wall anything
+    // brighter clips to a flat white slab with no form left in it.
     if (e.y > y1 && !piece.capped) {
       _quad(p, V3(x0, y1, z1), V3(x1, y1, z1), V3(x1, y1, z0), V3(x0, y1, z0),
-          face(const V3(0, 1, 0), 1.04).toARGB32(), depthOverride: sortDepth);
+          face(const V3(0, 1, 0), 0.84).toARGB32(), depthOverride: sortDepth);
     }
     if (_faceCount > before) {
       _registerPick(_facePool[before], piece.index, size);
