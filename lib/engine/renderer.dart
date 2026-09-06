@@ -1886,7 +1886,8 @@ class TownPainter extends CustomPainter {
       _quad(p, V3(x0, y0, z0), V3(x0, y0, z1), V3(x0, y1, z1), V3(x0, y1, z0),
           face(const V3(-1, 0, 0), 0.94).toARGB32(), depthOverride: sortDepth);
     }
-    if (e.y > y1) {
+    // The top is only worth drawing when there is nothing standing on it.
+    if (e.y > y1 && !piece.capped) {
       _quad(p, V3(x0, y1, z1), V3(x1, y1, z1), V3(x1, y1, z0), V3(x0, y1, z0),
           face(const V3(0, 1, 0), 1.04).toARGB32(), depthOverride: sortDepth);
     }
