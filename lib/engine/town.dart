@@ -474,11 +474,16 @@ class TownLayout {
           alongX: p.alongX,
         ));
         if (p.y1 > building.peakY) building.peakY = p.y1;
-        building.placedPieces = index - building.firstPiece + 1;
         index++;
       }
-      _cap(building.firstPiece, index);
-      _perch(building.firstPiece, index);
+      // The last piece of the town is the ghost of the next one: it is drawn
+      // as an outline standing where the piece will go, and it is not built
+      // yet. Counting it would give a plot its yard, and a wall the roof that
+      // covers it, a whole achievement early.
+      final built = math.min(index, placed);
+      building.placedPieces = math.max(0, built - building.firstPiece);
+      _cap(building.firstPiece, built);
+      _perch(building.firstPiece, built);
       buildings.add(building);
       final out = math.sqrt((building.cx - cx) * (building.cx - cx) +
           (building.cz - cz) * (building.cz - cz));

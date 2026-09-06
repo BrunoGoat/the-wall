@@ -69,6 +69,26 @@ void main() {
       }
     });
 
+    test('the piece that has not been laid yet counts for nothing', () {
+      // The town always builds one piece more than has been earned, to show
+      // the ghost of what is coming. Counting it as built gave a plot its yard
+      // and a wall the roof that covers it a whole achievement early — which
+      // is exactly the thing this app must never do.
+      for (final n in [0, 1, 5, 8, 40, 300]) {
+        final town = TownLayout(n, TownCharacter.all.first);
+        var built = 0;
+        for (final b in town.buildings) {
+          built += b.placedPieces;
+        }
+        expect(built, n, reason: '$n placed');
+        for (final p in town.pieces) {
+          if (p.index < n) continue;
+          expect(p.capped, isFalse,
+              reason: 'the ghost at $n was treated as built');
+        }
+      }
+    });
+
     test('nothing is stacked on top of a roof', () {
       // The way a house goes wrong is the last piece landing above the ridge:
       // a door or a clock face left hanging over the tiles. Only a chimney is

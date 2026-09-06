@@ -173,7 +173,6 @@ class TownPainter extends CustomPainter {
     for (final e in scene.towns) {
       _drawTownGround(canvas, p, e.layout);
     }
-    _drawMeadow(p, size, town);
     _drawRings(canvas, p, town, overlay: false);
     _collectTown(p, size);
     _flush(canvas);
@@ -969,90 +968,6 @@ class TownPainter extends CustomPainter {
       }
     }
   }
-
-  /// The meadow the town stands in: tufts of grass leaning with the wind.
-  ///
-  /// Not a texture — a few hundred real blades, sized and coloured apart, near
-  /// the camera only, and never where a building already stands. It is what
-  /// turns a flat green field into ground.
-  void _drawMeadow(Projector p, Size size, TownLayout town) {
-    final pal = scene.palette;
-    if (!pal.isDaylight && pal.starAlpha > 0.6) return;
-
-    // Where the buildings are, at a coarse grid, so a tuft can be skipped
-    // without asking a hundred and fifty houses one at a time.
-    final reachEarly = clampD(scene.camera.distance * 2.0, 12, 62);
-    final step = clampD(reachEarly / 52, 0.34, 1.0);
-    final built = <int>{};
-    for (final b in town.buildings) {
-      // Nothing built here yet: it is still meadow, and clearing the grass off
-      // it would show the street of a house nobody has earned.
-      if (b.placedPieces <= 0) continue;
-      final gx = (b.cx / step).round(), gz = (b.cz / step).round();
-      // Only the plot itself is bare: the lanes between the houses are grass,
-      // which is most of what the eye actually sees at street level.
-      final pad = (1.2 / step).floor();
-      for (var dx = -pad; dx <= pad; dx++) {
-        for (var dz = -pad; dz <= pad; dz++) {
-          built.add((gx + dx) * 8192 + (gz + dz));
-        }
-      }
-    }
-
-    final e = p.eye;
-    final reach = reachEarly;
-    final n = (reach / step).ceil();
-    final ox = (e.x / step).round(), oz = (e.z / step).round();
-    final base = Color.lerp(pal.ground, const Color(0xFF6B8F3E), 0.45)!;
-    final green = Color.lerp(base, const Color(0xFF5E8F35), 0.7)!;
-    final pale = Color.lerp(base, const Color(0xFF8FB44A), 0.7)!;
-    var drawn = 0;
-
-    for (var ix = -n; ix <= n; ix++) {
-      for (var iz = -n; iz <= n; iz++) {
-        if (drawn > 2600) return;
-        final gx = ox + ix, gz = oz + iz;
-        if (built.contains(gx * 8192 + gz)) continue;
-        final x = gx * step + hashJitter(step * 0.42, gx, gz, 3);
-        final z = gz * step + hashJitter(step * 0.42, gx, gz, 4);
-        final dx = x - e.x, dz = z - e.z;
-        final dist = math.sqrt(dx * dx + dz * dz);
-        if (dist > reach || dist < 0.6) continue;
-
-        // Different sizes, so it never reads as a stamped pattern.
-        final h = hashRange(0.055, 0.155, gx, gz, 5);
-        final lean = _gust(x, z) * _windForce;
-        final tone = Color.lerp(green, pale, hash01(gx, gz, 6))!;
-        // Fades out at the far edge instead of ending in a hard ring.
-        final fade = clampD((reach - dist) / (reach * 0.28), 0, 1);
-        if (fade < 0.05) continue;
-        final c = _hazeAt(Color.lerp(base, tone, 0.45 + 0.55 * fade)!, p, x, z,
-                pal)
-            .toARGB32();
-
-        // Only the near tufts are worth three blades.
-        final blades = dist < reach * 0.4 ? 2 : 1;
-        for (var k = 0; k < blades; k++) {
-          final bx = x + hashJitter(0.09, gx, gz, 7 + k);
-          final bz = z + hashJitter(0.09, gx, gz, 11 + k);
-          final bh = h * hashRange(0.62, 1.0, gx, gz, 15 + k);
-          final tipX = bx + lean * bh * 0.75;
-          final tipZ = bz + lean * bh * 0.30;
-          final wide = bh * 0.085;
-          _quad(
-            p,
-            V3(bx - wide, 0.004, bz),
-            V3(bx + wide, 0.004, bz),
-            V3(tipX + wide * 0.18, bh, tipZ),
-            V3(tipX - wide * 0.18, bh, tipZ),
-            c,
-          );
-        }
-        drawn++;
-      }
-    }
-  }
-
   /// Every town in the valley, nearest piece first so the budget is spent
   /// where the eye is. One ordering across all of them, so a far town cannot
   /// eat the near one's detail.
@@ -1288,7 +1203,8 @@ class TownPainter extends CustomPainter {
             .normalized;
         // The far half of a dome is behind the near half. Drawing it is one
         // more thing for the depth sort to put in the wrong order.
-        if ((e.x - a.x) * n.x + (e.y - a.y) * n.y + (e.z - a.z) * n.z <= 0) {
+        if (e.y > y0 &&
+            (e.x - a.x) * n.x + (e.y - a.y) * n.y + (e.z - a.z) * n.z <= 0) {
           continue;
         }
         _quad(p, a, b, c, d,
@@ -2082,9 +1998,15 @@ class TownPainter extends CustomPainter {
     // where the roofs went wrong: the far slope is the one the sun is on, so
     // when the sort slipped it was a white wedge that came through the front
     // of the roof — the fault you see the moment the camera swings round.
+    // A roof is a shell with nothing underneath it. Seen from below the eaves
+    // there is no far slope to hide the near one, and dropping it would leave
+    // you looking straight through the roof — so from down there everything is
+    // drawn and the piece stays whole.
+    final above = e.y > y0;
     bool faces(V3 point, V3 n) =>
+        !above ||
         (e.x - point.x) * n.x + (e.y - point.y) * n.y + (e.z - point.z) * n.z >
-        0;
+            0;
 
     if (piece.alongX) {
       // Ridge runs east to west; the slopes face north and south.
@@ -2100,9 +2022,10 @@ class TownPainter extends CustomPainter {
         _quad(p, V3(x1, y0, z0), V3(x0, y0, z0), V3(x0, y1, mz),
             V3(x1, y1, mz), face(nB, 0.92).toARGB32());
       }
-      if (e.x > x1) {
+      if (e.x > x1 || !above) {
         _tri(p, V3(x1, y0, z0), V3(x1, y0, z1), V3(x1, y1, mz), end);
-      } else if (e.x < x0) {
+      }
+      if (e.x < x0 || !above) {
         _tri(p, V3(x0, y0, z1), V3(x0, y0, z0), V3(x0, y1, mz), end);
       }
     } else {
@@ -2118,9 +2041,10 @@ class TownPainter extends CustomPainter {
         _quad(p, V3(x0, y0, z1), V3(x0, y0, z0), V3(mx, y1, z0),
             V3(mx, y1, z1), face(nB, 0.92).toARGB32());
       }
-      if (e.z > z1) {
+      if (e.z > z1 || !above) {
         _tri(p, V3(x0, y0, z1), V3(x1, y0, z1), V3(mx, y1, z1), end);
-      } else if (e.z < z0) {
+      }
+      if (e.z < z0 || !above) {
         _tri(p, V3(x1, y0, z0), V3(x0, y0, z0), V3(mx, y1, z0), end);
       }
     }
@@ -2162,7 +2086,10 @@ class TownPainter extends CustomPainter {
       // The two faces round the back of a spire are never seen and, drawn,
       // are only something for the depth sort to get wrong.
       final mxp = (a.x + b.x) / 2, mzp = (a.z + b.z) / 2;
-      if ((e.x - mxp) * n.x + (e.y - y0) * n.y + (e.z - mzp) * n.z <= 0) return;
+      if (e.y > y0 &&
+          (e.x - mxp) * n.x + (e.y - y0) * n.y + (e.z - mzp) * n.z <= 0) {
+        return;
+      }
       _tri(
         p,
         a,
