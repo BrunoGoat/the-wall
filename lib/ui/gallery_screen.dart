@@ -213,6 +213,7 @@ class _GalleryScreenState extends State<GalleryScreen>
       finishedAge: 99,
       selectedBrick: null,
       charge: 0,
+      labels: false,
     );
 
     return Scaffold(

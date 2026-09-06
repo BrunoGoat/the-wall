@@ -77,6 +77,7 @@ class TownScene {
     this.finishedAge = 99,
     this.selectedBrick,
     this.charge = 0,
+    this.labels = true,
   });
 
   /// How many achievements have been laid.
@@ -119,6 +120,11 @@ class TownScene {
 
   /// 0..1 while the place button is held down.
   final double charge;
+
+  /// Whether the landmark names are hung over the buildings. The exhibition
+  /// hall says the name in its own header, and a second one floating in the
+  /// sky over an empty world is only clutter.
+  final bool labels;
 }
 
 class _Face {
@@ -2129,6 +2135,7 @@ class TownPainter extends CustomPainter {
     Size size,
     TownLayout town,
   ) {
+    if (!scene.labels) return;
     // From far enough back the valley is about which town is which, not which
     // building is which. The landmark names stand down for the town signs.
     if (scene.towns.length > 1 && scene.camera.distance > 95) return;
