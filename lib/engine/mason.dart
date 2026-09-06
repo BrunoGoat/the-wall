@@ -83,6 +83,9 @@ class Mason {
 
   final List<Spec> out = [];
 
+  /// Every roof laid so far, so a dormer knows where its tiles are.
+  final List<_Roof> _roofs = [];
+
   /// The top of what has been laid so far.
   double y = 0;
 
@@ -128,6 +131,9 @@ class Mason {
   }) {
     final base = at ?? y;
     _add(k, dx, dz, w, d, base, base + ht, along: along);
+    if (k == PieceKind.roof) {
+      _roofs.add(_Roof(dx, dz, w, d, base, ht, along ?? alongX));
+    }
     if (!ridge && at == null) y += ht;
   }
 
@@ -171,9 +177,25 @@ class Mason {
   void door(double w, double ht, {double dx = 0, double dz = 0}) =>
       box(PieceKind.porch, w, 0.44, ht, dx: dx, dz: dz, at: 0);
 
+  /// A dormer straddles the tiles: half in the roof, half standing out of it.
+  ///
+  /// Laid from the wall head it is buried nearly to its own top, and the
+  /// little that shows sticks out below the eaves instead of out of the slope,
+  /// which is a notch in the roof rather than a window in it.
   void dormer(double w, double ht, {double dx = 0, double dz = 0, double? at}) =>
       box(PieceKind.dormer, w, w * 0.85, ht,
-          dx: dx, dz: dz, ridge: true, at: at);
+          dx: dx, dz: dz, ridge: true, at: at ?? _tilesAt(dx, dz) - ht * 0.42);
+
+  /// How high the tiles are over a spot, or the course line where no roof
+  /// covers it.
+  double _tilesAt(double dx, double dz) {
+    var top = y;
+    for (final r in _roofs) {
+      final s = r.surfaceAt(dx, dz);
+      if (s != null && s > top) top = s;
+    }
+    return top;
+  }
 
   // ------------------------------------------------------------- the ground
 
@@ -280,5 +302,24 @@ class Mason {
       out.add(out.last);
     }
     return out.length > want ? out.sublist(0, want) : out;
+  }
+}
+
+/// A roof that has been laid, and how high its tiles are over any spot.
+class _Roof {
+  const _Roof(this.dx, this.dz, this.w, this.d, this.base, this.rise,
+      this.alongX);
+  final double dx, dz, w, d, base, rise;
+  final bool alongX;
+
+  /// The height of the tiles above a point, or null where this roof does not
+  /// reach.
+  double? surfaceAt(double x, double z) {
+    final hw = w / 2, hd = d / 2;
+    if (hw <= 0 || hd <= 0) return null;
+    if ((x - dx).abs() > hw || (z - dz).abs() > hd) return null;
+    // Highest at the ridge, down to nothing at the eaves.
+    final across = alongX ? (z - dz).abs() / hd : (x - dx).abs() / hw;
+    return base + rise * (1 - across);
   }
 }

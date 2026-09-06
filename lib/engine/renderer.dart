@@ -2182,6 +2182,15 @@ class TownPainter extends CustomPainter {
     final paint = Paint()
       ..style = PaintingStyle.fill
       ..isAntiAlias = true;
+    // Two neighbouring faces drawn separately with antialiasing leave a
+    // hairline of whatever is behind them showing between the two — which on a
+    // roof cut into pieces draws the grid the cuts were never meant to be
+    // seen as. Running the same colour round the edge closes it.
+    final seam = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..strokeJoin = StrokeJoin.round
+      ..isAntiAlias = true;
     for (final f in faces) {
       _scratch.reset();
       _scratch.moveTo(f.pts[0], f.pts[1]);
@@ -2191,6 +2200,8 @@ class TownPainter extends CustomPainter {
       _scratch.close();
       paint.color = Color(f.color);
       canvas.drawPath(_scratch, paint);
+      seam.color = paint.color;
+      canvas.drawPath(_scratch, seam);
     }
   }
 
