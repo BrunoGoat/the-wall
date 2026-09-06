@@ -1812,12 +1812,18 @@ class TownPainter extends CustomPainter {
   /// hide the chimney behind it, and that is worth keeping honest.
   double? _proudOfRoof(
       Projector p, TownLayout home, TownPiece piece, double top) {
+    // Below the ridge the roof really does hide what is behind it, and that is
+    // worth keeping honest.
     if (p.eye.y <= top) return null;
-    if (piece.building < 0 || piece.building >= home.buildings.length) {
-      return null;
-    }
-    final b = home.buildings[piece.building];
-    return p.cameraOf(V3(b.cx, top, b.cz)).z - b.reach - 0.2;
+    final i = piece.standsOn;
+    if (i < 0 || i >= home.pieces.length) return null;
+    final r = home.pieces[i];
+    // Just in front of the nearest corner of that one roof — near enough to
+    // beat every slope and gable of it, tight enough that anything standing
+    // outside its footprint still comes first.
+    return p.cameraOf(V3(r.cx, (r.y0 + r.y1) / 2, r.cz)).z -
+        math.max(r.w, r.d) / 2 -
+        0.05;
   }
 
   /// Makes a piece tappable without it having drawn a box of its own.

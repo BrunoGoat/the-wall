@@ -44,6 +44,13 @@ class TownPiece {
   /// Ridge direction of a roof.
   final bool alongX;
 
+  /// The roof this piece comes up through, by piece index, or -1 for a piece
+  /// that stands on the ground like everything else.
+  ///
+  /// A chimney is the one thing that shares its place with another piece, and
+  /// the renderer has to know which roof to come out in front of.
+  int standsOn = -1;
+
   /// True once something of the same building stands on this piece's top.
   ///
   /// A wall with a roof on it has no top left to see, and drawing one is not
@@ -471,6 +478,7 @@ class TownLayout {
         index++;
       }
       _cap(building.firstPiece, index);
+      _perch(building.firstPiece, index);
       buildings.add(building);
       final out = math.sqrt((building.cx - cx) * (building.cx - cx) +
           (building.cz - cz) * (building.cz - cz));
@@ -498,6 +506,27 @@ class TownLayout {
         p.capped = true;
         break;
       }
+    }
+  }
+
+  /// Notes which roof each chimney and dormer comes up through.
+  void _perch(int from, int to) {
+    for (var i = from; i < to; i++) {
+      final p = pieces[i];
+      if (p.kind != PieceKind.chimney && p.kind != PieceKind.dormer) continue;
+      var best = -1, bestTop = -1e9;
+      for (var j = from; j < to; j++) {
+        final r = pieces[j];
+        if (r.kind != PieceKind.roof) continue;
+        if ((p.cx - r.cx).abs() > r.w / 2 || (p.cz - r.cz).abs() > r.d / 2) {
+          continue;
+        }
+        if (r.y1 > bestTop) {
+          bestTop = r.y1;
+          best = j;
+        }
+      }
+      p.standsOn = best;
     }
   }
 
