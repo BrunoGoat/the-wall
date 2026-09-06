@@ -272,22 +272,24 @@ final Map<String, void Function(_Pen)> _glyphs = {
     p.shape([9, 97, 23, 82, 27, 87]);
   },
   'laud': (p) {
+    // A big body and a short neck: at the size a town sign draws it, a small
+    // body on a long stalk reads as a spoon.
     p.fill((q) {
-      q.moveTo(50, 42);
-      q.cubicTo(73, 42, 85, 60, 85, 74);
-      q.cubicTo(85, 89, 69, 97, 50, 97);
-      q.cubicTo(31, 97, 15, 89, 15, 74);
-      q.cubicTo(15, 60, 27, 42, 50, 42);
+      q.moveTo(50, 36);
+      q.cubicTo(77, 36, 90, 56, 90, 72);
+      q.cubicTo(90, 88, 72, 98, 50, 98);
+      q.cubicTo(28, 98, 10, 88, 10, 72);
+      q.cubicTo(10, 56, 23, 36, 50, 36);
       q.close();
     }, cut: (q) {
-      q.addOval(Rect.fromCircle(center: const Offset(50, 68), radius: 8));
+      q.addOval(Rect.fromCircle(center: const Offset(50, 66), radius: 9));
     });
-    p.rect(45, 10, 55, 48);
-    p.rect(36, 2, 64, 13, round: 3);
+    p.rect(43, 6, 57, 42);
+    p.rect(33, 0, 67, 11, round: 3);
     // The frets, poking out either side of the neck: the one thing a bottle
     // has never had.
-    p.poly(3, [40, 21, 60, 21]);
-    p.poly(3, [40, 31, 60, 31]);
+    p.poly(3, [38, 19, 62, 19]);
+    p.poly(3, [38, 30, 62, 30]);
   },
   'pincel': (p) {
     p.poly(9, [50, 8, 50, 50]);
