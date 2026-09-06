@@ -1120,7 +1120,14 @@ class TownPainter extends CustomPainter {
             _weather(Color.lerp(pal.stoneCool, pal.stone, 0.62)!, decay, s),
             light, pal, 0.95, flash, size);
       case PieceKind.dormer:
-        _emitBox(p, piece, y0, y1, roofColour(), light, pal, 1.0, flash, size);
+        // A window in the roof, not a crate on it: a low front with a small
+        // roof of its own, turned across the slope it comes out of. Same one
+        // achievement, same place, only drawn as the thing it is.
+        final eaves = y0 + (y1 - y0) * 0.58;
+        _emitBox(p, piece, y0, eaves, wall(), light, pal, 0.95, flash, size,
+            lid: false);
+        _emitGable(p, piece, eaves, y1, roofColour(), light, pal, 1.0, flash,
+            along: !piece.alongX);
       case PieceKind.porch:
         _emitBox(p, piece, y0, y1, wall(), light, pal, 0.9, flash, size);
       case PieceKind.floor:
@@ -1748,6 +1755,7 @@ class TownPainter extends CustomPainter {
     bool windows = false,
     bool night = false,
     double decay = 0,
+    bool lid = true,
   }) {
     final x0 = piece.x0, x1 = piece.x1, z0 = piece.z0, z1 = piece.z1;
     final e = p.eye;
@@ -1782,7 +1790,7 @@ class TownPainter extends CustomPainter {
     // straight into. Kept below the sunlit sides: a course of masonry waiting
     // for the next one is not a light, and on a limewashed wall anything
     // brighter clips to a flat white slab with no form left in it.
-    if (e.y > y1 && !piece.capped) {
+    if (e.y > y1 && !piece.capped && lid) {
       _quad(p, V3(x0, y1, z1), V3(x1, y1, z1), V3(x1, y1, z0), V3(x0, y1, z0),
           face(const V3(0, 1, 0), 0.84).toARGB32());
     }
@@ -1962,12 +1970,14 @@ class TownPainter extends CustomPainter {
     V3 light,
     Palette pal,
     double ao,
-    double flash,
-  ) {
+    double flash, {
+    bool? along,
+  }) {
     final x0 = piece.x0, x1 = piece.x1, z0 = piece.z0, z1 = piece.z1;
     final mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
     final at = p.cameraOf(V3(mx, (y0 + y1) / 2, mz));
     if (at.z <= p.near) return;
+    final alongX = along ?? piece.alongX;
 
     Color face(V3 n, double k) => _hazeAt(
           _shade(n, albedo, light, pal, ao * k, flash, 0),
@@ -2010,7 +2020,7 @@ class TownPainter extends CustomPainter {
     }
 
     final rise = y1 - y0;
-    if (piece.alongX) {
+    if (alongX) {
       // Ridge runs east to west; the slopes face north and south.
       final run = (z1 - z0) / 2;
       final nA = V3(0, run, rise).normalized;
