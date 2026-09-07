@@ -167,7 +167,11 @@ class TownPainter extends CustomPainter {
   /// laid over the town after the masonry is down. x, y, radius, strength.
   final List<double> _lamps = [];
 
-  /// The colours each house is painted in, worked out once per frame.
+  /// True while the town being painted is the one being built, so a tap is
+  /// only ever resolved against a piece of that town.
+  bool _picking = false;
+
+  /// The colours each house is painted in, worked out once per town.
   final Map<int, _Tone> _tone = {};
 
   /// Pieces already given a tap target this frame.
@@ -1075,7 +1079,6 @@ class TownPainter extends CustomPainter {
     final light = pal.lightDir;
     final fx = scene.fx;
     final night = !pal.isDaylight;
-    _tone.clear();
     _picked.clear();
 
     // How high the finishing wave has climbed, and how bright it still is.
@@ -1158,6 +1161,10 @@ class TownPainter extends CustomPainter {
       final root = builtTown(e.layout, take).root;
       if (root == null) continue;
       final decay = 1.0 - e.integrity;
+      // Every town limewashes its houses its own way, so the colours are
+      // worked out per town and not once for the valley.
+      _tone.clear();
+      _picking = w == scene.active;
       walkOrder(root, p.eye, (leaf) {
         final box = leaf.bounds;
         if (p.cameraOf(V3(box.cx, box.cy, box.cz)).z + box.radius < p.near) {
@@ -1179,6 +1186,8 @@ class TownPainter extends CustomPainter {
     final falling = _falling;
     if (falling != null) {
       final e = scene.towns[scene.active];
+      _tone.clear();
+      _picking = true;
       falling.paint(
         p.eye,
         (f) => _paint(p, e, f, pal, light, night, 1.0 - e.integrity, size),
@@ -1267,7 +1276,7 @@ class TownPainter extends CustomPainter {
     }
     final before = _faceCount;
     _emit(p, _clipA, m, colour);
-    if (_faceCount > before && _picked.add(piece.index)) {
+    if (_picking && _faceCount > before && _picked.add(piece.index)) {
       _registerPick(_facePool[before], piece.index, size);
     }
   }
