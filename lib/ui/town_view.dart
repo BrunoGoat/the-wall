@@ -54,6 +54,7 @@ class TownView extends StatefulWidget {
     required this.onPlaced,
     required this.onStoneTapped,
     required this.onTownTapped,
+    required this.onBoardTapped,
     required this.onWhisper,
     required this.onPaletteChanged,
   });
@@ -71,6 +72,9 @@ class TownView extends StatefulWidget {
   /// The sign over another town was tapped: go and live there.
   final void Function(int index) onTownTapped;
 
+  /// The notice board in a town's plaza was tapped: read it.
+  final void Function(int index) onBoardTapped;
+
   final void Function(String message) onWhisper;
   final void Function(Palette palette) onPaletteChanged;
 
@@ -85,6 +89,7 @@ class _TownViewState extends State<TownView>
   final EffectSystem _fx = EffectSystem();
   final List<PickTarget> _picks = [];
   final List<SignHit> _signs = [];
+  final List<BoardHit> _boards = [];
 
   late TownLayout _town;
   int _layoutFor = -1;
@@ -578,9 +583,18 @@ class _TownViewState extends State<TownView>
   void _onTapUp(TapUpDetails d) {
     final pos = d.localPosition;
 
-    // The signs come first. From across the valley a sign is the only thing
-    // you can read about a town, and reading it and tapping it should be the
-    // same gesture as going there.
+    // The board comes first: it is a small thing standing in the middle of a
+    // town full of houses, and anybody aiming at it meant it.
+    for (final b in _boards) {
+      if (!b.rect.contains(pos)) continue;
+      Sensory.instance.tick();
+      widget.onBoardTapped(b.town);
+      return;
+    }
+
+    // Then the signs. From across the valley a sign is the only thing you can
+    // read about a town, and reading it and tapping it should be the same
+    // gesture as going there.
     for (final s in _signs) {
       if (!s.rect.contains(pos)) continue;
       if (s.town == widget.store.active) {
@@ -674,7 +688,7 @@ class _TownViewState extends State<TownView>
           Sensory.instance.tick();
         },
         child: CustomPaint(
-          painter: TownPainter(scene, _picks, _signs),
+          painter: TownPainter(scene, _picks, _signs, _boards),
           size: Size.infinite,
           isComplex: true,
           willChange: true,

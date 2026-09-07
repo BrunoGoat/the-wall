@@ -64,6 +64,16 @@ class SignHit {
   final Rect rect;
 }
 
+/// Where a town's notice board landed on screen, so it can be read.
+///
+/// The board is a thing standing in the plaza and not a button floating over
+/// the town, so this is worked out from the plank's own four corners.
+class BoardHit {
+  const BoardHit(this.town, this.rect);
+  final int town;
+  final Rect rect;
+}
+
 class TownScene {
   TownScene({
     required this.placed,
@@ -145,13 +155,16 @@ class _Tone {
 /// Draws the whole world: sky, ground, the wall in full detail nearby, and its
 /// own silhouette receding into the haze when it gets long.
 class TownPainter extends CustomPainter {
-  TownPainter(this.scene, this.picks, this.signs);
+  TownPainter(this.scene, this.picks, this.signs, this.boards);
 
   final TownScene scene;
   final List<PickTarget> picks;
 
   /// Filled every frame: where each town's sign is, for the gesture layer.
   final List<SignHit> signs;
+
+  /// And where each town's notice board is.
+  final List<BoardHit> boards;
 
   /// Room for everything the budget can ask for, with slack. A face that does
   /// not fit here is silently not drawn, which is a hole in a house — so the
@@ -195,6 +208,7 @@ class TownPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     picks.clear();
     signs.clear();
+    boards.clear();
     _faceCount = 0;
     _lamps.clear();
 
@@ -217,6 +231,7 @@ class TownPainter extends CustomPainter {
     _drawTownGhost(canvas, p, size, town);
     _drawTownLabels(canvas, p, size, town);
     _drawTownSigns(canvas, p, size);
+    _findBoards(p, size);
     _drawParticles(canvas, p);
     _drawAtmosphere(canvas, size, horizonY);
   }
@@ -900,6 +915,41 @@ class TownPainter extends CustomPainter {
   /// back you cannot read a house, but you can read four signs and see under
   /// each one how big and how lit its town is — which is the answer to "me
   /// está yendo bien con esto y mal con lo otro", said in one look.
+  /// Where each town's notice board landed, so a finger can find it.
+  ///
+  /// Worked out from the plank's own four corners rather than from a marker
+  /// hung over the town: the thing you tap is the thing you can see, and from
+  /// behind it or from far enough away that it is a smudge, there is nothing
+  /// to tap at all.
+  void _findBoards(Projector p, Size size) {
+    for (var i = 0; i < scene.towns.length; i++) {
+      final e = scene.towns[i];
+      if (e.placed <= 0) continue;
+      final l = e.layout;
+      // The plank faces one way. From behind it, it is a plank.
+      if (p.eye.z <= l.cz + 0.3) continue;
+      var x0 = double.infinity, y0 = double.infinity;
+      var x1 = -double.infinity, y1 = -double.infinity;
+      var whole = true;
+      for (final v in NoticeBoard.faceAt(l.cx, l.cz)) {
+        final at = p.project(v);
+        if (at == null) {
+          whole = false;
+          break;
+        }
+        if (at.x < x0) x0 = at.x;
+        if (at.x > x1) x1 = at.x;
+        if (at.y < y0) y0 = at.y;
+        if (at.y > y1) y1 = at.y;
+      }
+      if (!whole) continue;
+      // Smaller than a fingertip is not something anybody was aiming at.
+      if (x1 - x0 < 12 && y1 - y0 < 12) continue;
+      if (x1 < 0 || x0 > size.width || y1 < 0 || y0 > size.height) continue;
+      boards.add(BoardHit(i, Rect.fromLTRB(x0, y0, x1, y1).inflate(9)));
+    }
+  }
+
   void _drawTownSigns(Canvas canvas, Projector p, Size size) {
     if (scene.towns.length < 2) return;
     final pal = scene.palette;
@@ -1177,7 +1227,12 @@ class TownPainter extends CustomPainter {
         }
         if (_away(p, box) > cut) return;
         c.tree.paint(p.eye, (f) {
-          if (w == scene.active && f.piece == _fallingPiece) return;
+          // `f.piece >= 0` matters: the town's own furniture is filed under
+          // no achievement at all, and "no achievement" must not collide with
+          // "the achievement that is in the air right now".
+          if (w == scene.active && f.piece >= 0 && f.piece == _fallingPiece) {
+            return;
+          }
           _paint(p, e, f, pal, light, night, decay, size);
         });
       });
@@ -1250,6 +1305,14 @@ class TownPainter extends CustomPainter {
         0) {
       return;
     }
+    // The notice board belongs to the town rather than to any achievement, so
+    // it has no piece to take its colour or its weathering from. It takes them
+    // from the town instead: a place nobody has been to in a month has a
+    // weathered board like everything else in it.
+    if (f.piece < 0) {
+      _plain(p, f, pal, light, decay);
+      return;
+    }
     if (f.piece >= e.layout.pieces.length) return;
     final piece = e.layout.pieces[f.piece];
     final tone = _toneOf(e, piece, pal, decay);
@@ -1264,7 +1327,47 @@ class TownPainter extends CustomPainter {
     }
   }
 
-  void _push(Projector p, List<V3> v, int colour, TownPiece piece, Size size) {
+  /// A face with no achievement behind it: the town's own furniture.
+  void _plain(Projector p, Facet f, Palette pal, V3 light, double decay) {
+    final at = f.v.first;
+    final albedo = _weather(Color(f.tint ?? 0xFF808080), decay, 0);
+    final colour = _hazeAt(
+      _shade(f.n, albedo, light, pal, f.ao, 0, 0),
+      p,
+      at.x,
+      at.z,
+      pal,
+    ).toARGB32();
+    _push(p, f.v, colour, null, null);
+    final decals = f.decals;
+    if (decals == null) return;
+    for (final g in decals) {
+      final c = _hazeAt(
+        _shade(
+          g.n,
+          _weather(Color(g.tint ?? 0xFF808080), decay, 0),
+          light,
+          pal,
+          g.ao,
+          0,
+          0,
+        ),
+        p,
+        at.x,
+        at.z,
+        pal,
+      ).toARGB32();
+      _push(p, g.v, c, null, null);
+    }
+  }
+
+  void _push(
+    Projector p,
+    List<V3> v,
+    int colour,
+    TownPiece? piece,
+    Size? size,
+  ) {
     final m = v.length;
     if (m < 3 || m > 24) return;
     for (var i = 0; i < m; i++) {
@@ -1276,6 +1379,7 @@ class TownPainter extends CustomPainter {
     }
     final before = _faceCount;
     _emit(p, _clipA, m, colour);
+    if (piece == null || size == null) return;
     if (_picking && _faceCount > before && _picked.add(piece.index)) {
       _registerPick(_facePool[before], piece.index, size);
     }

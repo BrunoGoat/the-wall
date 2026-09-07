@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/rng.dart';
 import '../data/pacing.dart';
 import '../data/symbols.dart';
 import '../data/character.dart';
@@ -402,14 +403,47 @@ class Store extends ChangeNotifier {
     'Nadé',
   ];
 
+  /// Fast-forwards a town for development, so a year of use can be looked at
+  /// without waiting a year.
+  ///
+  /// It lays them the way a person would: one on most days at an hour this
+  /// habit favours, a weekday it tends to skip, the odd double day, and misses
+  /// that come in runs rather than scattered evenly — because a blank day
+  /// really does drag the next one. Pieces every 137 minutes round the clock
+  /// would fill the town just as fast and be no use at all for looking at
+  /// anything that reads the shape of a history rather than its length.
   void debugFill(int count, {int endedDaysAgo = 0, int? into}) {
+    if (count <= 0) return;
     final h = habits[(into ?? active).clamp(0, habits.length - 1)];
-    final end = DateTime.now().subtract(Duration(days: endedDaysAgo));
-    for (var i = 0; i < count; i++) {
+    final s = hash32(h.slot + 1, 0x0FEED, 3);
+    final hour = 6 + hash32(s, 1, 1) % 15;
+    final weak = 1 + hash32(s, 2, 1) % 7;
+    final end = dayStart(DateTime.now().subtract(Duration(days: endedDaysAgo)));
+    final when = <DateTime>[];
+    var day = 0;
+    var missed = false;
+    while (when.length < count && day < count * 6 + 60) {
+      final d = end.subtract(Duration(days: day));
+      final r = hash01(s, 7, day);
+      var miss = r < 0.16;
+      if (d.weekday == weak) miss = r < 0.66;
+      if (missed && r < 0.45) miss = true;
+      missed = miss;
+      if (!miss) {
+        final m = hashRange(-40, 55, s, 8, day).round();
+        when.add(d.add(Duration(hours: hour, minutes: m)));
+        if (hash01(s, 9, day) < 0.12 && when.length < count) {
+          when.add(d.add(Duration(hours: hour + 4, minutes: m ~/ 2)));
+        }
+      }
+      day++;
+    }
+    when.sort();
+    for (var i = 0; i < when.length; i++) {
       h.pieces.add(
         Piece(
           index: h.total,
-          placedAt: end.subtract(Duration(minutes: (count - i) * 137)),
+          placedAt: when[i],
           label: i % 9 == 3
               ? _debugLabels[(i ~/ 9) % _debugLabels.length]
               : null,

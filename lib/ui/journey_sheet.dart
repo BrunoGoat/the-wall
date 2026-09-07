@@ -9,6 +9,7 @@ import '../fx/sensory.dart';
 import '../model/store.dart';
 import 'debug_sheet.dart';
 import 'gallery_screen.dart';
+import 'notice_board.dart';
 import 'papyrus.dart';
 import 'style.dart';
 
@@ -226,6 +227,16 @@ class _Summary extends StatelessWidget {
           subtitle:
               'Cómo se vería con 100, 500 o 5000 piezas. No toca las tuyas.',
           open: (nav) => DebugSheet(store: store, theme: t),
+        ),
+        _SheetRow(
+          theme: t,
+          icon: Icons.push_pin_outlined,
+          title: 'El tablón del pueblo',
+          subtitle:
+              'Lo que el pueblo fue notando de vos. También está clavado en '
+              'la plaza, si preferís ir a leerlo.',
+          open: (nav) =>
+              NoticeBoardSheet(store: store, habit: store.habit, theme: t),
         ),
         _PageRow(
           theme: t,
@@ -561,7 +572,7 @@ class _TownMilestones extends StatelessWidget {
                       const SizedBox(height: 3),
                       Text(
                         done
-                            ? 'En pie · ${mark.cost} piezas'
+                            ? 'En pie · ${_finishedOn(store, first + mark.cost - 1)}'
                             : active
                             ? 'En obra · ${placed - first} de ${mark.cost}'
                             : 'Empieza en la pieza ${first + 1}',
@@ -589,6 +600,33 @@ class _TownMilestones extends StatelessWidget {
       },
     );
   }
+}
+
+/// The day a landmark was finished, read off the piece that finished it.
+///
+/// The town is already a calendar — every piece in it carries the day it was
+/// laid — and this is the town saying so out loud.
+String _finishedOn(Store store, int last) {
+  final p = store.pieceAt(last);
+  if (p == null) return 'En pie';
+  const months = [
+    'enero',
+    'febrero',
+    'marzo',
+    'abril',
+    'mayo',
+    'junio',
+    'julio',
+    'agosto',
+    'septiembre',
+    'octubre',
+    'noviembre',
+    'diciembre',
+  ];
+  final d = p.placedAt;
+  final now = DateTime.now();
+  final year = d.year == now.year ? '' : ' de ${d.year}';
+  return 'terminado el ${d.day} de ${months[d.month - 1]}$year';
 }
 
 class _Legends extends StatelessWidget {

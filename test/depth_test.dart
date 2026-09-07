@@ -107,6 +107,32 @@ void main() {
     });
   });
 
+  group('a whole town, plaza and all', () {
+    // The exhibits stand on their own; a town has streets, neighbours and a
+    // notice board in the middle of it, and the order between all of that is
+    // the same question asked of a much messier scene.
+    test('nothing in a real town is painted over what is in front of it', () {
+      final bad = <String>[];
+      for (final n in [1, 12, 90, 300]) {
+        final layout = TownLayout(n, TownCharacter.all.first);
+        for (var yi = 0; yi < 6 && bad.isEmpty; yi++) {
+          for (var pi = 0; pi < 2 && bad.isEmpty; pi++) {
+            final where = _fault(
+              layout,
+              n,
+              yi * math.pi / 3 + 0.21,
+              0.18 + pi * 0.5,
+              math.max(9.0, layout.radius * 1.4),
+              1.2,
+            );
+            if (where != null) bad.add('$n piezas: $where');
+          }
+        }
+      }
+      expect(bad, isEmpty, reason: bad.join('\n'));
+    });
+  });
+
   group('the cost of cutting', () {
     // Cutting geometry is what makes the order exact, and cutting badly is the
     // one way this could get expensive: a splitting plane chosen carelessly

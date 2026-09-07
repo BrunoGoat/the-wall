@@ -706,3 +706,123 @@ void _hangWindows(List<Facet> faces, double y0, double y1) {
     );
   }
 }
+
+/// The notice board in the plaza.
+///
+/// Not a piece and never earned: the plots are laid out around a crossing at
+/// the middle of the town and this stands in it, from the first achievement
+/// on. A town that made you pay an achievement for the place where it tells
+/// you things would be charging you to read your own handwriting.
+class NoticeBoard {
+  /// Half the width of the plank people read.
+  /// Two thirds of a metre across and shoulder high, near enough — smaller
+  /// than a house wall and bigger than the thumb that has to find it.
+  static const double reach = 0.37;
+  static const double low = 0.52, high = 1.02;
+  static const double _post = 0.065, _top = 1.08;
+
+  /// The four corners of the plank, front face, counter-clockwise from the
+  /// bottom left. The town's mark goes on it and a finger lands on it, and
+  /// both want the same rectangle.
+  static List<V3> faceAt(double cx, double cz) => [
+    V3(cx - reach, low, cz + 0.05),
+    V3(cx + reach, low, cz + 0.05),
+    V3(cx + reach, high, cz + 0.05),
+    V3(cx - reach, high, cz + 0.05),
+  ];
+
+  /// The plank, with a few sheets pinned to it.
+  ///
+  /// The sheets are geometry and not a picture painted over the town, so a
+  /// house standing between you and the board hides them the way it hides
+  /// everything else. From across the plaza that is all a notice board is:
+  /// pale paper on dark wood.
+  static List<Facet> _plank(double cx, double cz, int tint) {
+    final faces = boxFaces(
+      cx - reach,
+      low,
+      cz - 0.05,
+      cx + reach,
+      high,
+      cz + 0.05,
+      Surface.own,
+      ao: 1.0,
+      tint: tint,
+    );
+    const paper = 0xFFF0E7D2;
+    final sheets = <Facet>[];
+    for (var i = 0; i < 3; i++) {
+      final w = 0.075 + (i == 1 ? 0.02 : 0.0);
+      final h = 0.105 + (i == 2 ? 0.03 : 0.0);
+      final mx = cx - reach + reach * (0.42 + i * 0.62);
+      final my = low + (high - low) * (i == 1 ? 0.44 : 0.52);
+      sheets.add(
+        Facet(
+          [
+            V3(mx - w, my - h, cz + 0.05),
+            V3(mx + w, my - h, cz + 0.05),
+            V3(mx + w, my + h, cz + 0.05),
+            V3(mx - w, my + h, cz + 0.05),
+          ],
+          const V3(0, 0, 1),
+          Surface.own,
+          ao: 1.06,
+          tint: paper,
+        ),
+      );
+    }
+    for (var i = 0; i < faces.length; i++) {
+      if (faces[i].n.z < 0.9) continue;
+      faces[i] = Facet(
+        faces[i].v,
+        faces[i].n,
+        faces[i].surface,
+        ao: faces[i].ao,
+        tint: faces[i].tint,
+        decals: sheets,
+      );
+    }
+    return faces;
+  }
+
+  static List<Solid> solidsAt(double cx, double cz) {
+    const wood = 0xFF6B573F;
+    const plank = 0xFFC9B896;
+    const shingle = 0xFF8A7355;
+    Solid post(double at) => Solid(
+      -1,
+      boxFaces(
+        cx + at - _post / 2,
+        0,
+        cz - _post / 2,
+        cx + at + _post / 2,
+        _top,
+        cz + _post / 2,
+        Surface.own,
+        ao: 0.88,
+        tint: wood,
+      ),
+    );
+
+    return [
+      post(-reach + _post),
+      post(reach - _post),
+      Solid(-1, _plank(cx, cz, plank)),
+      // A little roof, because paper left out in the rain is not a notice.
+      Solid(
+        -1,
+        gableFaces(
+              cx - reach - 0.09,
+              high,
+              cz - 0.17,
+              cx + reach + 0.09,
+              high + 0.17,
+              cz + 0.17,
+              true,
+            )
+            .map((f) => Facet(f.v, f.n, Surface.own, ao: f.ao, tint: shingle))
+            .toList(),
+      ),
+    ];
+  }
+}

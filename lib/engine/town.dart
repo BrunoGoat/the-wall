@@ -375,7 +375,8 @@ class TownPlan {
 class TownLayout {
   TownLayout(this.placed, this.character, {this.cx = 0, this.cz = 0})
     : plan = TownPlan.of(character),
-      plotPitch = character.plotPitch {
+      plotPitch = character.plotPitch,
+      solo = false {
     _build();
   }
 
@@ -396,7 +397,8 @@ class TownLayout {
   }) : plan = TownPlan.of(character),
        plotPitch = character.plotPitch,
        cx = 0,
-       cz = 0 {
+       cz = 0,
+       solo = true {
     final building = TownBuilding(
       index: 0,
       kind: landmark == null ? (kind ?? BuildingKind.house) : null,
@@ -430,6 +432,11 @@ class TownLayout {
     buildings.add(building);
     radius = building.reach + 1.5;
   }
+
+  /// True for one structure standing on its own in an empty world. A town has
+  /// a plaza with a notice board in it; a thing on a plinth in an exhibition
+  /// hall does not.
+  final bool solo;
 
   /// Where in the valley this town stands. Every habit has its own plot, so
   /// several towns can be looked at side by side without any of them moving.

@@ -13,6 +13,7 @@ import 'habits_sheet.dart';
 import 'hold_button.dart';
 import 'placed_note.dart';
 import 'journey_sheet.dart';
+import 'notice_board.dart';
 import 'overlays.dart';
 import 'style.dart';
 import '../engine/town.dart';
@@ -136,6 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 store.select(i);
                 _showWhisper(store.habit.name);
               },
+              onBoardTapped: _readBoard,
               onWhisper: _showWhisper,
               onPaletteChanged: (p) {
                 final next = UiTheme(p);
@@ -319,6 +321,24 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) =>
           HabitsSheet(store: widget.store, theme: _theme, startNew: startNew),
+    );
+  }
+
+  /// The notice board of one town. Reading another town's board does not move
+  /// you there: you can stand in your own plaza and read what the next valley
+  /// over has worked out about itself.
+  void _readBoard(int town) {
+    final store = widget.store;
+    if (town < 0 || town >= store.habits.length) return;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => NoticeBoardSheet(
+        store: store,
+        habit: store.habits[town],
+        theme: _theme,
+      ),
     );
   }
 

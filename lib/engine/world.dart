@@ -192,6 +192,29 @@ BuiltTown _build(TownLayout layout, int placed, BuiltTown? before) {
     weatherBox.addAll(before.weatherBox);
   }
 
+  // The plaza's notice board. Not a piece and not earned: it stands in the
+  // crossing the plots are laid out around, from the first achievement on, and
+  // it is filed with everything else so a house in front of it hides it.
+  if (from == 0 && take > 0 && !layout.solo) {
+    for (final solid in NoticeBoard.solidsAt(layout.cx, layout.cz)) {
+      final b = Aabb.of(solid.faces);
+      if (b == null) continue;
+      for (final f in solid.faces) {
+        f.piece = -1;
+        final d = f.decals;
+        if (d != null) {
+          for (final g in d) {
+            g.piece = -1;
+          }
+        }
+      }
+      faces.add(solid.faces);
+      bounds.add(b);
+      held.add(const <int>{});
+      kept.add(null);
+    }
+  }
+
   for (var i = from; i < take; i++) {
     final piece = layout.pieces[i];
     if (hasWeather(piece.kind)) {

@@ -68,6 +68,7 @@ class _GalleryScreenState extends State<GalleryScreen>
   final EffectSystem _fx = EffectSystem();
   final List<PickTarget> _picks = [];
   final List<SignHit> _signs = [];
+  final List<BoardHit> _boards = [];
   final List<_Exhibit> _all = _catalogue();
 
   late int _at = widget.start.clamp(0, _catalogue().length - 1);
@@ -261,7 +262,7 @@ class _GalleryScreenState extends State<GalleryScreen>
                 Sensory.instance.tick();
               },
               child: CustomPaint(
-                painter: TownPainter(scene, _picks, _signs),
+                painter: TownPainter(scene, _picks, _signs, _boards),
                 size: Size.infinite,
                 isComplex: true,
                 willChange: true,
