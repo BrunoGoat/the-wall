@@ -71,6 +71,21 @@ class OrderSplit extends Order {
   final Aabb bounds;
 }
 
+/// Two things with no plane to put between them, painted one after the other.
+///
+/// The one place left where the order is settled by a rule rather than by
+/// geometry, and it is reached only when no plane separates anything in a
+/// batch at all. Masonry never ends up here — anything that interleaves is cut
+/// apart into a single tree instead — so what this holds is the crops, the
+/// water and the flags, which lie flat on the ground or fly over the roofs and
+/// do not hide one another.
+class OrderBoth extends Order {
+  OrderBoth(this.first, this.then, this.bounds);
+  final Order first, then;
+  @override
+  final Aabb bounds;
+}
+
 /// A town's masonry, cut and filed once for the count of pieces it holds.
 class BuiltTown {
   BuiltTown(
@@ -341,28 +356,43 @@ Order _order(List<OrderLeaf> leaves) {
     // whole faces rather than from anybody's offcuts.
     final source = <Facet>[];
     final members = <int>{};
-    OrderLeaf? loose;
+    final under = <OrderLeaf>[];
+    final over = <OrderLeaf>[];
     for (final l in leaves) {
       final c = l.cluster;
       if (c == null) {
-        loose ??= l;
+        // Crops and water lie on the ground and go under everything; a flag
+        // flies over the roofs and goes on top.
+        (l.bounds.y1 <= 0.35 ? under : over).add(l);
         continue;
       }
       source.addAll(c.source);
       members.addAll(c.members);
     }
-    if (source.isEmpty) return loose ?? leaves.first;
-    final list = members.toList()..sort();
-    return OrderLeaf(
-      b,
-      cluster: BuiltCluster(
-        list.join(','),
-        b,
-        BspTree.build(source),
-        members,
-        source,
-      ),
-    );
+    Order? out;
+    void after(Order o) => out = out == null ? o : OrderBoth(out!, o, b);
+    for (final l in under) {
+      after(l);
+    }
+    if (source.isNotEmpty) {
+      final list = members.toList()..sort();
+      after(
+        OrderLeaf(
+          b,
+          cluster: BuiltCluster(
+            list.join(','),
+            b,
+            BspTree.build(source),
+            members,
+            source,
+          ),
+        ),
+      );
+    }
+    for (final l in over) {
+      after(l);
+    }
+    return out ?? leaves.first;
   }
   final (axis, at, low, high) = cut;
   return OrderSplit(axis, at, _order(low), _order(high), b);
@@ -409,6 +439,11 @@ Order _order(List<OrderLeaf> leaves) {
 void walkOrder(Order node, V3 eye, void Function(OrderLeaf) visit) {
   if (node is OrderLeaf) {
     visit(node);
+    return;
+  }
+  if (node is OrderBoth) {
+    walkOrder(node.first, eye, visit);
+    walkOrder(node.then, eye, visit);
     return;
   }
   final split = node as OrderSplit;
