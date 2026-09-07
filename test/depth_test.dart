@@ -119,7 +119,9 @@ void main() {
       var raw = 0;
       for (var i = 0; i < 400; i++) {
         for (final s in solidsOf(layout.pieces[i])) {
-          raw += s.faces.length;
+          for (final f in s.faces) {
+            raw += 1 + (f.decals?.length ?? 0);
+          }
         }
       }
       var cut = 0;
@@ -130,7 +132,7 @@ void main() {
       expect(
         cut,
         lessThan(raw * 8 ~/ 5),
-        reason: 'cutting turned \$raw faces into \$cut',
+        reason: 'cutting turned $raw faces into $cut',
       );
     });
 

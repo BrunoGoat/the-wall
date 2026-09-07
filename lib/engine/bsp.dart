@@ -27,7 +27,8 @@ class BspTree {
 
   final _Node? _root;
 
-  /// How many faces the tree ended up holding, cuts included. Watched by the
+  /// How many faces the tree ended up holding — cuts and hung decals included,
+  /// because what the frame pays for is every polygon it fills. Watched by the
   /// exhibition hall: a build that suddenly costs twice the faces means a
   /// splitting plane was chosen badly.
   final int facets;
@@ -104,10 +105,18 @@ _Node? _build(List<Facet> faces, int depth, void Function(int) tally) {
     // face is not flat. Stop rather than recur for ever; the geometry test is
     // what stops it happening at all.
     node.on.addAll(faces);
-    tally(faces.length);
+    var loose = faces.length;
+    for (final f in faces) {
+      loose += f.decals?.length ?? 0;
+    }
+    tally(loose);
     return node;
   }
-  tally(node.on.length);
+  var cost = node.on.length;
+  for (final f in node.on) {
+    cost += f.decals?.length ?? 0;
+  }
+  tally(cost);
   node.front = _build(front, depth + 1, tally);
   node.back = _build(back, depth + 1, tally);
   return node;

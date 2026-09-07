@@ -218,7 +218,7 @@ class _GalleryScreenState extends State<GalleryScreen>
       effects: _fx,
       labelledBricks: const {},
       fx: null,
-      budget: 4000,
+      budget: 22000,
       towns: [
         TownEntry(
           layout: _layout,

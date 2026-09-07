@@ -122,7 +122,7 @@ class _TownViewState extends State<TownView>
   /// How many pieces are worth drawing. Given away when the frame gets long
   /// and won back when it does not, so an old phone shows a smaller town
   /// rather than a stuttering one.
-  int _budget = _budgetOverride > 0 ? _budgetOverride : 2400;
+  int _budget = _budgetOverride > 0 ? _budgetOverride : 15000;
   double _frameAvg = 16;
 
   late Palette _palette;
@@ -257,10 +257,10 @@ class _TownViewState extends State<TownView>
 
     if (_budgetOverride <= 0) {
       _frameAvg = _frameAvg * 0.92 + dtRaw * 1000 * 0.08;
-      if (_frameAvg > 21 && _budget > 700) {
-        _budget -= 40;
-      } else if (_frameAvg < 13 && _budget < 4200) {
-        _budget += 24;
+      if (_frameAvg > 21 && _budget > 4000) {
+        _budget -= 260;
+      } else if (_frameAvg < 13 && _budget < 22000) {
+        _budget += 150;
       }
     }
 

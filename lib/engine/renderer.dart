@@ -74,7 +74,7 @@ class TownScene {
     required this.effects,
     required this.labelledBricks,
     this.fx,
-    this.budget = 2900,
+    this.budget = 16000,
     required this.towns,
     required this.active,
     this.finished,
@@ -92,8 +92,11 @@ class TownScene {
   final double time;
   final EffectSystem effects;
 
-  /// How many pieces are worth drawing this frame, trimmed to hold the frame
+  /// How many faces are worth drawing this frame, trimmed to hold the frame
   /// rate on whatever phone this is.
+  ///
+  /// Faces and not pieces: a stake of a fence and a cathedral are both one
+  /// achievement, and what the frame actually pays for is the face count.
   final int budget;
 
   /// Bricks the person wrote a note on.
@@ -150,7 +153,10 @@ class TownPainter extends CustomPainter {
   /// Filled every frame: where each town's sign is, for the gesture layer.
   final List<SignHit> signs;
 
-  static final List<_Face> _facePool = List.generate(16000, (_) => _Face());
+  /// Room for everything the budget can ask for, with slack. A face that does
+  /// not fit here is silently not drawn, which is a hole in a house — so the
+  /// pool has to stay ahead of the budget rather than the other way round.
+  static final List<_Face> _facePool = List.generate(26000, (_) => _Face());
   static final Float64List _clipA = Float64List(96);
   static final Float64List _clipB = Float64List(96);
   static final Path _scratch = Path();
@@ -1110,15 +1116,15 @@ class TownPainter extends CustomPainter {
       }
     }
 
-    // What the frame can afford. The budget buys whole buildings, nearest
-    // first, so what it cannot pay for is a house on the far side of the
+    // What the frame can afford. It is spent nearest first and on whole
+    // buildings, so what it cannot pay for is a house on the far side of the
     // valley and never half of the one standing in front of you.
     final cost = <(double, int)>[];
     for (final e in scene.towns) {
       final take = math.min(e.placed, e.layout.pieces.length);
       if (take <= 0) continue;
       for (final c in builtTown(e.layout, take).clusters) {
-        cost.add((_away(p, c.bounds), c.pieces));
+        cost.add((_away(p, c.bounds), c.faces));
       }
     }
     cost.sort((a, b) => a.$1.compareTo(b.$1));
