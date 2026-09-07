@@ -115,6 +115,60 @@ void main() {
     });
   });
 
+  group('la música llega a sonar', () {
+    // El defecto que dejó la música muda entera: el `if` que se ahorraba una
+    // llamada al reproductor era el mismo que guardaba el volumen, así que una
+    // capa cuyo paso por fotograma cae por debajo del umbral no subía nunca.
+    // A sesenta fotogramas por segundo el paso del bordón es de cinco
+    // diezmilésimas y el umbral era de tres milésimas: se quedaba en cero para
+    // siempre, y ni un test ni el análisis dijeron nada porque no hay nada
+    // ilegal en no subir un volumen.
+    test('cada capa llega a su volumen desde el silencio', () {
+      for (final dt in [1 / 30.0, 1 / 60.0, 1 / 120.0]) {
+        for (final want in [0.08, 0.14, 0.5]) {
+          var at = 0.0;
+          for (var f = 0; f < (30 / dt).round(); f++) {
+            at = Sensory.approach(at, want, dt);
+          }
+          expect(
+            at,
+            closeTo(want, want * 0.01),
+            reason:
+                'a ${(1 / dt).round()} fotogramas por segundo, una capa que '
+                'va a $want se quedó en ${at.toStringAsFixed(4)}',
+          );
+        }
+      }
+    });
+
+    test('la subida es un paso, no un salto', () {
+      // Medio segundo no puede poner la música entera de golpe.
+      var at = 0.0;
+      for (var f = 0; f < 30; f++) {
+        at = Sensory.approach(at, 0.5, 1 / 60.0);
+      }
+      expect(at, lessThan(0.5 * 0.4));
+    });
+
+    test('no se gasta una llamada por fotograma, pero sí la última', () {
+      // Lo que el umbral sí tiene que hacer: callarse mientras el cambio es
+      // invisible, y hablar una vez cuando el volumen llega a destino.
+      var at = 0.0, sent = 0.0;
+      var calls = 0;
+      const want = 0.08;
+      for (var f = 0; f < 60 * 30; f++) {
+        at = Sensory.approach(at, want, 1 / 60.0);
+        if (Sensory.worthSending(at, sent, want)) {
+          sent = at;
+          calls++;
+        }
+      }
+      expect(calls, greaterThan(0), reason: 'nunca se le dijo nada al motor');
+      expect(calls, lessThan(120), reason: 'una llamada por fotograma');
+      expect(sent, closeTo(want, want * 0.02));
+    });
+  });
+
   group('la mezcla del día', () {
     test('da la vuelta al reloj sin una arista en ninguna hora', () {
       List<double> at(double h) => Sensory.dayMix(h % 24);

@@ -78,6 +78,13 @@ class Sensory {
 
   final List<AudioPlayer> _mus = [];
   final List<double> _musAt = [0, 0, 0];
+
+  /// Lo último que se le dijo de verdad a cada reproductor. El volumen que
+  /// queremos y el volumen que ya mandamos son dos cosas distintas, y
+  /// confundirlas es lo que dejó la música en silencio: si el que se ahorra la
+  /// llamada es el mismo `if` que guarda el estado, un volumen que sube
+  /// despacio no sube nunca.
+  final List<double> _musSent = [0, 0, 0];
   bool _musReady = false;
   bool _musicOff = false;
 
@@ -131,17 +138,41 @@ class Sensory {
     // absoluto se lee como una app rota, no como un pueblo abandonado.
     final level =
         _musLevel * _musIn * (0.72 + 0.28 * integrity.clamp(0.0, 1.0));
+    final want = [for (var i = 0; i < 3; i++) _musMix[i] * day[i] * level];
     for (var i = 0; i < _mus.length && i < 3; i++) {
-      final want = _musMix[i] * day[i] * level;
-      // Constante de tiempo larga: pasar de la tarde a la noche es un cambio
-      // de luz, no un cambio de canción.
-      final next = _musAt[i] + (want - _musAt[i]) * (1 - math.exp(-dt / 2.5));
-      if ((next - _musAt[i]).abs() < 0.003) continue;
-      _musAt[i] = next;
+      // El estado se mueve siempre, con o sin llamada.
+      _musAt[i] = approach(_musAt[i], want[i], dt);
+      if (!worthSending(_musAt[i], _musSent[i], want[i])) continue;
+      _musSent[i] = _musAt[i];
       try {
-        await _mus[i].setVolume(next);
+        await _mus[i].setVolume(_musAt[i]);
       } catch (_) {}
     }
+  }
+
+  /// Un fotograma de subida hacia el volumen que toca.
+  ///
+  /// Constante de tiempo larga: pasar de la tarde a la noche es un cambio de
+  /// luz, no un cambio de canción.
+  @visibleForTesting
+  static double approach(double at, double want, double dt) =>
+      at + (want - at) * (1 - math.exp(-dt / 2.5));
+
+  /// Si vale la pena gastar una llamada al reproductor por este cambio.
+  ///
+  /// Sólo eso. No decide si el volumen sube — el volumen sube igual — porque
+  /// mezclar las dos preguntas es exactamente lo que apagó la música: a
+  /// sesenta fotogramas por segundo el paso de una capa que va hacia 0,08 es
+  /// de cinco diezmilésimas, y un umbral que además se tragaba el estado la
+  /// dejaba en cero para siempre.
+  @visibleForTesting
+  static bool worthSending(double at, double sent, double want) {
+    final drift = (at - sent).abs();
+    // Ha cambiado lo bastante como para que se oiga.
+    if (drift >= 0.002) return true;
+    // O ya llegó a donde iba y lo último que se mandó todavía no era esto:
+    // una llamada más, y a partir de ahí ninguna.
+    return (at - want).abs() < 0.0005 && drift > 0.0005;
   }
 
   void _applyMusic() {
@@ -152,6 +183,7 @@ class Sensory {
           _mus[i].pause();
         } else {
           _mus[i].setVolume(_musAt[i]);
+          _musSent[i] = _musAt[i];
           _mus[i].resume();
         }
       } catch (_) {}
