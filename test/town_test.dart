@@ -92,14 +92,6 @@ void main() {
           built += b.placedPieces;
         }
         expect(built, n, reason: '$n placed');
-        for (final p in town.pieces) {
-          if (p.index < n) continue;
-          expect(
-            p.capped,
-            isFalse,
-            reason: 'the ghost at $n was treated as built',
-          );
-        }
       }
     });
 

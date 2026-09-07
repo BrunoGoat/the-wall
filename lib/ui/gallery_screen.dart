@@ -9,7 +9,9 @@ import '../data/landmarks.dart';
 import '../engine/camera.dart';
 import '../engine/palette.dart';
 import '../engine/renderer.dart';
+import '../engine/solids.dart';
 import '../engine/town.dart';
+import '../engine/world.dart';
 import '../fx/effects.dart';
 import '../fx/sensory.dart';
 import 'style.dart';
@@ -85,6 +87,21 @@ class _GalleryScreenState extends State<GalleryScreen>
 
   _Exhibit get _it => _all[_at];
   int get _shown => _step ?? _it.pieces;
+
+  /// What this structure costs to draw, and how much of that is the cutting.
+  String _cost() {
+    var raw = 0;
+    for (var i = 0; i < math.min(_shown, _layout.pieces.length); i++) {
+      for (final s in solidsOf(_layout.pieces[i])) {
+        raw += s.faces.length;
+      }
+    }
+    var cut = 0;
+    for (final c in builtTown(_layout, _shown).clusters) {
+      cut += c.faces;
+    }
+    return raw == 0 ? '0 CARAS' : '$cut CARAS (+${cut - raw})';
+  }
 
   @override
   void initState() {
@@ -262,6 +279,7 @@ class _GalleryScreenState extends State<GalleryScreen>
               exhibit: _it,
               at: _at,
               total: _all.length,
+              cost: _cost(),
               onBack: () => Navigator.of(context).pop(),
               onPick: _pick,
             ),
@@ -310,6 +328,7 @@ class _Header extends StatelessWidget {
     required this.exhibit,
     required this.at,
     required this.total,
+    required this.cost,
     required this.onBack,
     required this.onPick,
   });
@@ -317,6 +336,11 @@ class _Header extends StatelessWidget {
   final UiTheme theme;
   final _Exhibit exhibit;
   final int at, total;
+
+  /// What it costs to draw: how many faces, and how many of those are cuts
+  /// this structure asked for by running through itself. A recipe that
+  /// suddenly doubles says so here.
+  final String cost;
   final VoidCallback onBack, onPick;
 
   @override
@@ -324,8 +348,8 @@ class _Header extends StatelessWidget {
     final t = theme;
     final tier = exhibit.tier;
     final where = tier < 0
-        ? 'CASA · ${exhibit.pieces} PIEZAS'
-        : 'HITO ${'·' * (tier + 1)} · ${exhibit.pieces} PIEZAS';
+        ? 'CASA · ${exhibit.pieces} PIEZAS · $cost'
+        : 'HITO ${'·' * (tier + 1)} · ${exhibit.pieces} PIEZAS · $cost';
 
     return Frosted(
       theme: t,

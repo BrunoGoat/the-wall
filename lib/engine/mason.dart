@@ -209,29 +209,36 @@ class Mason {
   void door(double w, double ht, {double dx = 0, double dz = 0}) =>
       box(PieceKind.porch, w, 0.44, ht, dx: dx, dz: dz, at: 0);
 
-  /// A dormer straddles the tiles: half in the roof, half standing out of it.
-  ///
-  /// Laid from the wall head it is buried nearly to its own top, and the little
-  /// that shows sticks out below the eaves instead of out of the slope, which
-  /// is a notch in the roof rather than a window in it.
+  /// A dormer: a little window standing out of the slope of a roof.
   ///
   /// [dz] is down the slope and [dx] along the ridge, whichever way round this
   /// building's roof happens to run — the mason knows which way that is, and a
   /// recipe should not have to. Written straight into world axes a dormer half
-  /// the time lands on the ridge itself, where it stands clear of the roof
-  /// like a box somebody left on top of it.
+  /// the time lands on the ridge itself, standing clear of the roof like a box
+  /// somebody left on top of it.
+  ///
+  /// It is set on the tiles under its *lower* edge, because that is where a
+  /// dormer's front stands; the slope rises across the rest of its footprint
+  /// and buries it. Set on the tiles under its middle instead, the downhill
+  /// half of it climbs out of the roof and what you see is a crate half sunk
+  /// in the tiles rather than a window in them.
   void dormer(double w, double ht, {double dx = 0, double dz = 0, double? at}) {
+    final deep = w * 0.55;
     final ox = alongX ? dx : dz;
     final oz = alongX ? dz : dx;
+    final away = dz < 0 ? -1.0 : 1.0;
+    final low = alongX
+        ? _tilesAt(ox, oz + away * deep / 2)
+        : _tilesAt(ox + away * deep / 2, oz);
     box(
       PieceKind.dormer,
-      w,
-      w * 0.85,
+      alongX ? w : deep,
+      alongX ? deep : w,
       ht,
       dx: ox,
       dz: oz,
       ridge: true,
-      at: at ?? _tilesAt(ox, oz) - ht * 0.42,
+      at: at ?? low - ht * 0.22,
     );
   }
 

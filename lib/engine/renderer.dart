@@ -8,8 +8,12 @@ import '../core/math3.dart';
 import '../core/rng.dart';
 import '../fx/effects.dart';
 import '../ui/habit_sigil.dart';
+import 'bsp.dart';
 import 'camera.dart';
+import 'solid.dart';
+import 'solids.dart';
 import 'town.dart';
+import 'world.dart';
 import 'landscape.dart';
 import 'palette.dart';
 
@@ -126,9 +130,13 @@ class TownScene {
 class _Face {
   final Float32List pts = Float32List(56);
   int n = 0;
-  double depth = 0;
   int color = 0;
-  bool outline = false;
+}
+
+/// The three colours a house is painted in.
+class _Tone {
+  const _Tone(this.wall, this.stone, this.tile);
+  final Color wall, stone, tile;
 }
 
 /// Draws the whole world: sky, ground, the wall in full detail nearby, and its
@@ -152,6 +160,21 @@ class TownPainter extends CustomPainter {
   /// Where the lit windows landed on screen this frame, so their light can be
   /// laid over the town after the masonry is down. x, y, radius, strength.
   final List<double> _lamps = [];
+
+  /// The colours each house is painted in, worked out once per frame.
+  final Map<int, _Tone> _tone = {};
+
+  /// Pieces already given a tap target this frame.
+  final Set<int> _picked = {};
+
+  /// How high the finishing wave has climbed, and how bright it still is.
+  double _sweep = -1;
+  double _sweepFade = 0;
+
+  /// The piece in the air, built fresh every frame because it is the one thing
+  /// in the town that moves.
+  BspTree? _falling;
+  int _fallingPiece = -1;
 
   _Face? _nextFace() {
     if (_faceCount >= _facePool.length) return null;
@@ -482,15 +505,7 @@ class TownPainter extends CustomPainter {
 
   // ------------------------------------------------------------- far wall
 
-  void _quad(
-    Projector p,
-    V3 a,
-    V3 b,
-    V3 c,
-    V3 d,
-    int color, {
-    double? depthOverride,
-  }) {
+  void _quad(Projector p, V3 a, V3 b, V3 c, V3 d, int color) {
     final pts = [a, b, c, d];
     for (var i = 0; i < 4; i++) {
       final cp = p.cameraOf(pts[i]);
@@ -498,33 +513,29 @@ class TownPainter extends CustomPainter {
       _clipA[i * 3 + 1] = cp.y;
       _clipA[i * 3 + 2] = cp.z;
     }
-    _emit(p, _clipA, 4, color, depthOverride: depthOverride);
+    _emit(p, _clipA, 4, color);
   }
 
-  /// Clips a camera-space polygon, projects it and stores it for sorting.
-  void _emit(
-    Projector p,
-    Float64List cam,
-    int count,
-    int color, {
-    bool outline = false,
-    double? depthOverride,
-  }) {
+  /// Clips a camera-space polygon, projects it and queues it.
+  ///
+  /// Queues, not sorts. Faces are painted in the order they arrive here, and
+  /// the order they arrive in is already the right one: that is what the tree
+  /// walk and the box ordering are for. A depth number per face was the old
+  /// way, and a single number cannot say which of two faces that overlap in
+  /// depth is in front — there is no such number, which is why every bug this
+  /// renderer ever had came back at a different angle.
+  void _emit(Projector p, Float64List cam, int count, int color) {
     final m = clipNear(cam, count, _clipB, p.near);
     if (m < 3) return;
     final f = _nextFace();
     if (f == null) return;
-    var depth = 0.0;
     for (var i = 0; i < m; i++) {
       final z = _clipB[i * 3 + 2];
       f.pts[i * 2] = p.screenX(_clipB[i * 3], z);
       f.pts[i * 2 + 1] = p.screenY(_clipB[i * 3 + 1], z);
-      depth += z;
     }
     f.n = m;
-    f.depth = depthOverride ?? depth / m;
     f.color = color;
-    f.outline = outline;
   }
 
   // --------------------------------------------------------------- stones
@@ -1043,18 +1054,27 @@ class TownPainter extends CustomPainter {
     }
   }
 
-  /// Every town in the valley, nearest piece first so the budget is spent
-  /// where the eye is. One ordering across all of them, so a far town cannot
-  /// eat the near one's detail.
+  /// The whole valley's masonry, in the one order that is right.
+  ///
+  /// Nothing here sorts faces. Each building is a tree that was cut and filed
+  /// when its pieces were laid, and walking that tree from wherever the camera
+  /// happens to stand gives its own faces in exactly the right order — no
+  /// heuristics, no bias, nothing forced in front of anything. The buildings
+  /// are then filed behind planes with nothing straddling them, so which side
+  /// of each plane is nearer is decided by where the camera stands and by
+  /// nothing else. The renderer never guesses which of two things is in front,
+  /// because it is never in a position where it has to.
   void _collectTown(Projector p, Size size) {
     final pal = scene.palette;
     final light = pal.lightDir;
     final fx = scene.fx;
     final night = !pal.isDaylight;
+    _tone.clear();
+    _picked.clear();
 
     // How high the finishing wave has climbed, and how bright it still is.
-    var sweep = -1.0;
-    var sweepFade = 0.0;
+    _sweep = -1.0;
+    _sweepFade = 0.0;
     final justDone = scene.finished;
     final active = scene.town;
     if (justDone != null && justDone < active.buildings.length) {
@@ -1062,240 +1082,359 @@ class TownPainter extends CustomPainter {
       const rise = 0.85; // seconds from footings to ridge
       final t = scene.finishedAge / rise;
       if (t < 1.7) {
-        sweep = (b.peakY + 0.6) * t;
-        sweepFade = t <= 1 ? 1.0 : clampD(1 - (t - 1) / 0.7, 0, 1);
+        _sweep = (b.peakY + 0.6) * t;
+        _sweepFade = t <= 1 ? 1.0 : clampD(1 - (t - 1) / 0.7, 0, 1);
       }
     }
 
-    // (town, piece) pairs, sorted together.
-    final order = <int>[];
-    final owners = <int>[];
-    for (var w = 0; w < scene.towns.length; w++) {
-      final e = scene.towns[w];
-      final take = math.min(e.placed, e.layout.pieces.length);
-      for (var i = 0; i < take; i++) {
-        order.add(i);
-        owners.add(w);
-      }
-    }
-    final idx = List<int>.generate(order.length, (i) => i);
-    double far(int k) {
-      final q = scene.towns[owners[k]].layout.pieces[order[k]];
-      final dx = q.cx - p.eye.x, dz = q.cz - p.eye.z;
-      return dx * dx + dz * dz;
-    }
-
-    idx.sort((a, b) => far(a).compareTo(far(b)));
-
-    for (var k = 0; k < idx.length && k < scene.budget; k++) {
-      final w = owners[idx[k]];
-      final e = scene.towns[w];
-      final piece = e.layout.pieces[order[idx[k]]];
-      final decay = 1.0 - e.integrity;
-      var lift = 0.0;
-      var flash = 0.0;
-      var squash = 1.0;
-      // A finished building lights up from its footings to its ridge, one
-      // course at a time. Not a flat flash: a wave you can watch climb, which
-      // is the difference between being told it is done and seeing it finish.
-      if (w == scene.active && sweep >= 0 && piece.building == scene.finished) {
-        final d = (piece.y0 - sweep).abs();
-        if (d < 0.9) {
-          flash = (1 - d / 0.9) * (1 - d / 0.9) * sweepFade;
+    // The piece in the air. It is the one thing in the town that moves, so it
+    // is the one thing built fresh every frame, and it is painted last because
+    // it is over the top of everything it is coming down into.
+    _falling = null;
+    _fallingPiece = -1;
+    if (fx != null &&
+        fx.brickIndex >= 0 &&
+        fx.brickIndex < active.pieces.length &&
+        fx.brickIndex < scene.towns[scene.active].placed) {
+      final q = active.pieces[fx.brickIndex];
+      final flying = <Facet>[];
+      for (final solid in solidsOf(q, lift: fx.yOffset, squash: fx.squash.$2)) {
+        for (final f in solid.faces) {
+          f.piece = solid.piece;
+          flying.add(f);
         }
       }
-      if (w == scene.active && fx != null && fx.brickIndex == piece.index) {
-        lift = fx.yOffset;
-        flash = fx.flash;
-        // Squash on landing: the piece spreads as it takes the weight and then
-        // springs back. It is a tenth of a second long and it is most of what
-        // makes putting one down feel like anything at all.
-        squash = fx.squash.$2;
+      if (flying.isNotEmpty) {
+        _falling = BspTree.build(flying);
+        _fallingPiece = fx.brickIndex;
       }
-      _emitPiece(
+    }
+
+    // What the frame can afford. The budget buys whole buildings, nearest
+    // first, so what it cannot pay for is a house on the far side of the
+    // valley and never half of the one standing in front of you.
+    final cost = <(double, int)>[];
+    for (final e in scene.towns) {
+      final take = math.min(e.placed, e.layout.pieces.length);
+      if (take <= 0) continue;
+      for (final c in builtTown(e.layout, take).clusters) {
+        cost.add((_away(p, c.bounds), c.pieces));
+      }
+    }
+    cost.sort((a, b) => a.$1.compareTo(b.$1));
+    var spend = 0;
+    var cut = double.infinity;
+    for (final c in cost) {
+      spend += c.$2;
+      if (spend > scene.budget) {
+        cut = c.$1;
+        break;
+      }
+    }
+
+    // The towns themselves, farthest first. Each has its own plot with the
+    // valley between them, so no two of them interleave and how far away they
+    // are is the whole of their order.
+    final towns = List<int>.generate(scene.towns.length, (i) => i);
+    Aabb? boundsOf(TownEntry e) =>
+        builtTown(e.layout, math.min(e.placed, e.layout.pieces.length)).bounds;
+    towns.sort(
+      (a, b) => _away(
         p,
-        e.layout,
-        piece,
-        pal,
-        light,
-        decay,
-        night,
-        lift,
-        flash,
-        size,
-        squash: squash,
+        boundsOf(scene.towns[b]),
+      ).compareTo(_away(p, boundsOf(scene.towns[a]))),
+    );
+
+    for (final w in towns) {
+      final e = scene.towns[w];
+      final take = math.min(e.placed, e.layout.pieces.length);
+      if (take <= 0) continue;
+      final root = builtTown(e.layout, take).root;
+      if (root == null) continue;
+      final decay = 1.0 - e.integrity;
+      walkOrder(root, p.eye, (leaf) {
+        final box = leaf.bounds;
+        if (p.cameraOf(V3(box.cx, box.cy, box.cz)).z + box.radius < p.near) {
+          return;
+        }
+        final c = leaf.cluster;
+        if (c == null) {
+          _emitWeather(p, e, e.layout.pieces[leaf.weather], pal, night, decay);
+          return;
+        }
+        if (_away(p, box) > cut) return;
+        c.tree.paint(p.eye, (f) {
+          if (w == scene.active && f.piece == _fallingPiece) return;
+          _paint(p, e, f, pal, light, night, decay, size);
+        });
+      });
+    }
+
+    final falling = _falling;
+    if (falling != null) {
+      final e = scene.towns[scene.active];
+      falling.paint(
+        p.eye,
+        (f) => _paint(p, e, f, pal, light, night, 1.0 - e.integrity, size),
       );
     }
   }
 
-  void _emitPiece(
+  /// How far a box is from the eye, squared, which is all a sort needs.
+  static double _away(Projector p, Aabb? b) {
+    if (b == null) return double.infinity;
+    final dx = b.cx - p.eye.x, dy = b.cy - p.eye.y, dz = b.cz - p.eye.z;
+    return dx * dx + dy * dy + dz * dz;
+  }
+
+  /// The wind-blown half of a piece: what a tree filed once cannot hold.
+  void _emitWeather(
     Projector p,
-    TownLayout home,
+    TownEntry e,
     TownPiece piece,
     Palette pal,
-    V3 light,
-    double decay,
     bool night,
-    double lift,
-    double flash,
-    Size size, {
-    double squash = 1.0,
-  }) {
-    final s = piece.seed;
-    // Colour belongs to the house, not to the piece: a wall that changes tone
-    // halfway up, or a dormer that does not match its own roof, is the fastest
-    // way to make a town look like a pile of blocks.
+    double decay,
+  ) {
+    switch (piece.kind) {
+      case PieceKind.field:
+        _emitField(p, piece, piece.y0, pal, decay);
+      case PieceKind.water:
+        _emitWater(p, piece, piece.y0, pal, night);
+      case PieceKind.sail:
+        _emitSails(p, piece, piece.y0, piece.y1, pal.lightDir, pal);
+      case PieceKind.banner:
+        _emitBanner(p, piece, piece.y0, piece.y1, pal);
+      default:
+        break;
+    }
+  }
+
+  /// Paints one face of something built.
+  ///
+  /// The only visibility decision left in the renderer, and it is the one that
+  /// is always right: a face of a closed solid is seen exactly when the eye is
+  /// on its outward side. There is no inside of a house here, so every face
+  /// has a twin looking the other way and exactly one of the two is turned
+  /// towards you — which is why a roof can no longer lose half of itself by
+  /// being looked at from the wrong place.
+  void _paint(
+    Projector p,
+    TownEntry e,
+    Facet f,
+    Palette pal,
+    V3 light,
+    bool night,
+    double decay,
+    Size size,
+  ) {
+    final v = f.v;
+    final a = v[0];
+    final eye = p.eye;
+    if ((eye.x - a.x) * f.n.x + (eye.y - a.y) * f.n.y + (eye.z - a.z) * f.n.z <=
+        0) {
+      return;
+    }
+    if (f.piece >= e.layout.pieces.length) return;
+    final piece = e.layout.pieces[f.piece];
+    final tone = _toneOf(e, piece, pal, decay);
+    final colour = _colourOf(p, f, piece, tone, pal, light, decay, night);
+    if (colour == null) return;
+    _push(p, v, colour, piece, size);
+    final decals = f.decals;
+    if (decals == null) return;
+    for (final g in decals) {
+      final c = _colourOf(p, g, piece, tone, pal, light, decay, night);
+      if (c != null) _push(p, g.v, c, piece, size);
+    }
+  }
+
+  void _push(Projector p, List<V3> v, int colour, TownPiece piece, Size size) {
+    final m = v.length;
+    if (m < 3 || m > 24) return;
+    for (var i = 0; i < m; i++) {
+      final q = v[i];
+      final cp = p.cameraOf(q);
+      _clipA[i * 3] = cp.x;
+      _clipA[i * 3 + 1] = cp.y;
+      _clipA[i * 3 + 2] = cp.z;
+    }
+    final before = _faceCount;
+    _emit(p, _clipA, m, colour);
+    if (_faceCount > before && _picked.add(piece.index)) {
+      _registerPick(_facePool[before], piece.index, size);
+    }
+  }
+
+  /// The colours a house is painted in. They belong to the house, not to the
+  /// piece: a wall that changes tone halfway up, or a dormer that does not
+  /// match its own roof, is the fastest way to make a town look like a pile of
+  /// blocks.
+  _Tone _toneOf(TownEntry e, TownPiece piece, Palette pal, double decay) {
+    final key = piece.building;
+    final had = _tone[key];
+    if (had != null) return had;
     final h = hash32(piece.building, 0x51ed, 3);
-    final y0 = piece.y0 + lift;
-    final y1 = y0 + (piece.y1 - piece.y0) * squash;
+    final ch = e.layout.character;
     // A house is plaster over stone: pale walls, a stone base, a warm roof.
     // Plaster takes a limewash, and every town has one it favours: Ribera is
     // white, Marca ochre, Costa indigo. Most houses take the local colour and
     // the rest go their own way, which is what stops a town reading as one
     // material repeated — and what makes two towns two places.
-    final ch = home.character;
-    Color wall() {
-      final warm = hash01(h, 1);
-      var c = Color.lerp(pal.stoneCool, pal.stoneWarm, 0.35 + warm * 0.55)!;
-      final wash = hash01(h, 2);
-      if (wash < ch.washShare) {
-        c = Color.lerp(c, ch.wash, 0.30 + hash01(h, 21) * 0.22)!;
-      } else if (wash < ch.washShare + 0.12) {
-        c = Color.lerp(c, const Color(0xFFC9836E), 0.34)!;
-      } else if (wash < ch.washShare + 0.20) {
-        c = Color.lerp(c, const Color(0xFFA8B47A), 0.28)!;
+    final warm = hash01(h, 1);
+    var wall = Color.lerp(pal.stoneCool, pal.stoneWarm, 0.35 + warm * 0.55)!;
+    final wash = hash01(h, 2);
+    if (wash < ch.washShare) {
+      wall = Color.lerp(wall, ch.wash, 0.30 + hash01(h, 21) * 0.22)!;
+    } else if (wash < ch.washShare + 0.12) {
+      wall = Color.lerp(wall, const Color(0xFFC9836E), 0.34)!;
+    } else if (wash < ch.washShare + 0.20) {
+      wall = Color.lerp(wall, const Color(0xFFA8B47A), 0.28)!;
+    }
+    final t = hash01(h, 3);
+    final (tile, slate, _) = ch.roofMix;
+    final base = t < tile
+        ? const Color(0xFFC05C38)
+        : (t < tile + slate
+              ? const Color(0xFF5B6B72)
+              : const Color(0xFFA8853A));
+    return _tone[key] = _Tone(
+      wall,
+      Color.lerp(pal.stoneCool, pal.stone, 0.55)!,
+      Color.lerp(base, pal.stone, 0.08)!,
+    );
+  }
+
+  /// What one face looks like right now, or null when it is not there at all —
+  /// a plank across a window that nobody has abandoned yet.
+  int? _colourOf(
+    Projector p,
+    Facet f,
+    TownPiece piece,
+    _Tone tone,
+    Palette pal,
+    V3 light,
+    double decay,
+    bool night,
+  ) {
+    final s = piece.seed;
+    var flash = 0.0;
+    if (_sweep >= 0 && piece.building == scene.finished) {
+      final d = (piece.y0 - _sweep).abs();
+      if (d < 0.9) flash = (1 - d / 0.9) * (1 - d / 0.9) * _sweepFade;
+    }
+    final fx = scene.fx;
+    if (fx != null && fx.brickIndex == piece.index) flash = fx.flash;
+
+    Color albedo;
+    switch (f.surface) {
+      case Surface.wall:
+        albedo = _weather(tone.wall, decay, s);
+      case Surface.stone:
+        albedo = _weather(tone.stone, decay, s);
+      case Surface.tile:
+        albedo = _weather(tone.tile, decay, s);
+      case Surface.brick:
+        albedo = _weather(const Color(0xFF8C6A52), decay, s);
+      case Surface.own:
+        albedo = _weather(Color(f.tint ?? 0xFF808080), decay, s);
+      case Surface.leaf:
+        final leaf = Color.lerp(
+          const Color(0xFF4E5C3C),
+          const Color(0xFF6E7448),
+          hash01(s, 11),
+        )!;
+        // Pulled towards the ground's own tone so a tree reads as part of the
+        // landscape rather than as a green block dropped onto it.
+        albedo = Color.lerp(
+          Color.lerp(leaf, pal.ground, 0.28)!,
+          const Color(0xFF8A6E42),
+          decay * 0.6,
+        )!;
+      case Surface.hollow:
+        // The dark inside an arch is a shadow, not a surface: it is not lit,
+        // and lighting it is what turns an opening into a grey sticker.
+        return _hazeAt(
+          Color.lerp(pal.ink, tone.stone, 0.22)!,
+          p,
+          piece.cx,
+          piece.cz,
+          pal,
+        ).toARGB32();
+      case Surface.window:
+        return _window(p, f, piece, pal, decay, night);
+      case Surface.plank:
+        if (!_shut(f, piece, decay, night)) return null;
+        return _hazeAt(
+          _weather(const Color(0xFF7A6549), decay, s),
+          p,
+          piece.cx,
+          piece.cz,
+          pal,
+        ).toARGB32();
+    }
+    return _hazeAt(
+      _shade(f.n, albedo, light, pal, f.ao, flash, 0),
+      p,
+      piece.cx,
+      piece.cz,
+      pal,
+    ).toARGB32();
+  }
+
+  /// Whether a window has been boarded up. The same ones go first every time,
+  /// so a town empties in an order you can recognise rather than flickering at
+  /// random.
+  bool _shut(Facet f, TownPiece piece, double decay, bool night) {
+    final s = piece.seed;
+    final life = clampD(1 - decay, 0, 1);
+    final lifeCurve = life * life * (3 - 2 * life);
+    final lit = night && hash01(s, 70, f.data) < 0.72 * lifeCurve;
+    if (lit) return false;
+    final boarded = decay > 0.30 && hash01(s, 72) < (decay - 0.30) * 1.5;
+    return boarded || hash01(s, 73, f.data) < decay * 0.8;
+  }
+
+  /// A window, which is where the town says how you are doing. A lit window is
+  /// one achievement showing from the outside; a whole town of them read in a
+  /// single glance is the thing the wall could never do. And when the days
+  /// start going by without a piece, they go out one by one.
+  int _window(
+    Projector p,
+    Facet f,
+    TownPiece piece,
+    Palette pal,
+    double decay,
+    bool night,
+  ) {
+    final s = piece.seed;
+    final life = clampD(1 - decay, 0, 1);
+    final lifeCurve = life * life * (3 - 2 * life);
+    final lit = night && hash01(s, 70, f.data) < 0.72 * lifeCurve;
+    final colour = lit
+        ? Color.lerp(
+            const Color(0xFF7A5C2E),
+            const Color(0xFFFFD79A),
+            0.35 + 0.65 * lifeCurve,
+          )!
+        : Color.lerp(pal.ink, pal.stoneCool, night ? 0.12 : 0.30)!;
+    if (!lit) return _hazeAt(colour, p, piece.cx, piece.cz, pal).toARGB32();
+    // A lit window is a light, not a yellow rectangle. Remember where it fell
+    // so a glow can be laid over the town once the walls are down.
+    if (_lamps.length < 4 * 220) {
+      final at = p.project(f.centroid);
+      if (at != null) {
+        final r = p.focal / at.depth * 0.34;
+        if (r > 1.2) {
+          _lamps
+            ..add(at.x)
+            ..add(at.y)
+            ..add(math.min(r, 34))
+            ..add(clampD(1 - decay * 0.7, 0.2, 1.0));
+        }
       }
-      return _weather(c, decay, s);
     }
-
-    Color stone() =>
-        _weather(Color.lerp(pal.stoneCool, pal.stone, 0.55)!, decay, s);
-
-    /// Tile, slate or thatch, in whatever mix this town roofs with.
-    Color roofColour() {
-      final t = hash01(h, 3);
-      final (tile, slate, _) = ch.roofMix;
-      final base = t < tile
-          ? const Color(0xFFC05C38)
-          : (t < tile + slate
-                ? const Color(0xFF5B6B72)
-                : const Color(0xFFA8853A));
-      return _weather(Color.lerp(base, pal.stone, 0.08)!, decay, s);
-    }
-
-    switch (piece.kind) {
-      case PieceKind.roof:
-        _emitGable(p, piece, y0, y1, roofColour(), light, pal, 1.0, flash);
-      case PieceKind.spire:
-        _emitPyramid(p, piece, y0, y1, roofColour(), light, pal, flash);
-      case PieceKind.plinth:
-        _emitBox(
-          p,
-          piece,
-          y0,
-          y1,
-          _weather(Color.lerp(pal.stoneCool, pal.stone, 0.5)!, decay, s),
-          light,
-          pal,
-          0.86,
-          flash,
-          size,
-        );
-      case PieceKind.chimney:
-        _emitBox(
-          p,
-          piece,
-          y0,
-          y1,
-          _weather(const Color(0xFF8C6A52), decay, s),
-          light,
-          pal,
-          0.92,
-          flash,
-          size,
-        );
-      case PieceKind.parapet:
-        _emitBox(
-          p,
-          piece,
-          y0,
-          y1,
-          _weather(Color.lerp(pal.stoneCool, pal.stone, 0.62)!, decay, s),
-          light,
-          pal,
-          0.95,
-          flash,
-          size,
-        );
-      case PieceKind.dormer:
-        // A window in the roof, not a crate on it: a low front with a small
-        // roof of its own, turned across the slope it comes out of. Same one
-        // achievement, same place, only drawn as the thing it is.
-        final eaves = y0 + (y1 - y0) * 0.58;
-        _emitBox(
-          p,
-          piece,
-          y0,
-          eaves,
-          wall(),
-          light,
-          pal,
-          0.95,
-          flash,
-          size,
-          lid: false,
-        );
-        _emitGable(
-          p,
-          piece,
-          eaves,
-          y1,
-          roofColour(),
-          light,
-          pal,
-          1.0,
-          flash,
-          along: !piece.alongX,
-        );
-      case PieceKind.porch:
-        _emitBox(p, piece, y0, y1, wall(), light, pal, 0.9, flash, size);
-      case PieceKind.floor:
-        _emitBox(
-          p,
-          piece,
-          y0,
-          y1,
-          wall(),
-          light,
-          pal,
-          1.0,
-          flash,
-          size,
-          windows: true,
-          night: night,
-          decay: decay,
-        );
-      case PieceKind.dome:
-        _emitDome(p, piece, y0, y1, roofColour(), light, pal, flash);
-      case PieceKind.arcade:
-        _emitArcade(p, piece, y0, y1, stone(), light, pal, flash, size);
-      case PieceKind.stair:
-        _emitStair(p, piece, y0, y1, stone(), light, pal, flash, size);
-      case PieceKind.field:
-        _emitField(p, piece, y0, pal, decay);
-      case PieceKind.water:
-        _emitWater(p, piece, y0, pal, night);
-      case PieceKind.tree:
-        _emitTree(p, piece, y0, y1, light, pal, decay, flash);
-      case PieceKind.palisade:
-        _emitPalisade(p, piece, y0, y1, light, pal, decay, flash);
-      case PieceKind.banner:
-        _emitBanner(p, piece, y0, y1, light, pal, flash);
-      case PieceKind.wheel:
-        _emitWheel(p, piece, y0, y1, light, pal, decay, flash);
-      case PieceKind.sail:
-        _emitSails(p, piece, y0, y1, light, pal, flash);
-    }
+    return colour.toARGB32();
   }
 
   // ------------------------------------------------------------------ wind
@@ -1317,190 +1456,6 @@ class TownPainter extends CustomPainter {
   /// instead of one endless breeze.
   double get _windForce =>
       0.42 + 0.58 * (0.5 + 0.5 * math.sin(scene.time * 0.31));
-
-  // ------------------------------------------------- the landmark vocabulary
-
-  /// A dome: rings of quads narrowing to a cap. Cheap, and from any distance
-  /// the town is seen at it reads as a dome rather than as eight facets.
-  void _emitDome(
-    Projector p,
-    TownPiece piece,
-    double y0,
-    double y1,
-    Color albedo,
-    V3 light,
-    Palette pal,
-    double flash,
-  ) {
-    final cx = piece.cx, cz = piece.cz;
-    if (p.cameraOf(V3(cx, (y0 + y1) / 2, cz)).z <= p.near) return;
-    final rx = piece.w / 2, rz = piece.d / 2, rise = y1 - y0;
-    const rings = 3, sides = 8;
-
-    V3 at(int ring, int i) {
-      final t = ring / rings;
-      final k = math.cos(t * math.pi / 2);
-      final a = i * 2 * math.pi / sides;
-      return V3(
-        cx + math.cos(a) * rx * k,
-        y0 + math.sin(t * math.pi / 2) * rise,
-        cz + math.sin(a) * rz * k,
-      );
-    }
-
-    for (var ring = 0; ring < rings; ring++) {
-      for (var i = 0; i < sides; i++) {
-        final a = at(ring, i), b = at(ring, i + 1);
-        final c = at(ring + 1, i + 1), d = at(ring + 1, i);
-        final ang = (i + 0.5) * 2 * math.pi / sides;
-        final up = (ring + 0.5) / rings;
-        final n = V3(
-          math.cos(ang) * (1 - up * 0.75),
-          0.35 + up * 0.9,
-          math.sin(ang) * (1 - up * 0.75),
-        ).normalized;
-        _quad(
-          p,
-          a,
-          b,
-          c,
-          d,
-          _hazeAt(
-            _shade(n, albedo, light, pal, 1.0, flash, 0),
-            p,
-            cx,
-            cz,
-            pal,
-          ).toARGB32(),
-        );
-      }
-    }
-  }
-
-  /// A run of arches: the piers, and the wall above them with the openings
-  /// left dark. Drawn as solid masonry with the voids painted in, which from
-  /// outside is exactly what an arcade looks like.
-  void _emitArcade(
-    Projector p,
-    TownPiece piece,
-    double y0,
-    double y1,
-    Color albedo,
-    V3 light,
-    Palette pal,
-    double flash,
-    Size size,
-  ) {
-    final along = piece.alongX;
-    final len = along ? piece.w : piece.d;
-    final n = clampD(len / 0.95, 1, 8).round();
-    final e = p.eye;
-    final ht = y1 - y0;
-    final pierW = len / n * 0.34;
-    final step = len / n;
-    final start = (along ? piece.x0 : piece.z0) + step / 2;
-
-    // The band over the arches.
-    final headY = y0 + ht * 0.72;
-    _emitSlab(
-      p,
-      piece.cx,
-      piece.cz,
-      piece.w,
-      piece.d,
-      headY,
-      y1,
-      albedo,
-      light,
-      pal,
-      1.0,
-      flash,
-    );
-
-    final dark = Color.lerp(pal.ink, albedo, 0.22)!;
-    for (var i = 0; i <= n; i++) {
-      final c = start - step / 2 + i * step;
-      final px = along ? c : piece.cx;
-      final pz = along ? piece.cz : c;
-      _emitSlab(
-        p,
-        px,
-        pz,
-        along ? pierW : piece.w,
-        along ? piece.d : pierW,
-        y0,
-        headY,
-        albedo,
-        light,
-        pal,
-        0.92,
-        flash,
-      );
-    }
-    // The shadow inside each opening, on whichever face the camera can see.
-    for (var i = 0; i < n; i++) {
-      final c = start + i * step;
-      final w = step - pierW;
-      if (along) {
-        final z = e.z > piece.cz ? piece.z1 + 0.004 : piece.z0 - 0.004;
-        _quad(
-          p,
-          V3(c - w / 2, y0, z),
-          V3(c + w / 2, y0, z),
-          V3(c + w / 2, headY, z),
-          V3(c - w / 2, headY, z),
-          _hazeAt(dark, p, piece.cx, piece.cz, pal).toARGB32(),
-        );
-      } else {
-        final x = e.x > piece.cx ? piece.x1 + 0.004 : piece.x0 - 0.004;
-        _quad(
-          p,
-          V3(x, y0, c - w / 2),
-          V3(x, y0, c + w / 2),
-          V3(x, headY, c + w / 2),
-          V3(x, headY, c - w / 2),
-          _hazeAt(dark, p, piece.cx, piece.cz, pal).toARGB32(),
-        );
-      }
-    }
-    _registerPickAt(p, piece, size, (y0 + y1) / 2);
-  }
-
-  /// A flight of steps, drawn as three shallow treads.
-  void _emitStair(
-    Projector p,
-    TownPiece piece,
-    double y0,
-    double y1,
-    Color albedo,
-    V3 light,
-    Palette pal,
-    double flash,
-    Size size,
-  ) {
-    const steps = 3;
-    final rise = (y1 - y0) / steps;
-    final along = piece.alongX;
-    final run = along ? piece.d : piece.w;
-    for (var i = 0; i < steps; i++) {
-      final shrink = run * (i / steps) * 0.5;
-      _emitSlab(
-        p,
-        piece.cx,
-        piece.cz,
-        along ? piece.w : piece.w - shrink,
-        along ? piece.d - shrink : piece.d,
-        y0 + i * rise,
-        y0 + (i + 1) * rise,
-        albedo,
-        light,
-        pal,
-        0.9 + i * 0.04,
-        flash,
-      );
-    }
-    _registerPickAt(p, piece, size, y1);
-  }
 
   /// Ploughed rows, and the crop standing in them rippling with the wind.
   void _emitField(
@@ -1524,7 +1479,13 @@ class TownPainter extends CustomPainter {
     final y = y0 + 0.012;
     final sway = 0.055 * _windForce;
 
-    for (var i = 0; i < rows; i++) {
+    // The rows are sheets lying one behind the other on the ground: paint them
+    // starting from the far side and each covers the join of the one before.
+    // Which end is the far one depends on where you are standing, and that is
+    // the whole of it.
+    final back = along ? p.eye.z > piece.cz : p.eye.x > piece.cx;
+    for (var k = 0; k < rows; k++) {
+      final i = back ? k : rows - 1 - k;
       final lean = _gust(piece.cx, piece.cz, i * 0.5) * sway;
       final a = (i + 0.10) / rows, b = (i + 0.86) / rows;
       final ripe = Color.lerp(
@@ -1556,12 +1517,7 @@ class TownPainter extends CustomPainter {
         q2 = V3(x1, y, piece.z1);
         q3 = V3(x1, y, piece.z0);
       }
-      var far = p.cameraOf(q0).z;
-      for (final v in [q1, q2, q3]) {
-        final z = p.cameraOf(v).z;
-        if (z > far) far = z;
-      }
-      _quad(p, q0, q1, q2, q3, c.toARGB32(), depthOverride: far);
+      _quad(p, q0, q1, q2, q3, c.toARGB32());
     }
   }
 
@@ -1588,18 +1544,19 @@ class TownPainter extends CustomPainter {
 
     int tint(Color c) => _hazeAt(c, p, cx, cz, pal).toARGB32();
 
-    // A flat sheet lying on the ground is sorted by its farthest corner, not
-    // its middle: a long ribbon of water running past a house has its centre
-    // nearer than the house's, and would otherwise be painted over the wall.
+    // Every sheet here sits a hair higher than the one before it, and the
+    // camera never gets below the waterline, so painting them in the order
+    // they are written is painting them bottom up — which is the right order
+    // and needs nothing said about depth.
     void plate(double x0, double x1, double z0, double z1, double h, Color c) {
-      final a = V3(x0, h, z1), b = V3(x1, h, z1);
-      final d = V3(x1, h, z0), e = V3(x0, h, z0);
-      var far = p.cameraOf(a).z;
-      for (final v in [b, d, e]) {
-        final z = p.cameraOf(v).z;
-        if (z > far) far = z;
-      }
-      _quad(p, a, b, d, e, tint(c), depthOverride: far);
+      _quad(
+        p,
+        V3(x0, h, z1),
+        V3(x1, h, z1),
+        V3(x1, h, z0),
+        V3(x0, h, z0),
+        tint(c),
+      );
     }
 
     plate(piece.x0, piece.x1, piece.z0, piece.z1, y, deep);
@@ -1658,112 +1615,6 @@ class TownPainter extends CustomPainter {
     }
   }
 
-  /// A tree: a trunk and a canopy of two stacked blocks, which at this scale
-  /// reads as a tree and costs eight faces.
-  void _emitTree(
-    Projector p,
-    TownPiece piece,
-    double y0,
-    double y1,
-    V3 light,
-    Palette pal,
-    double decay,
-    double flash,
-  ) {
-    final ht = y1 - y0;
-    final s = piece.seed;
-    final leaf = Color.lerp(
-      const Color(0xFF4E5C3C),
-      const Color(0xFF6E7448),
-      hash01(s, 11),
-    )!;
-    // Pulled towards the ground's own tone so a tree reads as part of the
-    // landscape rather than as a green block dropped onto it.
-    final settled = Color.lerp(leaf, pal.ground, 0.28)!;
-    final autumn = Color.lerp(settled, const Color(0xFF8A6E42), decay * 0.6)!;
-    final bark = const Color(0xFF6B573F);
-    final trunk = piece.w * 0.16;
-    _emitSlab(
-      p,
-      piece.cx,
-      piece.cz,
-      trunk,
-      trunk,
-      y0,
-      y0 + ht * 0.42,
-      bark,
-      light,
-      pal,
-      0.85,
-      flash,
-    );
-    _emitSlab(
-      p,
-      piece.cx,
-      piece.cz,
-      piece.w * 0.82,
-      piece.d * 0.82,
-      y0 + ht * 0.36,
-      y0 + ht * 0.74,
-      autumn,
-      light,
-      pal,
-      0.98,
-      flash,
-    );
-    _emitSlab(
-      p,
-      piece.cx,
-      piece.cz,
-      piece.w * 0.52,
-      piece.d * 0.52,
-      y0 + ht * 0.70,
-      y1,
-      autumn,
-      light,
-      pal,
-      1.08,
-      flash,
-    );
-  }
-
-  /// A run of stakes.
-  void _emitPalisade(
-    Projector p,
-    TownPiece piece,
-    double y0,
-    double y1,
-    V3 light,
-    Palette pal,
-    double decay,
-    double flash,
-  ) {
-    final along = piece.alongX;
-    final len = along ? piece.w : piece.d;
-    final n = clampD(len / 0.34, 2, 16).round();
-    final wood = _weather(const Color(0xFF7A6549), decay, piece.seed);
-    final step = len / n;
-    final start = (along ? piece.x0 : piece.z0) + step / 2;
-    for (var i = 0; i < n; i++) {
-      final c = start + i * step;
-      final top = y1 - hash01(piece.seed, 12, i) * (y1 - y0) * 0.18;
-      _emitSlab(
-        p,
-        along ? c : piece.cx,
-        along ? piece.cz : c,
-        along ? step * 0.6 : piece.w,
-        along ? piece.d : step * 0.6,
-        y0,
-        top,
-        wood,
-        light,
-        pal,
-        0.9,
-        flash,
-      );
-    }
-  }
-
   /// A pole with a banner hanging from it. The one piece of the town allowed a
   /// colour that is not stone, plaster or tile.
   void _emitBanner(
@@ -1771,27 +1622,11 @@ class TownPainter extends CustomPainter {
     TownPiece piece,
     double y0,
     double y1,
-    V3 light,
     Palette pal,
-    double flash,
   ) {
     final ht = y1 - y0;
-    _emitSlab(
-      p,
-      piece.cx,
-      piece.cz,
-      0.09,
-      0.09,
-      y0,
-      y1,
-      const Color(0xFF6B573F),
-      light,
-      pal,
-      0.9,
-      flash,
-    );
-    // The one thing in the town allowed a colour that is not stone, plaster
-    // or tile, and the one thing that flies.
+    // The pole is masonry and stands in the tree with everything else; what is
+    // left here is the cloth, which is the one thing in the town that flies.
     final pick = hash01(piece.seed, 13);
     final cloth = pick < 0.34
         ? const Color(0xFFC0392B)
@@ -1849,87 +1684,6 @@ class TownPainter extends CustomPainter {
     }
   }
 
-  /// A water wheel: a rim of paddles turning in a vertical plane.
-  void _emitWheel(
-    Projector p,
-    TownPiece piece,
-    double y0,
-    double y1,
-    V3 light,
-    Palette pal,
-    double decay,
-    double flash,
-  ) {
-    final r = (y1 - y0) / 2;
-    final cy = y0 + r;
-    final cx = piece.cx, cz = piece.cz;
-    final wood = _weather(const Color(0xFF6E5A42), decay, piece.seed);
-    final rim = _weather(const Color(0xFF8A7355), decay, piece.seed);
-    // The wheel turns across its short side: along a wall running east-west it
-    // stands in the east-west plane.
-    final flat = piece.alongX;
-    const spokes = 12;
-    final thick = r * 0.16;
-    // The rim first, as a closed ring of short chords, so it reads as a wheel
-    // and not as a scatter of blocks floating in a circle.
-    for (var i = 0; i < spokes; i++) {
-      final a = (i + 0.5) * 2 * math.pi / spokes;
-      final px = math.cos(a) * r * 0.88, py = math.sin(a) * r * 0.88;
-      final tangential = math.max(r * 2 * math.pi / spokes * 0.62, 0.08);
-      final horiz =
-          math.sin(a).abs() * tangential + math.cos(a).abs() * r * 0.16;
-      final vert =
-          math.cos(a).abs() * tangential + math.sin(a).abs() * r * 0.16;
-      _emitSlab(
-        p,
-        flat ? cx + px : cx,
-        flat ? cz : cz + px,
-        flat ? horiz : thick,
-        flat ? thick : horiz,
-        cy + py - vert / 2,
-        cy + py + vert / 2,
-        rim,
-        light,
-        pal,
-        0.98,
-        flash,
-      );
-    }
-    // The paddles, standing out from the rim.
-    for (var i = 0; i < spokes ~/ 2; i++) {
-      final a = i * 4 * math.pi / spokes;
-      final px = math.cos(a) * r * 0.62, py = math.sin(a) * r * 0.62;
-      _emitSlab(
-        p,
-        flat ? cx + px : cx,
-        flat ? cz : cz + px,
-        flat ? r * 0.5 : thick * 1.5,
-        flat ? thick * 1.5 : r * 0.5,
-        cy + py - r * 0.09,
-        cy + py + r * 0.09,
-        wood,
-        light,
-        pal,
-        0.9,
-        flash,
-      );
-    }
-    _emitSlab(
-      p,
-      cx,
-      cz,
-      flat ? r * 0.3 : thick * 1.4,
-      flat ? thick * 1.4 : r * 0.3,
-      cy - r * 0.15,
-      cy + r * 0.15,
-      wood,
-      light,
-      pal,
-      0.88,
-      flash,
-    );
-  }
-
   /// Four sails on a windmill's cap, turning.
   ///
   /// Drawn as flat quads in the plane of the cap rather than as boxes, which is
@@ -1942,7 +1696,6 @@ class TownPainter extends CustomPainter {
     double y1,
     V3 light,
     Palette pal,
-    double flash,
   ) {
     final r = (y1 - y0) / 2;
     final cy = y0 + r;
@@ -1973,7 +1726,7 @@ class TownPainter extends CustomPainter {
         V3(cx + dx * to - nx, cy + dy * to - ny, cz),
         V3(cx + dx * from - nx, cy + dy * from - ny, cz),
         _hazeAt(
-          _shade(const V3(0, 0, -1), c, light, pal, ao, flash, 0),
+          _shade(const V3(0, 0, -1), c, light, pal, ao, 0, 0),
           p,
           cx,
           cz,
@@ -1988,115 +1741,6 @@ class TownPainter extends CustomPainter {
       blade(a, r * 0.30, r * 0.98, r * 0.20, i.isEven ? cloth : shade, 1.06);
       blade(a, r * 0.06, r * 1.0, r * 0.055, wood, 0.95);
     }
-    _emitSlab(
-      p,
-      cx,
-      cz + 0.06,
-      r * 0.28,
-      0.22,
-      cy - r * 0.14,
-      cy + r * 0.14,
-      wood,
-      light,
-      pal,
-      0.88,
-      flash,
-    );
-  }
-
-  /// A box given by its middle and size rather than by a piece, for the parts
-  /// a landmark is assembled from.
-  void _emitSlab(
-    Projector p,
-    double cx,
-    double cz,
-    double w,
-    double d,
-    double y0,
-    double y1,
-    Color albedo,
-    V3 light,
-    Palette pal,
-    double ao,
-    double flash,
-  ) {
-    final x0 = cx - w / 2, x1 = cx + w / 2;
-    final z0 = cz - d / 2, z1 = cz + d / 2;
-    final e = p.eye;
-    if (p.cameraOf(V3(cx, (y0 + y1) / 2, cz)).z <= p.near) return;
-
-    Color face(V3 n, double k) => _hazeAt(
-      _shade(n, albedo, light, pal, ao * k, flash, 0),
-      p,
-      cx,
-      cz,
-      pal,
-    );
-
-    if (e.z > z1) {
-      _quad(
-        p,
-        V3(x0, y0, z1),
-        V3(x1, y0, z1),
-        V3(x1, y1, z1),
-        V3(x0, y1, z1),
-        face(const V3(0, 0, 1), 1.0).toARGB32(),
-      );
-    } else if (e.z < z0) {
-      _quad(
-        p,
-        V3(x1, y0, z0),
-        V3(x0, y0, z0),
-        V3(x0, y1, z0),
-        V3(x1, y1, z0),
-        face(const V3(0, 0, -1), 1.0).toARGB32(),
-      );
-    }
-    if (e.x > x1) {
-      _quad(
-        p,
-        V3(x1, y0, z1),
-        V3(x1, y0, z0),
-        V3(x1, y1, z0),
-        V3(x1, y1, z1),
-        face(const V3(1, 0, 0), 0.94).toARGB32(),
-      );
-    } else if (e.x < x0) {
-      _quad(
-        p,
-        V3(x0, y0, z0),
-        V3(x0, y0, z1),
-        V3(x0, y1, z1),
-        V3(x0, y1, z0),
-        face(const V3(-1, 0, 0), 0.94).toARGB32(),
-      );
-    }
-    if (e.y > y1) {
-      _quad(
-        p,
-        V3(x0, y1, z1),
-        V3(x1, y1, z1),
-        V3(x1, y1, z0),
-        V3(x0, y1, z0),
-        face(const V3(0, 1, 0), 1.04).toARGB32(),
-      );
-    }
-  }
-
-  /// Makes a piece tappable without it having drawn a box of its own.
-  void _registerPickAt(Projector p, TownPiece piece, Size size, double y) {
-    final at = p.project(V3(piece.cx, y, piece.cz));
-    if (at == null) return;
-    if (at.x < 0 || at.x > size.width || at.y < 0 || at.y > size.height) return;
-    picks.add(
-      PickTarget(
-        piece.index,
-        at.x,
-        at.y,
-        math.max(8.0, p.focal / at.depth * piece.w * 0.4),
-        scene.labelledBricks.contains(piece.index),
-      ),
-    );
   }
 
   Color _weather(Color c, double decay, int seed) {
@@ -2104,463 +1748,6 @@ class TownPainter extends CustomPainter {
     final moss = hash01(seed, 61) < decay * 0.55;
     final t = decay * (moss ? 0.42 : 0.22);
     return Color.lerp(c, const Color(0xFF5C6B4A), t)!;
-  }
-
-  /// A box, with only the faces turned towards the camera drawn.
-  void _emitBox(
-    Projector p,
-    TownPiece piece,
-    double y0,
-    double y1,
-    Color albedo,
-    V3 light,
-    Palette pal,
-    double ao,
-    double flash,
-    Size size, {
-    bool windows = false,
-    bool night = false,
-    double decay = 0,
-    bool lid = true,
-  }) {
-    final x0 = piece.x0, x1 = piece.x1, z0 = piece.z0, z1 = piece.z1;
-    final e = p.eye;
-    final mid = V3((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
-    if (p.cameraOf(mid).z <= p.near) return;
-
-    Color face(V3 n, double k) => _hazeAt(
-      _shade(n, albedo, light, pal, ao * k, flash, 0),
-      p,
-      mid.x,
-      mid.z,
-      pal,
-    );
-
-    final before = _faceCount;
-    if (e.z > z1) {
-      _quad(
-        p,
-        V3(x0, y0, z1),
-        V3(x1, y0, z1),
-        V3(x1, y1, z1),
-        V3(x0, y1, z1),
-        face(const V3(0, 0, 1), 1.0).toARGB32(),
-      );
-    } else if (e.z < z0) {
-      _quad(
-        p,
-        V3(x1, y0, z0),
-        V3(x0, y0, z0),
-        V3(x0, y1, z0),
-        V3(x1, y1, z0),
-        face(const V3(0, 0, -1), 1.0).toARGB32(),
-      );
-    }
-    if (e.x > x1) {
-      _quad(
-        p,
-        V3(x1, y0, z1),
-        V3(x1, y0, z0),
-        V3(x1, y1, z0),
-        V3(x1, y1, z1),
-        face(const V3(1, 0, 0), 0.94).toARGB32(),
-      );
-    } else if (e.x < x0) {
-      _quad(
-        p,
-        V3(x0, y0, z0),
-        V3(x0, y0, z1),
-        V3(x0, y1, z1),
-        V3(x0, y1, z0),
-        face(const V3(-1, 0, 0), 0.94).toARGB32(),
-      );
-    }
-    // The top is only worth drawing when there is nothing standing on it — but
-    // then it must be drawn, or a half-built house is an open box you can see
-    // straight into. Kept below the sunlit sides: a course of masonry waiting
-    // for the next one is not a light, and on a limewashed wall anything
-    // brighter clips to a flat white slab with no form left in it.
-    if (e.y > y1 && !piece.capped && lid) {
-      _quad(
-        p,
-        V3(x0, y1, z1),
-        V3(x1, y1, z1),
-        V3(x1, y1, z0),
-        V3(x0, y1, z0),
-        face(const V3(0, 1, 0), 0.84).toARGB32(),
-      );
-    }
-    if (_faceCount > before) {
-      _registerPick(_facePool[before], piece.index, size);
-    }
-    if (windows) _emitWindows(p, piece, y0, y1, pal, night, decay);
-  }
-
-  /// The windows of one storey, and whether anybody is home.
-  ///
-  /// This is where the town says how you are doing. A lit window is one
-  /// achievement showing from the outside; a whole town of them read in a
-  /// single glance is the thing the wall could never do. And when the days
-  /// start going by without a piece, they go out one by one — which says
-  /// "nobody has been here" far better than moss on a wall ever did.
-  void _emitWindows(
-    Projector p,
-    TownPiece piece,
-    double y0,
-    double y1,
-    Palette pal,
-    bool night,
-    double decay,
-  ) {
-    final h = y1 - y0;
-    if (h < 0.5) return;
-    final wy0 = y0 + h * 0.34, wy1 = y0 + h * 0.74;
-    final e = p.eye;
-    final s = piece.seed;
-    final my = (y0 + y1) / 2;
-
-    // A window belongs to its wall and must be painted straight after it,
-    // whatever angle the wall is seen from. Sorting it by its own middle is
-    // not enough: a long wall seen obliquely has a nearer middle than a window
-    // at its far end, so the wall paints over its own windows — which is the
-    // flicker you see the moment the camera swings round. Pinning the window
-    // just in front of the depth its wall will sort at settles it for good.
-    double wallDepth(bool onZ, double outward) =>
-        p
-            .cameraOf(
-              onZ
-                  ? V3((piece.x0 + piece.x1) / 2, my, outward)
-                  : V3(outward, my, (piece.z0 + piece.z1) / 2),
-            )
-            .z -
-        0.05;
-
-    // How much of the town is still lived in. Falls away fast at the end so
-    // the last stretch of neglect is the one you actually notice.
-    final life = clampD(1 - decay, 0, 1);
-    final lifeCurve = life * life * (3 - 2 * life);
-    // A window is boarded once the place has been empty a good while, and
-    // which ones go first never changes.
-    final boarded = decay > 0.30 && hash01(s, 72) < (decay - 0.30) * 1.5;
-
-    void row(bool onZ, double at, double from, double to, double outward) {
-      final glass = wallDepth(onZ, outward);
-      final board = glass - 0.03;
-      final span = to - from;
-      final n = math.max(1, (span / 0.62).floor());
-      for (var i = 0; i < n; i++) {
-        final c = from + span * (i + 0.5) / n;
-        // Each window has its own place in the queue: the same ones go dark
-        // first every time, so the town empties from the edges of a habit
-        // rather than flickering at random.
-        final rank = hash01(s, 70, i);
-        final lit = night && rank < 0.72 * lifeCurve;
-        final shut = !lit && (boarded || hash01(s, 73, i) < decay * 0.8);
-        final colour = lit
-            ? Color.lerp(
-                const Color(0xFF7A5C2E),
-                const Color(0xFFFFD79A),
-                0.35 + 0.65 * lifeCurve,
-              )!
-            : Color.lerp(pal.ink, pal.stoneCool, night ? 0.12 : 0.30)!;
-        const hw = 0.15;
-        final wc = lit ? colour : _hazeAt(colour, p, piece.cx, piece.cz, pal);
-
-        // A lit window is a light, not a yellow rectangle. Remember where it
-        // fell so a glow can be laid over the town once the walls are down.
-        if (lit && _lamps.length < 4 * 220) {
-          final at = p.project(
-            V3(onZ ? c : outward, (wy0 + wy1) / 2, onZ ? outward : c),
-          );
-          if (at != null) {
-            final r = p.focal / at.depth * 0.34;
-            if (r > 1.2) {
-              _lamps
-                ..add(at.x)
-                ..add(at.y)
-                ..add(math.min(r, 34))
-                ..add(clampD(1 - decay * 0.7, 0.2, 1.0));
-            }
-          }
-        }
-
-        if (onZ) {
-          _quad(
-            p,
-            V3(c - hw, wy0, outward),
-            V3(c + hw, wy0, outward),
-            V3(c + hw, wy1, outward),
-            V3(c - hw, wy1, outward),
-            wc.toARGB32(),
-            depthOverride: glass,
-          );
-        } else {
-          _quad(
-            p,
-            V3(outward, wy0, c - hw),
-            V3(outward, wy0, c + hw),
-            V3(outward, wy1, c + hw),
-            V3(outward, wy1, c - hw),
-            wc.toARGB32(),
-            depthOverride: glass,
-          );
-        }
-        if (!shut) continue;
-
-        // Two planks nailed across an empty window.
-        final plank = _hazeAt(
-          _weather(const Color(0xFF7A6549), decay, s),
-          p,
-          piece.cx,
-          piece.cz,
-          pal,
-        ).toARGB32();
-        for (var k = 0; k < 2; k++) {
-          final py = wy0 + (wy1 - wy0) * (k == 0 ? 0.28 : 0.66);
-          final th = (wy1 - wy0) * 0.13;
-          final out2 = outward + (outward > 0 ? 0.004 : -0.004);
-          if (onZ) {
-            _quad(
-              p,
-              V3(c - hw * 1.25, py - th, out2),
-              V3(c + hw * 1.25, py - th, out2),
-              V3(c + hw * 1.25, py + th, out2),
-              V3(c - hw * 1.25, py + th, out2),
-              plank,
-              depthOverride: board,
-            );
-          } else {
-            _quad(
-              p,
-              V3(out2, py - th, c - hw * 1.25),
-              V3(out2, py - th, c + hw * 1.25),
-              V3(out2, py + th, c + hw * 1.25),
-              V3(out2, py + th, c - hw * 1.25),
-              plank,
-              depthOverride: board,
-            );
-          }
-        }
-      }
-    }
-
-    if (e.z > piece.z1) {
-      row(true, 0, piece.x0 + 0.2, piece.x1 - 0.2, piece.z1 + 0.012);
-    } else if (e.z < piece.z0) {
-      row(true, 0, piece.x0 + 0.2, piece.x1 - 0.2, piece.z0 - 0.012);
-    }
-    if (e.x > piece.x1) {
-      row(false, 0, piece.z0 + 0.2, piece.z1 - 0.2, piece.x1 + 0.012);
-    } else if (e.x < piece.x0) {
-      row(false, 0, piece.z0 + 0.2, piece.z1 - 0.2, piece.x0 - 0.012);
-    }
-  }
-
-  /// A pitched roof: two slopes and two gable ends, each cut into pieces.
-  ///
-  /// The cutting is the whole point. This renderer has no depth buffer: it
-  /// sorts whole faces by how far away their middle is and paints them back to
-  /// front. That cannot order a chimney against the slope it stands on, because
-  /// half the chimney is nearer than the middle of the slope and half is
-  /// further — so whichever way you order the two, one half comes out wrong,
-  /// and it changes as the camera swings round. Cut the slope into pieces and
-  /// the question stops being asked: every piece is either wholly in front of
-  /// the chimney or wholly behind it, and sorting by middles gives the right
-  /// answer on its own. Nothing has to be forced in front of anything.
-  ///
-  /// How fine depends on how big the roof lands on screen, so a town seen from
-  /// the far side of the valley does not pay for cuts nobody can see.
-  void _emitGable(
-    Projector p,
-    TownPiece piece,
-    double y0,
-    double y1,
-    Color albedo,
-    V3 light,
-    Palette pal,
-    double ao,
-    double flash, {
-    bool? along,
-  }) {
-    final x0 = piece.x0, x1 = piece.x1, z0 = piece.z0, z1 = piece.z1;
-    final mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
-    final at = p.cameraOf(V3(mx, (y0 + y1) / 2, mz));
-    if (at.z <= p.near) return;
-    final alongX = along ?? piece.alongX;
-
-    Color face(V3 n, double k) => _hazeAt(
-      _shade(n, albedo, light, pal, ao * k, flash, 0),
-      p,
-      mx,
-      mz,
-      pal,
-    );
-
-    // Roughly how many screen pixels a world unit covers out there. A roof on
-    // the far side of the valley is a few pixels across and pays for nothing.
-    final px = p.focal / math.max(0.4, at.z);
-    // And when the frame is already carrying a whole town, the cuts are the
-    // first thing to give up: a coarse roof is better than a missing house.
-    final room = _faceCount < _facePool.length * 0.55;
-    // Fine enough that a piece of slope is small beside the things that stand
-    // on it: the order can still be wrong, but only ever by one piece, and a
-    // piece this size is not something anybody sees.
-    int cuts(double len) => room ? (len * px / 17).ceil().clamp(1, 9) : 1;
-
-    /// One slope, from the eave [a]-[b] up to the ridge [d]-[c].
-    void slope(V3 a, V3 b, V3 c, V3 d, int colour) {
-      final nu = cuts(_span(a, b)), nv = cuts(_span(a, d));
-      if (nu == 1 && nv == 1) {
-        _quad(p, a, b, c, d, colour);
-        return;
-      }
-      V3 lerp3(V3 f, V3 t, double k) => V3(
-        f.x + (t.x - f.x) * k,
-        f.y + (t.y - f.y) * k,
-        f.z + (t.z - f.z) * k,
-      );
-      V3 on(double u, double v) => lerp3(lerp3(a, b, u), lerp3(d, c, u), v);
-      for (var i = 0; i < nu; i++) {
-        final u0 = i / nu, u1 = (i + 1) / nu;
-        for (var j = 0; j < nv; j++) {
-          final v0 = j / nv, v1 = (j + 1) / nv;
-          _quad(p, on(u0, v0), on(u1, v0), on(u1, v1), on(u0, v1), colour);
-        }
-      }
-    }
-
-    final rise = y1 - y0;
-    if (alongX) {
-      // Ridge runs east to west; the slopes face north and south.
-      final run = (z1 - z0) / 2;
-      final nA = V3(0, run, rise).normalized;
-      final nB = V3(0, run, -rise).normalized;
-      final end = _gableEnd(face(nA, 1.0), face(nB, 0.92));
-      slope(
-        V3(x0, y0, z1),
-        V3(x1, y0, z1),
-        V3(x1, y1, mz),
-        V3(x0, y1, mz),
-        face(nA, 1.0).toARGB32(),
-      );
-      slope(
-        V3(x1, y0, z0),
-        V3(x0, y0, z0),
-        V3(x0, y1, mz),
-        V3(x1, y1, mz),
-        face(nB, 0.92).toARGB32(),
-      );
-      // Both ends, always: a roof is a shell, and a missing end is a hole you
-      // can see the grass through.
-      _tri(p, V3(x1, y0, z0), V3(x1, y0, z1), V3(x1, y1, mz), end);
-      _tri(p, V3(x0, y0, z1), V3(x0, y0, z0), V3(x0, y1, mz), end);
-    } else {
-      final run = (x1 - x0) / 2;
-      final nA = V3(run, rise, 0).normalized;
-      final nB = V3(-run, rise, 0).normalized;
-      final end = _gableEnd(face(nA, 1.0), face(nB, 0.92));
-      slope(
-        V3(x1, y0, z0),
-        V3(x1, y0, z1),
-        V3(mx, y1, z1),
-        V3(mx, y1, z0),
-        face(nA, 1.0).toARGB32(),
-      );
-      slope(
-        V3(x0, y0, z1),
-        V3(x0, y0, z0),
-        V3(mx, y1, z0),
-        V3(mx, y1, z1),
-        face(nB, 0.92).toARGB32(),
-      );
-      _tri(p, V3(x0, y0, z1), V3(x1, y0, z1), V3(mx, y1, z1), end);
-      _tri(p, V3(x1, y0, z0), V3(x0, y0, z0), V3(mx, y1, z0), end);
-    }
-  }
-
-  static double _span(V3 a, V3 b) {
-    final dx = a.x - b.x, dy = a.y - b.y, dz = a.z - b.z;
-    return math.sqrt(dx * dx + dy * dy + dz * dz);
-  }
-
-  /// The end of a roof, in tone.
-  ///
-  /// Shaded on its own outward normal a gable can come out paler than both of
-  /// the slopes it closes, and a white wedge beside a tan roof does not read
-  /// as the end of the roof — it reads as a hole in it. So it is always the
-  /// darker slope, a shade darker again: the end of a roof is in its own
-  /// shadow, and it can never out-shine the roof.
-  int _gableEnd(Color a, Color b) {
-    double lum(Color c) => c.r * 0.299 + c.g * 0.587 + c.b * 0.114;
-    final dark = lum(a) <= lum(b) ? a : b;
-    return Color.lerp(dark, const Color(0xFF000000), 0.14)!.toARGB32();
-  }
-
-  /// A spire: four faces to a point.
-  void _emitPyramid(
-    Projector p,
-    TownPiece piece,
-    double y0,
-    double y1,
-    Color albedo,
-    V3 light,
-    Palette pal,
-    double flash,
-  ) {
-    final x0 = piece.x0, x1 = piece.x1, z0 = piece.z0, z1 = piece.z1;
-    final mx = (x0 + x1) / 2, mz = (z0 + z1) / 2;
-    final apex = V3(mx, y1, mz);
-    if (p.cameraOf(V3(mx, (y0 + y1) / 2, mz)).z <= p.near) return;
-    final rise = y1 - y0;
-
-    final at = p.cameraOf(V3(mx, (y0 + y1) / 2, mz));
-    final px = p.focal / math.max(0.4, at.z);
-
-    void side(V3 a, V3 b, V3 n, double k) {
-      final colour = _hazeAt(
-        _shade(n.normalized, albedo, light, pal, k, flash, 0),
-        p,
-        mx,
-        mz,
-        pal,
-      ).toARGB32();
-      // Cut into bands from the eave up to the point, for the same reason the
-      // roof is cut: a whole face cannot be ordered against a thing standing
-      // on it, and a band can.
-      final n2 = _faceCount < _facePool.length * 0.55
-          ? (_span(a, apex) * px / 20).ceil().clamp(1, 6)
-          : 1;
-      V3 lerp3(V3 f, V3 t, double q) => V3(
-        f.x + (t.x - f.x) * q,
-        f.y + (t.y - f.y) * q,
-        f.z + (t.z - f.z) * q,
-      );
-      for (var i = 0; i < n2; i++) {
-        final v0 = i / n2, v1 = (i + 1) / n2;
-        final a0 = lerp3(a, apex, v0), b0 = lerp3(b, apex, v0);
-        if (i == n2 - 1) {
-          _tri(p, a0, b0, apex, colour);
-        } else {
-          _quad(p, a0, b0, lerp3(b, apex, v1), lerp3(a, apex, v1), colour);
-        }
-      }
-    }
-
-    side(V3(x0, y0, z1), V3(x1, y0, z1), V3(0, (z1 - z0) / 2, rise), 1.0);
-    side(V3(x1, y0, z0), V3(x0, y0, z0), V3(0, (z1 - z0) / 2, -rise), 0.9);
-    side(V3(x1, y0, z1), V3(x1, y0, z0), V3(rise, (x1 - x0) / 2, 0), 0.95);
-    side(V3(x0, y0, z0), V3(x0, y0, z1), V3(-rise, (x1 - x0) / 2, 0), 0.95);
-  }
-
-  void _tri(Projector p, V3 a, V3 b, V3 c, int color) {
-    final pts = [a, b, c];
-    for (var i = 0; i < 3; i++) {
-      final cp = p.cameraOf(pts[i]);
-      _clipA[i * 3] = cp.x;
-      _clipA[i * 3 + 1] = cp.y;
-      _clipA[i * 3 + 2] = cp.z;
-    }
-    _emit(p, _clipA, 3, color);
   }
 
   /// The name of each landmark the town has finished.
@@ -2638,23 +1825,28 @@ class TownPainter extends CustomPainter {
 
   // ---------------------------------------------------------------- flush
 
+  /// Paints what was collected, in the order it was collected.
+  ///
+  /// There is no sort here any more and there is not meant to be one: by the
+  /// time a face reaches this list its place has already been decided by
+  /// geometry rather than guessed from a distance.
   void _flush(Canvas canvas) {
     if (_faceCount == 0) return;
-    final faces = _facePool.sublist(0, _faceCount);
-    faces.sort((a, b) => b.depth.compareTo(a.depth));
     final paint = Paint()
       ..style = PaintingStyle.fill
       ..isAntiAlias = true;
     // Two neighbouring faces drawn separately with antialiasing leave a
-    // hairline of whatever is behind them showing between the two — which on a
-    // roof cut into pieces draws the grid the cuts were never meant to be
-    // seen as. Running the same colour round the edge closes it.
+    // hairline of whatever is behind them showing between the two. Cutting the
+    // geometry is what makes the order right, and cutting makes more
+    // neighbours, so closing the seam matters more here than it ever did:
+    // running the same colour round the edge does it.
     final seam = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0
       ..strokeJoin = StrokeJoin.round
       ..isAntiAlias = true;
-    for (final f in faces) {
+    for (var k = 0; k < _faceCount; k++) {
+      final f = _facePool[k];
       _scratch.reset();
       _scratch.moveTo(f.pts[0], f.pts[1]);
       for (var i = 1; i < f.n; i++) {

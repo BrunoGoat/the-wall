@@ -44,16 +44,6 @@ class TownPiece {
   /// Ridge direction of a roof.
   final bool alongX;
 
-  /// True once something of the same building stands on this piece's top.
-  ///
-  /// A wall with a roof on it has no top left to see, and drawing one is not
-  /// free: a flat face turned straight at the sky is the brightest thing a
-  /// house has, and its middle sits at very nearly the same distance as the
-  /// roof directly above it. Two faces at the same distance sort by a coin
-  /// toss, so from half the angles the white wall-top came down over its own
-  /// roof. Not drawing what cannot be seen settles it.
-  bool capped = false;
-
   double get x0 => cx - w / 2;
   double get x1 => cx + w / 2;
   double get z0 => cz - d / 2;
@@ -437,7 +427,6 @@ class TownLayout {
     }
     final built = math.min(pieces.length, placed);
     building.placedPieces = built;
-    _cap(0, built);
     buildings.add(building);
     radius = building.reach + 1.5;
   }
@@ -527,7 +516,6 @@ class TownLayout {
       // covers it, a whole achievement early.
       final built = math.min(index, placed);
       building.placedPieces = math.max(0, built - building.firstPiece);
-      _cap(building.firstPiece, built);
       buildings.add(building);
       final out = math.sqrt(
         (building.cx - cx) * (building.cx - cx) +
@@ -535,28 +523,6 @@ class TownLayout {
       );
       if (out + building.reach > radius) radius = out + building.reach;
       if (index >= want) break;
-    }
-  }
-
-  /// Marks every piece of one building whose top something else already
-  /// covers. Only what has actually been laid counts: a wall is bare until the
-  /// day its roof is earned, and it should look bare.
-  void _cap(int from, int to) {
-    for (var i = from; i < to; i++) {
-      final p = pieces[i];
-      if (p.w <= 0 || p.d <= 0) continue;
-      for (var j = from; j < to; j++) {
-        if (j == i) continue;
-        final q = pieces[j];
-        // Standing on it, not merely passing by it or buried under it.
-        if (q.y0 > p.y1 + 0.02 || q.y1 <= p.y1 + 0.02) continue;
-        // Covering it, not perched on a corner of it.
-        if ((q.cx - p.cx).abs() > (q.w - p.w).abs() / 2 + 0.02) continue;
-        if ((q.cz - p.cz).abs() > (q.d - p.d).abs() / 2 + 0.02) continue;
-        if (q.w < p.w - 0.02 || q.d < p.d - 0.02) continue;
-        p.capped = true;
-        break;
-      }
     }
   }
 
