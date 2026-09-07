@@ -94,7 +94,7 @@ _Node? _build(List<Facet> faces, int depth, void Function(int) tally) {
           front.add(f);
           break;
         }
-        final cut = _split(f, node.n, node.d);
+        final cut = _cut(f, node.n, node.d, withDecals: true);
         if (cut.$1 != null) front.add(cut.$1!);
         if (cut.$2 != null) back.add(cut.$2!);
     }
@@ -183,13 +183,9 @@ _Side _classify(Facet f, V3 n, double d) {
   return _Side.on;
 }
 
-/// Cuts a facet in two at a plane. This is the one place geometry is created,
-/// and it happens when the piece is laid, never while drawing.
-(Facet?, Facet?) _split(Facet f, V3 n, double d) => _cut(f, n, d, true);
-
-(Facet?, Facet?) _split2(Facet f, V3 n, double d) => _cut(f, n, d, false);
-
-(Facet?, Facet?) _cut(Facet f, V3 n, double d, bool withDecals) {
+/// Cuts a facet in two at a plane. This is the one place geometry is ever
+/// created, and it happens when the piece is laid, never while drawing.
+(Facet?, Facet?) _cut(Facet f, V3 n, double d, {required bool withDecals}) {
   final front = <V3>[];
   final back = <V3>[];
   final v = f.v;
@@ -217,7 +213,7 @@ _Side _classify(Facet f, V3 n, double d) {
   final hung = withDecals ? f.decals : null;
   if (hung != null) {
     for (final g in hung) {
-      final cut = _split2(g, n, d);
+      final cut = _cut(g, n, d, withDecals: false);
       if (cut.$1 != null) (frontDecals ??= <Facet>[]).add(cut.$1!);
       if (cut.$2 != null) (backDecals ??= <Facet>[]).add(cut.$2!);
     }
