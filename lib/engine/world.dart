@@ -192,13 +192,11 @@ BuiltTown _build(TownLayout layout, int placed, BuiltTown? before) {
     weatherBox.addAll(before.weatherBox);
   }
 
-  // The plaza's notice board. Not a piece and not earned: it stands in the
-  // crossing the plots are laid out around, from the first achievement on, and
-  // it is filed with everything else so a house in front of it hides it.
-  if (from == 0 && take > 0 && !layout.solo) {
-    for (final solid in NoticeBoard.solidsAt(layout.cx, layout.cz)) {
-      final b = Aabb.of(solid.faces);
-      if (b == null) continue;
+  /// Files one lot of furniture: not a piece, so it belongs to no achievement.
+  void furnish(List<Solid> solids) {
+    for (final solid in solids) {
+      final box = Aabb.of(solid.faces);
+      if (box == null) continue;
       for (final f in solid.faces) {
         f.piece = -1;
         final d = f.decals;
@@ -209,14 +207,38 @@ BuiltTown _build(TownLayout layout, int placed, BuiltTown? before) {
         }
       }
       faces.add(solid.faces);
-      bounds.add(b);
+      bounds.add(box);
       held.add(const <int>{});
       kept.add(null);
     }
   }
 
+  // The plaza's notice board. Not a piece and not earned: it stands in the
+  // crossing the plots are laid out around, from the first achievement on, and
+  // it is filed with everything else so a house in front of it hides it.
+  if (from == 0 && take > 0 && !layout.solo) {
+    furnish(NoticeBoard.solidsAt(layout.cx, layout.cz));
+  }
+
   for (var i = from; i < take; i++) {
     final piece = layout.pieces[i];
+    // The plot's yard arrives with the house that stands on it — on its first
+    // achievement, once, which is what keeps it out of the way of building the
+    // world one piece at a time.
+    final b = piece.building;
+    if (b >= 0 && b < layout.buildings.length) {
+      final lot = layout.buildings[b];
+      if (lot.firstPiece == i) {
+        if (lot.yardSize > 0) {
+          furnish(Yard.gardenAt(lot.yardX, lot.yardZ, lot.yardSize, lot.seed));
+        }
+        if (lot.treeSize > 0) {
+          furnish(
+            Yard.treeAt(lot.treeX, lot.treeZ, lot.treeSize, lot.seed ^ 0x5bd1),
+          );
+        }
+      }
+    }
     if (hasWeather(piece.kind)) {
       final reach =
           piece.kind == PieceKind.banner || piece.kind == PieceKind.sail
@@ -234,7 +256,7 @@ BuiltTown _build(TownLayout layout, int placed, BuiltTown? before) {
         ),
       );
     }
-    for (final solid in solidsOf(piece)) {
+    for (final solid in solidsOf(piece, place: layout.character)) {
       final b = Aabb.of(solid.faces);
       if (b == null) continue;
       for (final f in solid.faces) {

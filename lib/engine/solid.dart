@@ -15,7 +15,12 @@ enum Surface {
   /// Masonry: plinths, piers, parapets, steps.
   stone,
 
-  /// Whatever this town roofs with — tile, slate or thatch.
+  /// Straw: a roof with no line in it, thick at the eaves and blunt at the
+  /// ridge. Its own surface because it is its own shape — thatch painted onto
+  /// a tiled roof is a tiled roof the colour of straw.
+  thatch,
+
+  /// Whatever this town roofs with — tile or slate.
   tile,
 
   /// Chimney brick.

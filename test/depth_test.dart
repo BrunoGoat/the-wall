@@ -17,13 +17,27 @@ List<(String, Landmark?, BuildingKind?, int)> _catalogue() => [
   for (final m in landmarks) (m.name, m, null, m.cost),
 ];
 
-TownLayout _show(Landmark? mark, BuildingKind? kind, int pieces) =>
-    TownLayout.showcase(
-      TownCharacter.all.first,
-      landmark: mark,
-      kind: kind,
-      placed: pieces,
-    );
+/// The same structure as each of the six regions would build it.
+///
+/// It used to be built once, in Ribera, and that was a hole: the region is no
+/// longer only a coat of paint. It stretches every recipe on the ground and in
+/// height, it steepens every roof, and where it roofs in straw the roof is a
+/// different solid altogether. A structure checked in one region is a
+/// structure checked in one sixth of the cases.
+TownLayout _show(
+  Landmark? mark,
+  BuildingKind? kind,
+  int pieces, [
+  TownCharacter? place,
+]) => TownLayout.showcase(
+  place ?? TownCharacter.all.first,
+  landmark: mark,
+  kind: kind,
+  placed: pieces,
+  // Six different seeds as well as six regions, so the roll that decides tile
+  // from slate from straw lands every way round somewhere in the sweep.
+  seed: place == null ? 0 : place.order,
+);
 
 void main() {
   group('nothing is ever a shell', () {
@@ -37,24 +51,26 @@ void main() {
     // to be checked, and nothing weaker is enough.
     test('every piece of every structure is a closed solid', () {
       final open = <String>[];
-      for (final (name, mark, kind, cost) in _catalogue()) {
-        final layout = _show(mark, kind, cost);
-        for (final piece in layout.pieces) {
-          for (final solid in solidsOf(piece)) {
-            final edges = <String, int>{};
-            for (final f in solid.faces) {
-              for (var i = 0; i < f.v.length; i++) {
-                final a = f.v[i], b = f.v[(i + 1) % f.v.length];
-                final key = '${_k(a)}|${_k(b)}';
-                edges[key] = (edges[key] ?? 0) + 1;
+      for (final place in TownCharacter.all) {
+        for (final (name, mark, kind, cost) in _catalogue()) {
+          final layout = _show(mark, kind, cost, place);
+          for (final piece in layout.pieces) {
+            for (final solid in solidsOf(piece)) {
+              final edges = <String, int>{};
+              for (final f in solid.faces) {
+                for (var i = 0; i < f.v.length; i++) {
+                  final a = f.v[i], b = f.v[(i + 1) % f.v.length];
+                  final key = '${_k(a)}|${_k(b)}';
+                  edges[key] = (edges[key] ?? 0) + 1;
+                }
               }
-            }
-            for (final e in edges.entries) {
-              final parts = e.key.split('|');
-              final back = '${parts[1]}|${parts[0]}';
-              if (e.value != 1 || edges[back] != 1) {
-                open.add('$name ${piece.kind.name} @${piece.index}');
-                break;
+              for (final e in edges.entries) {
+                final parts = e.key.split('|');
+                final back = '${parts[1]}|${parts[0]}';
+                if (e.value != 1 || edges[back] != 1) {
+                  open.add('${place.region} $name ${piece.kind.name}');
+                  break;
+                }
               }
             }
           }
@@ -79,25 +95,27 @@ void main() {
     // ever going to be caught by looking at a picture.
     test('every normal is square to the face it belongs to', () {
       final bent = <String>[];
-      for (final (name, mark, kind, cost) in _catalogue()) {
-        for (final piece in _show(mark, kind, cost).pieces) {
-          for (final solid in solidsOf(piece)) {
-            for (final f in solid.faces) {
-              final d = f.n.dot(f.v.first);
-              for (final p in f.v) {
-                if ((f.n.dot(p) - d).abs() > 1e-6) {
+      for (final place in TownCharacter.all) {
+        for (final (name, mark, kind, cost) in _catalogue()) {
+          for (final piece in _show(mark, kind, cost, place).pieces) {
+            for (final solid in solidsOf(piece)) {
+              for (final f in solid.faces) {
+                final d = f.n.dot(f.v.first);
+                for (final p in f.v) {
+                  if ((f.n.dot(p) - d).abs() > 1e-6) {
+                    bent.add(
+                      '$name ${piece.kind.name} @${piece.index} '
+                      '${f.surface.name} n=${f.n}',
+                    );
+                    break;
+                  }
+                }
+                if ((f.n.length - 1).abs() > 1e-6) {
                   bent.add(
                     '$name ${piece.kind.name} @${piece.index} '
-                    '${f.surface.name} n=${f.n}',
+                    'normal is not a unit vector',
                   );
-                  break;
                 }
-              }
-              if ((f.n.length - 1).abs() > 1e-6) {
-                bent.add(
-                  '$name ${piece.kind.name} @${piece.index} '
-                  'normal is not a unit vector',
-                );
               }
             }
           }

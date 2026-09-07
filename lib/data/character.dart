@@ -25,6 +25,10 @@ class TownCharacter {
     required this.washShare,
     required this.plotPitch,
     required this.order,
+    this.wallThick = 0.0,
+    this.windowGap = 1.0,
+    this.gardens = 0.0,
+    this.trees = 0.0,
   });
 
   /// What this kind of place is called, and one line about it.
@@ -55,6 +59,27 @@ class TownCharacter {
   /// open ones feel like a village that grew.
   final double plotPitch;
 
+  /// How thick the walls are, from nothing to as thick as they get.
+  ///
+  /// A wall has no thickness in this world — every house is a closed box — so
+  /// thickness is read where a real one is read: at the openings. A thick wall
+  /// makes a narrower window and sets it deep, so it is ringed by its own
+  /// shadow; a thin one puts the glass almost flush. Nobody measures a wall,
+  /// they look at a window and know.
+  final double wallThick;
+
+  /// How far apart the windows sit, as a multiple of the ordinary spacing.
+  /// Above one is a frontier town that would rather have wall than window.
+  final double windowGap;
+
+  /// What this place puts on the ground beside a house: the share of houses
+  /// with a kitchen garden, and the share with a tree over them.
+  ///
+  /// Neither is earned and neither is a piece. A garden is not an achievement,
+  /// it is what a plot looks like in a place where people grow things, and
+  /// charging an achievement for it would be charging for the scenery.
+  final double gardens, trees;
+
   /// Seeds this town's own shuffle of the landmark catalogue, so no two towns
   /// meet the hundred and twelve in the same order.
   final int order;
@@ -63,80 +88,104 @@ class TownCharacter {
     TownCharacter(
       region: 'Ribera',
       symbol: 'gota',
-      blurb: 'Casas bajas y encaladas, tejado de teja y calles anchas.',
-      storey: 0.96,
-      spread: 1.14,
-      pitch: 0.86,
+      blurb: 'Casas anchas y bajas, encaladas de blanco, casi todas de teja.',
+      storey: 0.9,
+      spread: 1.2,
+      pitch: 0.8,
       roofMix: (0.72, 0.10, 0.18),
       wash: Color(0xFFF2E6D2),
-      washShare: 0.58,
-      plotPitch: 2.7,
+      washShare: 0.86,
+      plotPitch: 2.8,
       order: 0x1A7C,
+      wallThick: 0.10,
+      windowGap: 0.90,
+      gardens: 0.30,
+      trees: 0.10,
     ),
     TownCharacter(
       region: 'Sierra',
       symbol: 'montana',
       blurb: 'Alta y apretada, de piedra gris y pizarra, con tejados agudos.',
-      storey: 1.18,
-      spread: 0.86,
-      pitch: 1.34,
+      storey: 1.34,
+      spread: 0.8,
+      pitch: 1.3,
       roofMix: (0.12, 0.76, 0.12),
       wash: Color(0xFFB9B7AE),
-      washShare: 0.66,
-      plotPitch: 2.25,
+      washShare: 0.8,
+      plotPitch: 2.1,
       order: 0x33F1,
+      wallThick: 0.65,
+      windowGap: 1.15,
+      gardens: 0.10,
+      trees: 0.05,
     ),
     TownCharacter(
       region: 'Marca',
       symbol: 'escudo',
       blurb: 'De frontera: muros gruesos, ocre, pocas ventanas y todo junto.',
-      storey: 1.02,
-      spread: 1.02,
+      storey: 1.06,
+      spread: 1.0,
       pitch: 0.92,
       roofMix: (0.52, 0.34, 0.14),
       wash: Color(0xFFD8A64C),
-      washShare: 0.50,
-      plotPitch: 2.3,
+      washShare: 0.84,
+      plotPitch: 2.2,
       order: 0x5E02,
+      wallThick: 1.00,
+      windowGap: 1.55,
+      gardens: 0.08,
+      trees: 0.04,
     ),
     TownCharacter(
       region: 'Valle',
       symbol: 'espiga',
-      blurb: 'Madera y paja, solares grandes y una huerta en cada casa.',
-      storey: 1.0,
-      spread: 1.08,
-      pitch: 1.16,
+      blurb: 'Madera y paja, solares grandes y huerta en casi todas.',
+      storey: 0.96,
+      spread: 1.1,
+      pitch: 1.2,
       roofMix: (0.18, 0.14, 0.68),
       wash: Color(0xFFC7B48C),
-      washShare: 0.44,
-      plotPitch: 2.95,
+      washShare: 0.74,
+      plotPitch: 3.6,
       order: 0x7B45,
+      wallThick: 0.25,
+      windowGap: 1.00,
+      gardens: 1.00,
+      trees: 0.34,
     ),
     TownCharacter(
       region: 'Costa',
       symbol: 'ola',
       blurb: 'Cal y añil, tejados casi planos y mucho aire entre las casas.',
-      storey: 0.92,
-      spread: 1.10,
-      pitch: 0.62,
+      storey: 0.8,
+      spread: 1.1,
+      pitch: 0.52,
       roofMix: (0.62, 0.24, 0.14),
       wash: Color(0xFF9EC0D2),
-      washShare: 0.62,
-      plotPitch: 2.85,
+      washShare: 0.88,
+      plotPitch: 3.05,
       order: 0x91C8,
+      wallThick: 0.00,
+      windowGap: 0.85,
+      gardens: 0.16,
+      trees: 0.08,
     ),
     TownCharacter(
       region: 'Robledal',
       symbol: 'arbol',
       blurb: 'Madera oscura bajo los robles, tejados de paja muy inclinados.',
-      storey: 1.10,
-      spread: 0.92,
-      pitch: 1.40,
+      storey: 1.16,
+      spread: 0.88,
+      pitch: 1.75,
       roofMix: (0.10, 0.20, 0.70),
       wash: Color(0xFF9A7C55),
-      washShare: 0.56,
-      plotPitch: 2.4,
+      washShare: 0.78,
+      plotPitch: 2.75,
       order: 0xB30D,
+      wallThick: 0.30,
+      windowGap: 1.10,
+      gardens: 0.40,
+      trees: 0.88,
     ),
   ];
 

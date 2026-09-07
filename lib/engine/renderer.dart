@@ -1180,7 +1180,12 @@ class TownPainter extends CustomPainter {
         fx.brickIndex < scene.towns[scene.active].placed) {
       final q = active.pieces[fx.brickIndex];
       final flying = <Facet>[];
-      for (final solid in solidsOf(q, lift: fx.yOffset, squash: fx.squash.$2)) {
+      for (final solid in solidsOf(
+        q,
+        place: active.character,
+        lift: fx.yOffset,
+        squash: fx.squash.$2,
+      )) {
         for (final f in solid.faces) {
           f.piece = solid.piece;
           flying.add(f);
@@ -1427,19 +1432,31 @@ class TownPainter extends CustomPainter {
     var wall = Color.lerp(pal.stoneCool, pal.stoneWarm, 0.35 + warm * 0.55)!;
     final wash = hash01(h, 2);
     if (wash < ch.washShare) {
-      wall = Color.lerp(wall, ch.wash, 0.30 + hash01(h, 21) * 0.22)!;
-    } else if (wash < ch.washShare + 0.12) {
+      // At a third of the way the wash was not a colour, it was a hint of one:
+      // the pale stone underneath won every time, and a town whose limewash is
+      // indigo came out grey while the one whose limewash is ochre came out
+      // beige — every region within a twelfth of every other. What varies now
+      // is how much of the same wash a house took, not whether it took it, so
+      // a street reads as one limewash weathered differently rather than as
+      // six houses that never agreed on a colour.
+      wall = Color.lerp(wall, ch.wash, 0.52 + hash01(h, 21) * 0.30)!;
+    } else if (wash < ch.washShare + 0.07) {
       wall = Color.lerp(wall, const Color(0xFFC9836E), 0.34)!;
-    } else if (wash < ch.washShare + 0.20) {
+    } else if (wash < ch.washShare + 0.12) {
       wall = Color.lerp(wall, const Color(0xFFA8B47A), 0.28)!;
     }
-    final t = hash01(h, 3);
-    final (tile, slate, _) = ch.roofMix;
-    final base = t < tile
-        ? const Color(0xFFC05C38)
-        : (t < tile + slate
-              ? const Color(0xFF5B6B72)
-              : const Color(0xFFA8853A));
+    // What this roof is made of was settled when the town was laid out — the
+    // straw ones are a different shape, so it had to be — and this only asks.
+    // It used to roll its own hash here from the same mix, which meant two
+    // files agreeing by hand about which houses were thatched.
+    final b = piece.building;
+    final marks = e.layout.buildings;
+    final stuff = b >= 0 && b < marks.length ? marks[b].roof : RoofStuff.tile;
+    final base = switch (stuff) {
+      RoofStuff.tile => const Color(0xFFC05C38),
+      RoofStuff.slate => const Color(0xFF5B6B72),
+      RoofStuff.thatch => const Color(0xFFC2A054),
+    };
     return _tone[key] = _Tone(
       wall,
       Color.lerp(pal.stoneCool, pal.stone, 0.55)!,
@@ -1476,6 +1493,15 @@ class TownPainter extends CustomPainter {
         albedo = _weather(tone.stone, decay, s);
       case Surface.tile:
         albedo = _weather(tone.tile, decay, s);
+      case Surface.thatch:
+        // Straw is not a painted surface, it is a heaped one: every plane of
+        // a thatched roof takes a step of its own so the thing reads as
+        // bundles laid by hand and not as a wedge the colour of straw.
+        albedo = _weather(
+          Color.lerp(tone.tile, pal.stone, hash01(s, 17 + f.data) * 0.16)!,
+          decay,
+          s,
+        );
       case Surface.brick:
         albedo = _weather(const Color(0xFF8C6A52), decay, s);
       case Surface.own:

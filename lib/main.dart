@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'data/character.dart';
 import 'fx/sensory.dart';
 import 'model/appearance.dart';
 import 'model/store.dart';
@@ -50,15 +51,38 @@ class _PuebloAppState extends State<PuebloApp> {
     // year of real use. Off unless explicitly compiled in.
     const seed = int.fromEnvironment('SEED');
     const idleDays = int.fromEnvironment('IDLE_DAYS');
+    // Which of the six regions to build it in, for looking at one of them on
+    // its own. The valley below shows all six at once, but from far enough
+    // away that a thatched eave is two pixels.
+    const region = int.fromEnvironment('REGION', defaultValue: -1);
     if (seed > 0 && store.total == 0) {
+      if (region >= 0) {
+        // Founded rather than edited: a town's region is chosen once, when it
+        // is founded, and there is no way to change it afterwards on purpose.
+        store.addHabit(
+          'Leer',
+          'libro',
+          character: TownCharacter.forSlot(region).order,
+        );
+        store.removeHabit(0);
+      }
       store.debugFill(seed, endedDaysAgo: idleDays);
     }
     // A whole valley, for looking at several habits side by side without
     // keeping four of them for a year first. Off unless compiled in.
     const valley = String.fromEnvironment('VALLEY');
     if (valley.isNotEmpty && store.habits.length == 1) {
-      const names = ['Leer', 'Correr', 'Estudiar', 'Guitarra', 'Nadar'];
-      const symbols = ['libro', 'carrera', 'pesa', 'laud', 'ola'];
+      // Seis, que son las seis regiones: un valle de prueba al que le falta
+      // una de ellas no sirve para comparar las seis.
+      const names = [
+        'Leer',
+        'Correr',
+        'Estudiar',
+        'Guitarra',
+        'Nadar',
+        'Pintar',
+      ];
+      const symbols = ['libro', 'carrera', 'pesa', 'laud', 'ola', 'pluma'];
       final parts = valley.split(',');
       for (var i = 0; i < parts.length && i < names.length; i++) {
         final bits = parts[i].split(':');

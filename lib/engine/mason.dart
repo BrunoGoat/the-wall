@@ -11,6 +11,12 @@ enum PieceKind {
   plinth,
   floor,
   roof,
+
+  /// The same roof, in straw. Not a colour: a thatched roof is fat at the
+  /// eaves and rounded at the ridge, and no amount of paint makes a tiled one
+  /// look like it. Which of the two a building gets is decided when the town
+  /// is laid out, from the character's mix, and never rolled again.
+  thatch,
   chimney,
   dormer,
   porch,
@@ -73,13 +79,37 @@ class Spec {
 /// does; anything that belongs at a height of its own says so with `at`, and
 /// anything that sits beside rather than on top says so with `ridge`.
 class Mason {
-  Mason(this.cx, this.cz, this.seed, this.alongX);
+  Mason(
+    this.cx,
+    this.cz,
+    this.seed,
+    this.alongX, {
+    this.spread = 1.0,
+    this.storey = 1.0,
+    this.pitch = 1.0,
+  });
 
   final double cx, cz;
   final int seed;
 
   /// Which way the roofs of this building run.
   final bool alongX;
+
+  /// The place this is being built in, as three numbers.
+  ///
+  /// Every recipe is written in one town's proportions and then stretched into
+  /// this one's: wider or narrower on the ground by [spread], taller or lower
+  /// by [storey], steeper or flatter in the roof by [pitch]. It happens here,
+  /// at the one door every piece goes through, rather than in each recipe —
+  /// which is why it also reaches the hundred and twelve. A castle in the
+  /// Sierra used to be the same castle as a castle on the Costa, down to the
+  /// centimetre, and a town whose landmarks are somebody else's landmarks is
+  /// not a place.
+  ///
+  /// The stretch is affine and uniform, so nothing it touches can come apart:
+  /// a chimney that met its roof still meets it, and a stair that reached a
+  /// door still reaches it.
+  final double spread, storey, pitch;
 
   final List<Spec> out = [];
 
@@ -94,6 +124,9 @@ class Mason {
   double h01(int salt) => hash01(seed, salt);
   double rand(double a, double b, int salt) => hashRange(a, b, seed, salt);
 
+  /// The one door every piece goes through, and so the one place the town's
+  /// proportions are applied. The mason works in a single set of units and
+  /// this turns them into this town's.
   void _add(
     PieceKind kind,
     double dx,
@@ -107,12 +140,12 @@ class Mason {
     out.add(
       Spec(
         kind: kind,
-        cx: cx + dx,
-        cz: cz + dz,
-        w: w,
-        d: d,
-        y0: y0,
-        y1: y1,
+        cx: cx + dx * spread,
+        cz: cz + dz * spread,
+        w: w * spread,
+        d: d * spread,
+        y0: y0 * storey,
+        y1: y1 * storey,
         alongX: along ?? alongX,
       ),
     );
@@ -131,9 +164,12 @@ class Mason {
     double? at,
     bool? along,
   }) {
+    // A roof is the one thing whose height is not the town's height: how steep
+    // this place builds is a fourth number, on top of the other three.
+    if (k == PieceKind.roof || k == PieceKind.thatch) ht *= pitch;
     final base = at ?? y;
     _add(k, dx, dz, w, d, base, base + ht, along: along);
-    if (k == PieceKind.roof) {
+    if (k == PieceKind.roof || k == PieceKind.thatch) {
       _roofs.add(_Roof(dx, dz, w, d, base, ht, along ?? alongX));
     }
     if (!ridge && at == null) y += ht;

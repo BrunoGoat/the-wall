@@ -93,7 +93,7 @@ class _GalleryScreenState extends State<GalleryScreen>
   String _cost() {
     var raw = 0;
     for (var i = 0; i < math.min(_shown, _layout.pieces.length); i++) {
-      for (final s in solidsOf(_layout.pieces[i])) {
+      for (final s in solidsOf(_layout.pieces[i], place: _layout.character)) {
         raw += s.faces.length;
       }
     }

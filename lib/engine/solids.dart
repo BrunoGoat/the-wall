@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import '../core/rng.dart';
 import '../core/math3.dart';
+import '../data/character.dart';
 import 'solid.dart';
 import 'town.dart';
 
@@ -14,7 +15,12 @@ import 'town.dart';
 /// never go missing at some angle: there is no such thing as the inside of a
 /// house here, so every face has a twin looking the other way, and exactly one
 /// of the two is turned towards you.
-List<Solid> solidsOf(TownPiece piece, {double lift = 0, double squash = 1.0}) {
+List<Solid> solidsOf(
+  TownPiece piece, {
+  TownCharacter? place,
+  double lift = 0,
+  double squash = 1.0,
+}) {
   final y0 = piece.y0 + lift;
   final y1 = y0 + (piece.y1 - piece.y0) * squash;
   final x0 = piece.x0, x1 = piece.x1, z0 = piece.z0, z1 = piece.z1;
@@ -24,7 +30,7 @@ List<Solid> solidsOf(TownPiece piece, {double lift = 0, double squash = 1.0}) {
   switch (piece.kind) {
     case PieceKind.floor:
       final faces = boxFaces(x0, y0, z0, x1, y1, z1, Surface.wall);
-      _hangWindows(faces, y0, y1);
+      _hangWindows(faces, y0, y1, place);
       return [Solid(i, faces)];
 
     case PieceKind.porch:
@@ -49,6 +55,9 @@ List<Solid> solidsOf(TownPiece piece, {double lift = 0, double squash = 1.0}) {
 
     case PieceKind.roof:
       return [Solid(i, gableFaces(x0, y0, z0, x1, y1, z1, piece.alongX))];
+
+    case PieceKind.thatch:
+      return [Solid(i, thatchFaces(x0, y0, z0, x1, y1, z1, piece.alongX))];
 
     case PieceKind.spire:
       return [Solid(i, spireFaces(x0, y0, z0, x1, y1, z1))];
@@ -230,6 +239,137 @@ List<Solid> solidsOf(TownPiece piece, {double lift = 0, double squash = 1.0}) {
 }
 
 /// True when a piece has something that moves, drawn after the masonry.
+/// What a plot has on it that nobody earned.
+///
+/// A kitchen garden and a tree. Neither is a piece: see `TownCharacter.gardens`
+/// for why. Both are built as closed solids rather than as ground sheets,
+/// because a sheet on the ground is only ever drawn along the wind's own path
+/// and this is furniture, not weather.
+///
+/// Everything here names its own colour. Town furniture is painted by a
+/// simpler road through the renderer than a piece is — one that asks the facet
+/// what colour it is instead of asking the house it belongs to — so a facet
+/// that does not say comes out the grey of nothing in particular, which is
+/// what a vegetable bed and an oak both were until they were looked at.
+class Yard {
+  const Yard._();
+
+  static const int _bark = 0xFF6B573F;
+  static const List<int> _greens = [
+    0xFF5E7040,
+    0xFF6B7A42,
+    0xFF54663C,
+    0xFF77854C,
+  ];
+
+  /// Three raised beds and a pair of stakes. Read from above — which is how
+  /// this town is nearly always read — that is a kitchen garden, and a
+  /// ploughed field is not: a field is a shape in the distance, a garden is
+  /// beds you could walk between.
+  static List<Solid> gardenAt(double cx, double cz, double size, int seed) {
+    final out = <Solid>[];
+    const rows = 3;
+    final wide = size * 0.84, deep = size * 0.84;
+    final gap = deep / rows;
+    for (var r = 0; r < rows; r++) {
+      final z = cz - deep / 2 + gap * (r + 0.5);
+      final h = size * (0.16 + hash01(seed, 60 + r) * 0.12);
+      final w = wide * (0.74 + hash01(seed, 70 + r) * 0.24);
+      out.add(
+        Solid(
+          -1,
+          boxFaces(
+            cx - w / 2,
+            0,
+            z - gap * 0.32,
+            cx + w / 2,
+            h,
+            z + gap * 0.32,
+            Surface.own,
+            ao: 0.94,
+            tint: _greens[(seed + r) & 3],
+          ),
+        ),
+      );
+    }
+    // Two stakes on the corners: what says somebody keeps this, rather than
+    // that the weeds happen to have come up in rows.
+    for (var k = 0; k < 2; k++) {
+      final x = cx + (k == 0 ? -1 : 1) * wide * 0.5;
+      out.add(
+        Solid(
+          -1,
+          boxFaces(
+            x - 0.035,
+            0,
+            cz - deep * 0.5 - 0.035,
+            x + 0.035,
+            size * (0.38 + hash01(seed, 80 + k) * 0.16),
+            cz - deep * 0.5 + 0.035,
+            Surface.own,
+            ao: 0.88,
+            tint: _bark,
+          ),
+        ),
+      );
+    }
+    return out;
+  }
+
+  /// One tree over the plot: a trunk and two boxes of leaves, the same tree a
+  /// churchyard yew is, because a tree is a tree.
+  static List<Solid> treeAt(double cx, double cz, double size, int seed) {
+    final ht = size * (1.6 + hash01(seed, 90) * 0.8);
+    final w = size * (0.80 + hash01(seed, 91) * 0.34);
+    final trunk = w * 0.16;
+    final leaf = _greens[seed & 3];
+    return [
+      Solid(
+        -1,
+        boxFaces(
+          cx - trunk / 2,
+          0,
+          cz - trunk / 2,
+          cx + trunk / 2,
+          ht * 0.44,
+          cz + trunk / 2,
+          Surface.own,
+          ao: 0.85,
+          tint: _bark,
+        ),
+      ),
+      Solid(
+        -1,
+        boxFaces(
+          cx - w * 0.41,
+          ht * 0.38,
+          cz - w * 0.41,
+          cx + w * 0.41,
+          ht * 0.76,
+          cz + w * 0.41,
+          Surface.own,
+          ao: 0.96,
+          tint: leaf,
+        ),
+      ),
+      Solid(
+        -1,
+        boxFaces(
+          cx - w * 0.27,
+          ht * 0.72,
+          cz - w * 0.27,
+          cx + w * 0.27,
+          ht,
+          cz + w * 0.27,
+          Surface.own,
+          ao: 1.0,
+          tint: _greens[(seed + 1) & 3],
+        ),
+      ),
+    ];
+  }
+}
+
 bool hasWeather(PieceKind k) =>
     k == PieceKind.field ||
     k == PieceKind.water ||
@@ -300,6 +440,231 @@ List<Facet> boxFaces(
 /// The floor is not decoration. Without it a roof is a shell, and a shell
 /// cannot be back-face culled — which is exactly how half a roof used to
 /// disappear depending on where you stood.
+/// A roof in straw.
+///
+/// Thatch is not tile the colour of straw. Two things say so from across a
+/// street, and both are shape: the eaves are a **fat lip** — half a metre of
+/// packed straw with a blunt edge, not a tile's thin line — and the ridge is
+/// **rounded over** rather than folded to an arris, because straw will not
+/// hold an edge and the ridge is where a thatcher lays his thickest bundle.
+///
+/// So the cross-section is a hexagon, not a triangle: up the outside of the
+/// lip, up the slope, across the flat of the ridge, and back down. Extruded
+/// along the ridge with a cap at each end, it is a closed solid like
+/// everything else here, which is the whole reason the renderer can be sure
+/// which of its faces are seen.
+List<Facet> thatchFaces(
+  double x0,
+  double y0,
+  double z0,
+  double x1,
+  double y1,
+  double z1,
+  bool alongX,
+) {
+  final rise = y1 - y0;
+  // Across the slope, the two numbers that make it straw: how deep the eaves
+  // hang and how wide the ridge is rolled over.
+  final across = alongX ? (z1 - z0) : (x1 - x0);
+  final lip = math.min(rise * 0.30, across * 0.11);
+  final roll = across * 0.06;
+  final m = alongX ? (z0 + z1) / 2 : (x0 + x1) / 2;
+  final r0 = m - roll, r1 = m + roll;
+  final slope = (across / 2 - roll);
+  final up = rise - lip;
+
+  final out = <Facet>[];
+  Facet face(List<V3> v, V3 n, Surface k, {double ao = 1.0, int data = 0}) =>
+      Facet(v, n, k, ao: ao)..data = data;
+
+  out.add(
+    face(
+      [V3(x0, y0, z0), V3(x1, y0, z0), V3(x1, y0, z1), V3(x0, y0, z1)],
+      const V3(0, -1, 0),
+      Surface.thatch,
+      ao: 0.55,
+    ),
+  );
+
+  if (alongX) {
+    // the fat edge of the eaves, both sides
+    out.add(
+      face(
+        [
+          V3(x0, y0, z1),
+          V3(x1, y0, z1),
+          V3(x1, y0 + lip, z1),
+          V3(x0, y0 + lip, z1),
+        ],
+        const V3(0, 0, 1),
+        Surface.thatch,
+        ao: 0.78,
+        data: 1,
+      ),
+    );
+    out.add(
+      face(
+        [
+          V3(x1, y0, z0),
+          V3(x0, y0, z0),
+          V3(x0, y0 + lip, z0),
+          V3(x1, y0 + lip, z0),
+        ],
+        const V3(0, 0, -1),
+        Surface.thatch,
+        ao: 0.72,
+        data: 2,
+      ),
+    );
+    // the two slopes
+    out.add(
+      face(
+        [
+          V3(x0, y0 + lip, z1),
+          V3(x1, y0 + lip, z1),
+          V3(x1, y1, r1),
+          V3(x0, y1, r1),
+        ],
+        V3(0, slope, up).normalized,
+        Surface.thatch,
+        data: 3,
+      ),
+    );
+    out.add(
+      face(
+        [
+          V3(x1, y0 + lip, z0),
+          V3(x0, y0 + lip, z0),
+          V3(x0, y1, r0),
+          V3(x1, y1, r0),
+        ],
+        V3(0, slope, -up).normalized,
+        Surface.thatch,
+        ao: 0.92,
+        data: 4,
+      ),
+    );
+    // the roll of the ridge
+    out.add(
+      face(
+        [V3(x0, y1, r0), V3(x1, y1, r0), V3(x1, y1, r1), V3(x0, y1, r1)],
+        const V3(0, 1, 0),
+        Surface.thatch,
+        data: 5,
+      ),
+    );
+    // and a cap at each end
+    for (final (x, n, ao) in [
+      (x1, const V3(1, 0, 0), 0.86),
+      (x0, const V3(-1, 0, 0), 0.80),
+    ]) {
+      out.add(
+        face(
+          [
+            V3(x, y0, z0),
+            V3(x, y0, z1),
+            V3(x, y0 + lip, z1),
+            V3(x, y1, r1),
+            V3(x, y1, r0),
+            V3(x, y0 + lip, z0),
+          ],
+          n,
+          Surface.thatch,
+          ao: ao,
+          data: 6,
+        ),
+      );
+    }
+    return out;
+  }
+
+  out.add(
+    face(
+      [
+        V3(x1, y0, z0),
+        V3(x1, y0, z1),
+        V3(x1, y0 + lip, z1),
+        V3(x1, y0 + lip, z0),
+      ],
+      const V3(1, 0, 0),
+      Surface.thatch,
+      ao: 0.78,
+      data: 1,
+    ),
+  );
+  out.add(
+    face(
+      [
+        V3(x0, y0, z1),
+        V3(x0, y0, z0),
+        V3(x0, y0 + lip, z0),
+        V3(x0, y0 + lip, z1),
+      ],
+      const V3(-1, 0, 0),
+      Surface.thatch,
+      ao: 0.72,
+      data: 2,
+    ),
+  );
+  out.add(
+    face(
+      [
+        V3(x1, y0 + lip, z0),
+        V3(x1, y0 + lip, z1),
+        V3(r1, y1, z1),
+        V3(r1, y1, z0),
+      ],
+      V3(up, slope, 0).normalized,
+      Surface.thatch,
+      data: 3,
+    ),
+  );
+  out.add(
+    face(
+      [
+        V3(x0, y0 + lip, z1),
+        V3(x0, y0 + lip, z0),
+        V3(r0, y1, z0),
+        V3(r0, y1, z1),
+      ],
+      V3(-up, slope, 0).normalized,
+      Surface.thatch,
+      ao: 0.92,
+      data: 4,
+    ),
+  );
+  out.add(
+    face(
+      [V3(r0, y1, z0), V3(r0, y1, z1), V3(r1, y1, z1), V3(r1, y1, z0)],
+      const V3(0, 1, 0),
+      Surface.thatch,
+      data: 5,
+    ),
+  );
+  for (final (z, n, ao) in [
+    (z1, const V3(0, 0, 1), 0.86),
+    (z0, const V3(0, 0, -1), 0.80),
+  ]) {
+    out.add(
+      face(
+        [
+          V3(x0, y0, z),
+          V3(x1, y0, z),
+          V3(x1, y0 + lip, z),
+          V3(r1, y1, z),
+          V3(r0, y1, z),
+          V3(x0, y0 + lip, z),
+        ],
+        n,
+        Surface.thatch,
+        ao: ao,
+        data: 6,
+      ),
+    );
+  }
+  return out;
+}
+
 List<Facet> gableFaces(
   double x0,
   double y0,
@@ -648,11 +1013,29 @@ List<Solid> _wheel(TownPiece piece, double y0, double y1) {
 /// carried by the wall's own face and painted the instant after it. A window
 /// cannot fight its wall for depth when the question is never asked, which is
 /// the end of the flicker that used to come and go as the camera swung round.
-void _hangWindows(List<Facet> faces, double y0, double y1) {
+/// The windows of one storey.
+///
+/// How many and how big is where a wall says how thick it is. There is no
+/// thickness to a wall in this world — a house is a closed box — so a thick
+/// one is read the way a real one is: the opening is narrower, and it is set
+/// back far enough to be ringed by its own shadow. A frontier town on the
+/// Marca would rather have wall than window and gets both; on the Costa the
+/// glass is almost flush and there is twice as much of it.
+void _hangWindows(
+  List<Facet> faces,
+  double y0,
+  double y1,
+  TownCharacter? place,
+) {
   final h = y1 - y0;
   if (h < 0.5) return;
+  final thick = place?.wallThick ?? 0.0;
+  final gap = place?.windowGap ?? 1.0;
   final wy0 = y0 + h * 0.34, wy1 = y0 + h * 0.74;
-  const hw = 0.15;
+  final hw = 0.15 * (1 - 0.28 * thick);
+  // How far the opening is set back into the wall, as the width of the shadow
+  // it throws around itself.
+  final jamb = 0.062 * thick;
   for (final f in faces) {
     if (f.n.y.abs() > 0.01) continue;
     final onZ = f.n.z.abs() > 0.5;
@@ -668,13 +1051,24 @@ void _hangWindows(List<Facet> faces, double y0, double y1) {
     hi -= 0.2;
     final span = hi - lo;
     if (span < 0.5) continue;
-    final n = math.max(1, (span / 0.62).floor());
+    final n = math.max(1, (span / (0.62 * gap)).floor());
     final decals = <Facet>[];
     for (var i = 0; i < n; i++) {
       final c = lo + span * (i + 0.5) / n;
       List<V3> rect(double a, double b, double p0, double p1) => onZ
           ? [V3(a, p0, out), V3(b, p0, out), V3(b, p1, out), V3(a, p1, out)]
           : [V3(out, p0, a), V3(out, p0, b), V3(out, p1, b), V3(out, p1, a)];
+      // The reveal first, so the opening is painted inside it: unlit, because
+      // the inside of a hole in a thick wall is a shadow and not a surface.
+      if (jamb > 0.002) {
+        decals.add(
+          Facet(
+            rect(c - hw - jamb, c + hw + jamb, wy0 - jamb, wy1 + jamb),
+            f.n,
+            Surface.hollow,
+          )..data = i,
+        );
+      }
       decals.add(
         Facet(rect(c - hw, c + hw, wy0, wy1), f.n, Surface.window)..data = i,
       );

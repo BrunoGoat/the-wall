@@ -75,6 +75,12 @@ const Map<BuildingKind, String> buildingName = {
   BuildingKind.inn: 'Posada',
 };
 
+/// What a building roofs with. Chosen once, when the town is laid out, from
+/// the character's own mix — and then it is both the shape the mason lays and
+/// the colour the renderer paints, instead of two hashes in two files that
+/// have to agree with each other and one day will not.
+enum RoofStuff { tile, slate, thatch }
+
 class TownBuilding {
   TownBuilding({
     required this.index,
@@ -84,6 +90,8 @@ class TownBuilding {
     required this.cx,
     required this.cz,
     required this.seed,
+    this.spread = 1.0,
+    this.roof = RoofStuff.tile,
   });
 
   final int index;
@@ -99,13 +107,30 @@ class TownBuilding {
   final double cx, cz;
   final int seed;
 
+  /// How wide this town builds on the ground, so the room a building keeps
+  /// clear stretches with it.
+  final double spread;
+
+  /// Tile, slate or straw.
+  final RoofStuff roof;
+
+  /// The plot's own yard: where it is, how big, and what is on it.
+  ///
+  /// None of it is a piece and none of it is earned. A kitchen garden is not
+  /// an achievement — it is what a plot looks like in a place where people
+  /// grow things — and charging somebody an achievement for the scenery would
+  /// be charging them for the weather. It is filed like the notice board:
+  /// furniture the town owns, which a house in front of it still hides.
+  double yardX = 0, yardZ = 0, yardSize = 0;
+  double treeX = 0, treeZ = 0, treeSize = 0;
+
   int get cost => landmark?.cost ?? buildingCost[kind]!;
   String get name => landmark?.name ?? buildingName[kind]!;
   bool get isLandmark => landmark != null;
 
   /// How much room it keeps clear around its own middle. A house wants its
   /// plot; a landmark wants the room its tier is given.
-  double get reach => landmark?.room ?? 1.3;
+  double get reach => (landmark?.room ?? 1.3) * spread;
 
   /// Filled in as the pieces are generated.
   double peakY = 0;
@@ -407,6 +432,8 @@ class TownLayout {
       cx: 0,
       cz: 0,
       seed: hash32(seed, 0x5A11, 7),
+      spread: character.spread,
+      roof: _roofOf(hash32(seed, 0x5A11, 7)),
     );
     for (final p in _piecesOf(building)) {
       if (pieces.length > placed) break;
@@ -495,6 +522,8 @@ class TownLayout {
         cx: cx + plots[b].$1,
         cz: cz + plots[b].$2,
         seed: seed,
+        spread: character.spread,
+        roof: _roofOf(seed),
       );
       final made = _piecesOf(building);
       for (final p in made) {
@@ -521,6 +550,7 @@ class TownLayout {
       // as an outline standing where the piece will go, and it is not built
       // yet. Counting it would give a plot its yard, and a wall the roof that
       // covers it, a whole achievement early.
+      _layYard(building, made);
       final built = math.min(index, placed);
       building.placedPieces = math.max(0, built - building.firstPiece);
       buildings.add(building);
@@ -570,7 +600,9 @@ class TownLayout {
     final reaches = <double>[];
     var from = 0;
     for (var b = 0; b < want; b++) {
-      final r = isMark[b] ? plan.landmarkFor(b).room : 1.3;
+      // Stretched wider on the ground, a building needs more ground. The
+      // plot has to know what the mason is going to do to it.
+      final r = (isMark[b] ? plan.landmarkFor(b).room : 1.3) * character.spread;
       var placedIt = false;
       for (var i = from; i < all.length; i++) {
         if (used[i]) continue;
@@ -612,6 +644,95 @@ class TownLayout {
     return out;
   }
 
+  /// Which of the three this building roofs with, from the character's mix.
+  /// Deterministic in the building's own seed, so it never changes under a
+  /// town that is already standing.
+  RoofStuff _roofOf(int seed) {
+    final t = hash01(seed, 3);
+    final (tile, slate, _) = character.roofMix;
+    if (t < tile) return RoofStuff.tile;
+    return t < tile + slate ? RoofStuff.slate : RoofStuff.thatch;
+  }
+
+  /// Turns this building's roofs to straw where straw is what it roofs with.
+  ///
+  /// Done here rather than in every recipe: a mason lays a roof, and what
+  /// region he is standing in decides what it is made of. Which is also how
+  /// it worked.
+  List<Spec> _straw(TownBuilding b, List<Spec> specs) {
+    if (b.roof != RoofStuff.thatch) return specs;
+    return [
+      for (final p in specs)
+        if (p.kind != PieceKind.roof)
+          p
+        else
+          Spec(
+            kind: PieceKind.thatch,
+            cx: p.cx,
+            cz: p.cz,
+            w: p.w,
+            d: p.d,
+            y0: p.y0,
+            y1: p.y1,
+            alongX: p.alongX,
+          ),
+    ];
+  }
+
+  /// Gives a house its yard, if this is a place that has them.
+  ///
+  /// It goes beside the house, clear of it, and clear of the neighbour: the
+  /// far edge is kept inside half a plot so no garden ever ends up in
+  /// somebody else's kitchen. Where the house is too big for its plot to have
+  /// any room left, it simply has no yard, which is also what happens in a
+  /// town where the houses got bigger.
+  void _layYard(TownBuilding b, List<Spec> made) {
+    if (solo || b.isLandmark || made.isEmpty) return;
+    final wantGarden = hash01(b.seed, 42) < character.gardens;
+    final wantTree = hash01(b.seed, 43) < character.trees;
+    if (!wantGarden && !wantTree) return;
+
+    var half = 0.0;
+    for (final p in made) {
+      final x = (p.cx - b.cx).abs() + p.w / 2;
+      final z = (p.cz - b.cz).abs() + p.d / 2;
+      if (x > half) half = x;
+      if (z > half) half = z;
+    }
+    final dir = (hash01(b.seed, 41) * 4).floor() % 4;
+    const step = [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0)];
+
+    // A garden wants clear ground: whatever is left over between this house
+    // and the next one, minus a path to walk down. It is the size of the room
+    // there is for one, and where the houses grew until there is none the plot
+    // simply has no garden — which is what happens to a street that fills in.
+    if (wantGarden) {
+      final room = plotPitch - 2 * half - 0.24;
+      final size = math.min(plotPitch * 0.34, room);
+      if (size >= 0.38) {
+        final off = half + size / 2 + 0.10;
+        b.yardX = b.cx + step[dir].$1 * off;
+        b.yardZ = b.cz + step[dir].$2 * off;
+        b.yardSize = size;
+      }
+    }
+
+    // A tree wants far less than a garden: somewhere to stand its trunk. It
+    // goes on the corner of the plot, which is both where the room is and
+    // where anybody would put one, and its crown is allowed out over the roof
+    // — that is what a tree beside a house does, and since geometry that runs
+    // through other geometry is cut where the two cross, it is drawn right
+    // when it does.
+    if (wantTree) {
+      const corner = [(0.7, 0.7), (-0.7, 0.7), (-0.7, -0.7), (0.7, -0.7)];
+      final c = corner[(dir + (wantGarden ? 2 : 1)) % 4];
+      final off = half * 0.98 + 0.34;
+      b.treeX = b.cx + c.$1 * off;
+      b.treeZ = b.cz + c.$2 * off;
+      b.treeSize = math.min(plotPitch * 0.34, 1.05);
+    }
+  }
+
   List<Spec> _piecesOf(TownBuilding b) {
     final s = b.seed;
     // Every building sits a little differently on its plot, so a grid of them
@@ -623,21 +744,29 @@ class TownLayout {
       b.cz + hashRange(-jitter, jitter, s, 4),
       s,
       hash01(s, 5) < 0.5,
+      spread: character.spread,
+      storey: character.storey,
+      pitch: character.pitch,
     );
 
     final mark = b.landmark;
     if (mark != null) {
       mark.build(m);
-      return m.finish(mark.cost);
+      return _straw(b, m.finish(mark.cost));
     }
 
-    // The same house, built the way this place builds houses: a Sierra town
-    // piles its storeys up on a narrow footprint, a Ribera town spreads out
-    // and keeps its roofs shallow.
-    final wide = hashRange(1.45, 1.85, s, 6) * character.spread;
-    final deep = hashRange(1.35, 1.75, s, 7) * character.spread;
-    final storey = hashRange(0.92, 1.14, s, 8) * character.storey;
-    final pitch = character.pitch;
+    // An ordinary house, in the units every recipe is written in. What makes
+    // it a Sierra house or a Ribera house is the mason, not this.
+    //
+    // The spread here is deliberately narrow — a house differs from its
+    // neighbour by a twentieth, not by a fifth. It used to be ±11%, which is
+    // the same size as the difference between two whole regions, so standing
+    // in a street you could not tell which region you were in: the noise was
+    // as loud as the signal. A town is houses that agree with each other.
+    final wide = hashRange(1.52, 1.74, s, 6);
+    final deep = hashRange(1.44, 1.64, s, 7);
+    final storey = hashRange(0.96, 1.06, s, 8);
+    const pitch = 1.0;
 
     switch (b.kind!) {
       case BuildingKind.shed:
@@ -700,6 +829,6 @@ class TownLayout {
         m.door(wide * 0.7, 0.7, dz: deep * 0.5 + 0.24);
     }
 
-    return m.finish(b.cost);
+    return _straw(b, m.finish(b.cost));
   }
 }
