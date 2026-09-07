@@ -16,6 +16,7 @@ class TownCharacter {
   const TownCharacter({
     required this.region,
     required this.blurb,
+    required this.symbol,
     required this.storey,
     required this.spread,
     required this.pitch,
@@ -29,6 +30,11 @@ class TownCharacter {
   /// What this kind of place is called, and one line about it.
   final String region;
   final String blurb;
+
+  /// The mark it is chosen by when a habit is founded. One of the same
+  /// thirty-six the habits themselves wear, because they are the only marks
+  /// this app knows how to draw.
+  final String symbol;
 
   /// How tall a storey is here, and how wide a house sits. Northern towns pile
   /// their storeys up; southern ones spread out.
@@ -56,6 +62,7 @@ class TownCharacter {
   static const List<TownCharacter> all = [
     TownCharacter(
       region: 'Ribera',
+      symbol: 'gota',
       blurb: 'Casas bajas y encaladas, tejado de teja y calles anchas.',
       storey: 0.96,
       spread: 1.14,
@@ -68,6 +75,7 @@ class TownCharacter {
     ),
     TownCharacter(
       region: 'Sierra',
+      symbol: 'montana',
       blurb: 'Alta y apretada, de piedra gris y pizarra, con tejados agudos.',
       storey: 1.18,
       spread: 0.86,
@@ -80,6 +88,7 @@ class TownCharacter {
     ),
     TownCharacter(
       region: 'Marca',
+      symbol: 'escudo',
       blurb: 'De frontera: muros gruesos, ocre, pocas ventanas y todo junto.',
       storey: 1.02,
       spread: 1.02,
@@ -92,6 +101,7 @@ class TownCharacter {
     ),
     TownCharacter(
       region: 'Valle',
+      symbol: 'espiga',
       blurb: 'Madera y paja, solares grandes y una huerta en cada casa.',
       storey: 1.0,
       spread: 1.08,
@@ -104,6 +114,7 @@ class TownCharacter {
     ),
     TownCharacter(
       region: 'Costa',
+      symbol: 'ola',
       blurb: 'Cal y añil, tejados casi planos y mucho aire entre las casas.',
       storey: 0.92,
       spread: 1.10,
@@ -116,6 +127,7 @@ class TownCharacter {
     ),
     TownCharacter(
       region: 'Robledal',
+      symbol: 'arbol',
       blurb: 'Madera oscura bajo los robles, tejados de paja muy inclinados.',
       storey: 1.10,
       spread: 0.92,
@@ -128,5 +140,16 @@ class TownCharacter {
     ),
   ];
 
+  /// The one a plot would have been given before anybody was asked. Kept for
+  /// towns founded when the valley chose for you.
   static TownCharacter forSlot(int slot) => all[slot.abs() % all.length];
+
+  /// By its stable id. Anything unknown falls back to the first, so a save
+  /// from a version that had a region this one does not still opens.
+  static TownCharacter byOrder(int order) {
+    for (final c in all) {
+      if (c.order == order) return c;
+    }
+    return all.first;
+  }
 }

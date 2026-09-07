@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:la_muralla/data/character.dart';
+import 'package:la_muralla/model/habit.dart';
 import 'package:la_muralla/model/piece.dart';
 import 'package:la_muralla/model/store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -111,6 +113,35 @@ void main() {
     test('an empty wall cannot decay', () async {
       final s = await freshStore();
       expect(s.integrity, 1.0);
+    });
+  });
+
+  group('what kind of place a habit builds', () {
+    // Chosen the day it is founded and never again: the character decides how
+    // wide the plots are and in what order the hundred and twelve arrive, so
+    // changing it would move pieces laid years ago.
+    test('the region chosen when founding is the one it keeps', () async {
+      final store = await freshStore();
+      final want = TownCharacter.all[3];
+      store.addHabit('Correr', 'carrera', character: want.order);
+      expect(store.habit.place.region, want.region);
+
+      final again = Store();
+      await again.load();
+      final found = again.habits.firstWhere((h) => h.name == 'Correr');
+      expect(found.place.region, want.region);
+    });
+
+    test('a habit saved before there was a choice keeps its plot\'s own', () {
+      final old = Habit.fromJson({
+        'id': 'h1',
+        'n': 'Leer',
+        's': 'libro',
+        'slot': 2,
+        'c': DateTime(2025).millisecondsSinceEpoch,
+        'p': const [],
+      });
+      expect(old.place.region, TownCharacter.forSlot(2).region);
     });
   });
 

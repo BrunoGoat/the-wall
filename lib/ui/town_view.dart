@@ -8,7 +8,6 @@ import '../core/math3.dart';
 import '../core/rng.dart';
 import '../engine/camera.dart';
 
-import '../data/character.dart';
 import '../data/landmarks.dart';
 import '../engine/town.dart';
 import '../engine/palette.dart';
@@ -170,12 +169,7 @@ class _TownViewState extends State<TownView>
     // moment its count changes.
     _valley.removeWhere((k, _) => k.startsWith('${h.id}:'));
     final (cx, cz) = Habit.centreOf(h.slot);
-    return _valley[key] = TownLayout(
-      n,
-      TownCharacter.forSlot(h.slot),
-      cx: cx,
-      cz: cz,
-    );
+    return _valley[key] = TownLayout(n, h.place, cx: cx, cz: cz);
   }
 
   /// Puts the camera where a town is best first seen: from its own plaza,
@@ -208,24 +202,19 @@ class _TownViewState extends State<TownView>
   void _rebuildLayout() {
     final store = widget.store;
     final wasSlot = _slotFor;
+    // Whoever has laid the most wears the crown, and everybody else can see it
+    // from their own plaza.
+    final crown = store.leader;
 
     _entries = [
-      for (final h in store.habits)
-        TownEntry(
-          layout: _layoutOf(
-            h,
-            h.id == store.habit.id ? store.shownTotal : null,
-          ),
-          name: h.name,
-          symbol: h.symbol,
-          integrity: Store.integrityOf(h),
-          placed: h.id == store.habit.id ? store.shownTotal : h.total,
-        ),
+      for (var i = 0; i < store.habits.length; i++)
+        _entryFor(store, store.habits[i], i == crown),
     ];
     _town = _entries[store.active.clamp(0, _entries.length - 1)].layout;
     _layoutFor = store.shownTotal;
     _slotFor = store.habit.slot;
     _cam.wallLength = _town.radius * 2;
+
     // Moving to another habit is moving to another town: take the camera
     // there rather than leaving it hanging over an empty valley.
     if (wasSlot != _slotFor) {
@@ -235,6 +224,18 @@ class _TownViewState extends State<TownView>
       _finished = null;
       _showcase = null;
     }
+  }
+
+  TownEntry _entryFor(Store store, Habit h, bool crowned) {
+    final mine = h.id == store.habit.id;
+    return TownEntry(
+      layout: _layoutOf(h, mine ? store.shownTotal : null),
+      name: h.name,
+      symbol: h.symbol,
+      integrity: Store.integrityOf(h),
+      placed: mine ? store.shownTotal : h.total,
+      crowned: crowned,
+    );
   }
 
   /// Overrides the clock during development so every time of day can be

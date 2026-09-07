@@ -26,13 +26,6 @@ Habit _daily(String name, int days, {int hour = 8, int minute = 0}) =>
         DateTime(_now.year, _now.month, _now.day - i, hour, minute),
     ]);
 
-Notice? _of(List<Notice> all, NoticeKind kind) {
-  for (final n in all) {
-    if (n.kind == kind) return n;
-  }
-  return null;
-}
-
 void main() {
   group('the board says nothing it cannot back up', () {
     // The rule the whole thing stands on. A town that tells you something
@@ -205,6 +198,73 @@ void main() {
 
     test('one habit on its own is never paired with anything', () {
       expect(pairing(_daily('Leer', 200), const [], _now), isNull);
+    });
+  });
+
+  group('the crown of the valley', () {
+    test('whoever has laid the most wears it, and the rest are told by how '
+        'much', () {
+      final big = _daily('Leer', 120);
+      final small = _daily('Correr', 90, hour: 19);
+      final mine = crownOf(big, [big, small]);
+      expect(mine, isNotNull);
+      expect(mine!.said, contains('Leer lleva la corona'));
+      expect(mine.because, contains('30 más que Correr'));
+
+      final theirs = crownOf(small, [big, small]);
+      expect(theirs, isNotNull);
+      expect(theirs!.said, contains('La corona la tiene Leer'));
+      expect(theirs.because, contains('30'));
+      // Both notices carry the same bars: the valley seen from either town.
+      expect(mine.bars.length, 2);
+      expect(theirs.bars.length, 2);
+      expect(theirs.bars.first, 1.0);
+    });
+
+    test('one town is not a valley', () {
+      final only = _daily('Leer', 90);
+      expect(crownOf(only, [only]), isNull);
+    });
+
+    test('a town nobody has begun is not in the running', () {
+      final live = _daily('Leer', 90);
+      final empty = _habit('Correr', const []);
+      expect(crownOf(live, [live, empty]), isNull);
+    });
+  });
+
+  group('every notice can show its work', () {
+    // The board lets you take a notice down and look at it up close, and what
+    // it shows there is the evidence the sentence was read off. A notice with
+    // a chart whose labels do not line up with its bars would be worse than
+    // no chart at all.
+    test('the bars and their labels agree, and the mark is inside them', () {
+      final said = noticesFor(
+        _daily('Leer', 300),
+        others: [_daily('Correr', 300, hour: 19)],
+        underway: 'la Catedral',
+        left: 9,
+        at: _now,
+      );
+      expect(said, isNotEmpty);
+      for (final n in said) {
+        if (n.bars.isEmpty) continue;
+        expect(
+          n.ticks.isEmpty || n.ticks.length == n.bars.length,
+          isTrue,
+          reason: '${n.kind}: ${n.bars.length} barras, ${n.ticks.length} pies',
+        );
+        for (final b in n.bars) {
+          expect(b, inInclusiveRange(0.0, 1.0), reason: '${n.kind}');
+        }
+        if (n.mark >= 0) {
+          expect(
+            n.mark + n.span,
+            lessThanOrEqualTo(n.bars.length),
+            reason: '${n.kind}',
+          );
+        }
+      }
     });
   });
 

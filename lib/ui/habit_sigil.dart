@@ -75,6 +75,33 @@ class HabitSigils {
     return pen.marks;
   });
 
+  /// The crown of the valley: three points and a band.
+  ///
+  /// Worn by whichever town has laid the most pieces, which is the only
+  /// competition this app has any business running — everybody is racing the
+  /// same thing, one achievement at a time, and the valley is where you can
+  /// see it.
+  static void crown(Canvas canvas, Rect box, Color color) {
+    final w = box.width, h = box.height;
+    double x(double u) => box.left + u * w;
+    double y(double v) => box.top + v * h;
+    final path = Path()
+      ..moveTo(x(0.06), y(0.74))
+      ..lineTo(x(0.06), y(0.24))
+      ..lineTo(x(0.28), y(0.50))
+      ..lineTo(x(0.50), y(0.16))
+      ..lineTo(x(0.72), y(0.50))
+      ..lineTo(x(0.94), y(0.24))
+      ..lineTo(x(0.94), y(0.74))
+      ..close();
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..isAntiAlias = true,
+    );
+  }
+
   /// Paints a mark into [box], which should be square.
   ///
   /// Everything is authored to fill the same box, so a tall mark stays tall

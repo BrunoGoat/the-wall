@@ -39,6 +39,8 @@ class HabitBar extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    final crown = store.leader;
+
     return SizedBox(
       height: 52,
       child: ListView(
@@ -50,6 +52,7 @@ class HabitBar extends StatelessWidget {
               habit: store.habits[i],
               lit: Store.integrityOf(store.habits[i]),
               on: i == store.active,
+              crowned: i == crown,
               theme: t,
               onTap: () {
                 if (i == store.active) {
@@ -72,6 +75,7 @@ class _Chip extends StatelessWidget {
     required this.habit,
     required this.lit,
     required this.on,
+    required this.crowned,
     required this.theme,
     required this.onTap,
   });
@@ -79,6 +83,9 @@ class _Chip extends StatelessWidget {
   final Habit habit;
   final double lit;
   final bool on;
+
+  /// The most pieces in the valley. A whole competition in one small mark.
+  final bool crowned;
   final UiTheme theme;
   final VoidCallback onTap;
 
@@ -123,6 +130,13 @@ class _Chip extends StatelessWidget {
                   shadows: t.halo,
                 ),
               ),
+              if (crowned) ...[
+                const SizedBox(width: 6),
+                CustomPaint(
+                  size: const Size(12, 10),
+                  painter: _CrownMark(const Color(0xFFE8B84B)),
+                ),
+              ],
             ],
           ),
         ),
@@ -160,4 +174,17 @@ class _AddChip extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The valley's crown, small enough to sit beside a number.
+class _CrownMark extends CustomPainter {
+  const _CrownMark(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) =>
+      HabitSigils.crown(canvas, Offset.zero & size, color);
+
+  @override
+  bool shouldRepaint(_CrownMark old) => old.color != color;
 }

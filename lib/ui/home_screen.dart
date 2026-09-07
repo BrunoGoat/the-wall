@@ -330,11 +330,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void _readBoard(int town) {
     final store = widget.store;
     if (town < 0 || town >= store.habits.length) return;
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => NoticeBoardSheet(
+    Navigator.of(context).push(
+      NoticeBoardScreen.route(
         store: store,
         habit: store.habits[town],
         theme: _theme,

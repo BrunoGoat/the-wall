@@ -30,6 +30,7 @@ class TownEntry {
     required this.symbol,
     required this.integrity,
     required this.placed,
+    this.crowned = false,
   });
 
   final TownLayout layout;
@@ -40,6 +41,9 @@ class TownEntry {
   /// valley that is the whole comparison: this one is alive, that one is not.
   final double integrity;
   final int placed;
+
+  /// True for the town with the most pieces in the valley.
+  final bool crowned;
 }
 
 /// One stone as it appears on screen this frame, kept so taps can be resolved
@@ -915,6 +919,9 @@ class TownPainter extends CustomPainter {
   /// back you cannot read a house, but you can read four signs and see under
   /// each one how big and how lit its town is — which is the answer to "me
   /// está yendo bien con esto y mal con lo otro", said in one look.
+  ///
+  /// (See [_drawTownSigns] below; this doc belongs to it.)
+
   /// Where each town's notice board landed, so a finger can find it.
   ///
   /// Worked out from the plank's own four corners rather than from a marker
@@ -999,7 +1006,9 @@ class TownPainter extends CustomPainter {
       // The habit's own drawn mark, painted rather than typed: it is the same
       // hand that drew the landmarks, and it looks the same on every phone.
       const glyph = 16.0;
-      final content = glyph + 9 + tp.width;
+      const crown = 13.0;
+      final wears = e.crowned;
+      final content = glyph + 9 + tp.width + (wears ? crown + 6 : 0);
       final w = math.max(content, 76.0);
       final cx = clampD(at.x, w / 2 + 14, size.width - w / 2 - 14);
       final box = Rect.fromLTWH(cx - w / 2 - 10, at.y - 14, w + 20, 46);
@@ -1032,7 +1041,21 @@ class TownPainter extends CustomPainter {
         e.symbol,
         ink.withValues(alpha: fade),
       );
-      tp.paint(canvas, Offset(left + glyph + 9, at.y - 9));
+      final after = left + glyph + 9;
+      tp.paint(canvas, Offset(after, at.y - 9));
+      // The valley's crown, on whichever town has laid the most.
+      if (wears) {
+        HabitSigils.crown(
+          canvas,
+          Rect.fromLTWH(
+            after + tp.width + 6,
+            at.y - 9 + (tp.height - crown) / 2 + 1,
+            crown,
+            crown * 0.82,
+          ),
+          const Color(0xFFF2C25B).withValues(alpha: fade),
+        );
+      }
 
       // Under the name: how much town there is, and how much of it is lit.
       // Two towns side by side become two bars of different length, which is

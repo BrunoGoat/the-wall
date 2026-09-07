@@ -228,15 +228,15 @@ class _Summary extends StatelessWidget {
               'Cómo se vería con 100, 500 o 5000 piezas. No toca las tuyas.',
           open: (nav) => DebugSheet(store: store, theme: t),
         ),
-        _SheetRow(
+        _PageRow(
           theme: t,
           icon: Icons.push_pin_outlined,
           title: 'El tablón del pueblo',
           subtitle:
-              'Lo que el pueblo fue notando de vos. También está clavado en '
-              'la plaza, si preferís ir a leerlo.',
-          open: (nav) =>
-              NoticeBoardSheet(store: store, habit: store.habit, theme: t),
+              'Lo que el pueblo fue notando de vos. Está clavado en la plaza, '
+              'si preferís ir a leerlo ahí.',
+          open: () =>
+              NoticeBoardScreen(store: store, habit: store.habit, theme: t),
         ),
         _PageRow(
           theme: t,

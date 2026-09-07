@@ -27,6 +27,7 @@ class HabitsSheet extends StatefulWidget {
 class _HabitsSheetState extends State<HabitsSheet> {
   late final TextEditingController _name;
   late String _symbol;
+  late int _place;
   bool _creating = false;
 
   @override
@@ -36,6 +37,9 @@ class _HabitsSheetState extends State<HabitsSheet> {
     final h = widget.store.habit;
     _name = TextEditingController(text: _creating ? '' : h.name);
     _symbol = _creating ? habitSymbols.first : h.symbol;
+    _place = _creating
+        ? TownCharacter.forSlot(widget.store.habits.length).order
+        : h.character;
   }
 
   @override
@@ -49,6 +53,7 @@ class _HabitsSheetState extends State<HabitsSheet> {
       _creating = true;
       _name.text = '';
       _symbol = habitSymbols[widget.store.habits.length % habitSymbols.length];
+      _place = TownCharacter.forSlot(widget.store.habits.length).order;
     });
   }
 
@@ -56,7 +61,7 @@ class _HabitsSheetState extends State<HabitsSheet> {
     final store = widget.store;
     Sensory.instance.tick();
     if (_creating) {
-      store.addHabit(_name.text, _symbol);
+      store.addHabit(_name.text, _symbol, character: _place);
     } else {
       store.renameHabit(store.active, name: _name.text, symbol: _symbol);
     }
@@ -67,8 +72,7 @@ class _HabitsSheetState extends State<HabitsSheet> {
   Widget build(BuildContext context) {
     final t = widget.theme;
     final store = widget.store;
-    final slot = _creating ? store.habits.length : store.habit.slot;
-    final ch = TownCharacter.forSlot(slot);
+    final ch = _creating ? TownCharacter.byOrder(_place) : store.habit.place;
     final bottom = MediaQuery.of(context).viewInsets.bottom;
 
     return Padding(
@@ -172,26 +176,83 @@ class _HabitsSheetState extends State<HabitsSheet> {
               ),
 
               const SizedBox(height: 20),
-              // The valley decides what kind of place each habit builds, and it
-              // is worth knowing before you start which one you are getting.
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: t.fg.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(16),
+              // What kind of place this habit builds. Chosen once, the day it
+              // is founded, and then never again: the character decides how
+              // wide the plots are and in what order the hundred and twelve
+              // arrive, so changing it later would move pieces laid years ago.
+              Text(
+                _creating ? 'QUÉ CLASE DE PUEBLO' : 'SU PUEBLO',
+                style: t.label,
+              ),
+              const SizedBox(height: 10),
+              if (_creating)
+                Row(
+                  children: [
+                    for (final c in TownCharacter.all)
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () {
+                              Sensory.instance.tick();
+                              setState(() => _place = c.order);
+                            },
+                            child: Container(
+                              height: 46,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                color: c.order == _place
+                                    ? t.accent.withValues(alpha: 0.18)
+                                    : Colors.transparent,
+                                border: Border.all(
+                                  color: c.order == _place
+                                      ? t.accent
+                                      : t.stroke,
+                                ),
+                              ),
+                              child: HabitSigil(
+                                symbol: c.symbol,
+                                color: c.order == _place
+                                    ? t.accent
+                                    : t.fg.withValues(alpha: 0.55),
+                                size: 22,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
+              if (_creating) const SizedBox(height: 12),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
                 child: Column(
+                  key: ValueKey(ch.region),
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'SU PUEBLO SERÁ DE ${ch.region.toUpperCase()}',
-                      style: t.label.copyWith(fontSize: 9.5),
+                      ch.region.toUpperCase(),
+                      style: t.label.copyWith(
+                        fontSize: 11,
+                        color: t.accent,
+                        letterSpacing: 2.4,
+                      ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 5),
                     Text(ch.blurb, style: t.bodySoft),
                   ],
                 ),
               ),
+              if (_creating) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Se elige una sola vez. Después no se puede cambiar sin '
+                  'mover piezas ya puestas, y eso no se hace.',
+                  style: t.bodySoft.copyWith(fontSize: 11.5, height: 1.4),
+                ),
+              ],
 
               const SizedBox(height: 18),
               Row(

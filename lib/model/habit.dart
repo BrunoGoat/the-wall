@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../data/character.dart';
 import '../data/symbols.dart';
 import 'piece.dart';
 
@@ -17,8 +18,10 @@ class Habit {
     required this.symbol,
     required this.slot,
     required this.createdAt,
+    int? character,
     List<Piece>? pieces,
-  }) : pieces = pieces ?? [];
+  }) : character = character ?? TownCharacter.forSlot(slot).order,
+       pieces = pieces ?? [];
 
   /// Never reused and never changed: it is what a saved town is filed under.
   final String id;
@@ -36,6 +39,16 @@ class Habit {
   final int slot;
 
   final DateTime createdAt;
+
+  /// What kind of place this habit builds, chosen the day it was founded.
+  ///
+  /// Never changed afterwards, and there is no way to: the character decides
+  /// how wide the plots are and in what order the hundred and twelve arrive,
+  /// so changing it would move pieces that were laid years ago. The one
+  /// promise this app makes is that a piece stays where it was put.
+  final int character;
+
+  TownCharacter get place => TownCharacter.byOrder(character);
 
   final List<Piece> pieces;
 
@@ -66,6 +79,7 @@ class Habit {
     'n': name,
     's': symbol,
     'slot': slot,
+    'ch': character,
     'c': createdAt.millisecondsSinceEpoch,
     'p': pieces.map((p) => p.toJson()).toList(),
   };
@@ -94,6 +108,9 @@ class Habit {
       // means the same thing, so nobody's habit changes what it is about.
       symbol: resolveHabitSymbol(j['s'] as String?),
       slot: (j['slot'] as num?)?.toInt() ?? 0,
+      // A save from before towns could be chosen keeps the one its plot was
+      // given, so nobody's town changes shape under them.
+      character: (j['ch'] as num?)?.toInt(),
       createdAt: DateTime.fromMillisecondsSinceEpoch(
         (j['c'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch,
       ),

@@ -26,6 +26,9 @@ enum NoticeKind {
 
   /// How long this has been going on.
   life,
+
+  /// Who is ahead in the valley.
+  crown,
 }
 
 /// One thing the town noticed.
@@ -35,7 +38,17 @@ enum NoticeKind {
 /// and a town that flatters you is worth nothing: the whole point of watching
 /// it is that it does not.
 class Notice {
-  const Notice(this.kind, this.said, this.because);
+  const Notice(
+    this.kind,
+    this.said,
+    this.because, {
+    this.bars = const [],
+    this.ticks = const [],
+    this.mark = -1,
+    this.span = 1,
+    this.more,
+  });
+
   final NoticeKind kind;
 
   /// One plain sentence.
@@ -43,6 +56,21 @@ class Notice {
 
   /// The counts it came from.
   final String because;
+
+  /// The same evidence drawn, each value from 0 to 1. Read only when somebody
+  /// takes the notice off the board to look at it properly — a claim is worth
+  /// more when you can see the shape it was read off.
+  final List<double> bars;
+
+  /// What to write under the bars, where it is worth writing anything.
+  final List<String> ticks;
+
+  /// The bar the sentence is about, and how many it spans. -1 for none.
+  final int mark;
+  final int span;
+
+  /// One more thing, for the same moment.
+  final String? more;
 }
 
 /// Everything worth pinning up about one habit, in the order it should be read.
@@ -73,6 +101,7 @@ List<Notice> noticesFor(
   add(pairing(h, others, now));
   add(relapse(h, now));
   add(comeback(h));
+  add(crownOf(h, others));
   add(lifetime(h, now));
   return out;
 }
@@ -140,7 +169,30 @@ Notice? ahead(Habit h, String? what, int left, DateTime now) {
         : 'A este ritmo, $what queda en pie el ${_date(when)}'
               '${when.year == now.year ? '' : ' de ${when.year}'}.',
     'Le faltan $left ${_pieces(left)}, y llevás $recent en los últimos 30 días.',
+    bars: _weeks(h, now, 12),
+    mark: 11,
+    more:
+        'La fecha sale del ritmo de las últimas cuatro semanas y de nada '
+        'más. Si apretás se adelanta, y si aflojás se va. Las barras son las '
+        'últimas doce semanas, una por semana.',
   );
+}
+
+/// The last [n] weeks as a strip, each week its own bar against the busiest.
+List<double> _weeks(Habit h, DateTime now, int n) {
+  final counts = List<double>.filled(n, 0);
+  final today = dayStart(now);
+  for (final p in h.pieces) {
+    final back = today.difference(dayStart(p.placedAt)).inDays;
+    if (back < 0) continue;
+    final week = back ~/ 7;
+    if (week < n) counts[n - 1 - week] += 1;
+  }
+  var top = 1.0;
+  for (final c in counts) {
+    if (c > top) top = c;
+  }
+  return [for (final c in counts) c / top];
 }
 
 /// What one blank day does to the next.
@@ -163,19 +215,24 @@ Notice? relapse(Habit h, DateTime now) {
   final base = misses / grid.length;
   final then = after / afterMiss;
   if ((then - base).abs() < 0.12) return null;
-  return then > base
-      ? Notice(
-          NoticeKind.relapse,
-          'Un día en blanco se lleva al siguiente.',
-          'Después de faltar un día, faltás el ${_pct(then)} de las veces. '
-              'Un día cualquiera, el ${_pct(base)}.',
-        )
-      : Notice(
-          NoticeKind.relapse,
-          'Un fallo no te tumba: volvés antes de lo normal.',
-          'Después de faltar un día, faltás el ${_pct(then)} de las veces. '
-              'Un día cualquiera, el ${_pct(base)}.',
-        );
+  return Notice(
+    NoticeKind.relapse,
+    then > base
+        ? 'Un día en blanco se lleva al siguiente.'
+        : 'Un fallo no te tumba: volvés antes de lo normal.',
+    'Después de faltar un día, faltás el ${_pct(then)} de las veces. '
+    'Un día cualquiera, el ${_pct(base)}.',
+    bars: [then, base],
+    ticks: const ['tras un fallo', 'un día cualquiera'],
+    mark: 0,
+    more: then > base
+        ? 'De los últimos ${grid.length} días, ${grid.length - misses} con '
+              'pieza. Es la diferencia entre las dos barras lo que dice algo: '
+              'el día de después de faltar no es un día cualquiera para vos.'
+        : 'De los últimos ${grid.length} días, ${grid.length - misses} con '
+              'pieza. Faltar te empuja a volver, que es lo contrario de lo '
+              'que le pasa a casi todo el mundo.',
+  );
 }
 
 /// The stretch of the day it nearly always happens in.
@@ -208,12 +265,49 @@ Notice? peakHour(Habit h) {
     // that hides a third of the truth to sound tidier.
     if (best / n < 0.7) continue;
     final end = (at + width) % 24;
+    var top = 1;
+    for (final c in byHour) {
+      if (c > top) top = c;
+    }
     return Notice(
       NoticeKind.hour,
       width == 1
           ? 'Casi siempre a las $at${_partOfDay(at)}.'
           : 'Casi siempre entre las $at y las $end${_partOfDay(at)}.',
       'Ahí caen el ${_pct(best / n)} de tus piezas.',
+      bars: [for (final c in byHour) c / top],
+      ticks: const [
+        '0',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '6',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '12',
+        '',
+        '',
+        '',
+        '',
+        '',
+        '18',
+        '',
+        '',
+        '',
+        '',
+        '',
+      ],
+      mark: at,
+      span: width,
+      more:
+          'Las veinticuatro horas del día, y en cada una cuántas piezas '
+          'pusiste. Un hábito con hora propia se ve de un vistazo; uno que '
+          'cae donde puede, también.',
     );
   }
   return null;
@@ -266,12 +360,23 @@ Notice? standoutDay(Habit h, DateTime now) {
   final upGap = hit[high] / seen[high] - rest(high);
   final downGap = rest(low) - hit[low] / seen[low];
   if (math.max(upGap, downGap) < 0.18) return null;
+  final week = [for (var w = 1; w <= 7; w++) hit[w] / seen[w]];
+  const initials = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+  final more =
+      'Cada barra es un día de la semana, y lo alta que está es la parte de '
+      'esos días en los que pusiste algo. Medido contra cuántos ${_weekday(high)} '
+      'y cuántos ${_weekday(low)} han pasado de verdad, no contra los totales '
+      'de los otros días.';
   if (upGap >= downGap) {
     return Notice(
       NoticeKind.week,
       'Los ${_weekday(high)} son tu día fuerte.',
       'Cumplís el ${_pct(hit[high] / seen[high])} de los ${_weekday(high)}, '
           'contra el ${_pct(rest(high))} del resto de la semana.',
+      bars: week,
+      ticks: initials,
+      mark: high - 1,
+      more: more,
     );
   }
   return Notice(
@@ -279,6 +384,10 @@ Notice? standoutDay(Habit h, DateTime now) {
     'Los ${_weekday(low)} casi nunca.',
     'Cumplís el ${_pct(hit[low] / seen[low])} de los ${_weekday(low)}, '
         'contra el ${_pct(rest(low))} del resto de la semana.',
+    bars: week,
+    ticks: initials,
+    mark: low - 1,
+    more: more,
   );
 }
 
@@ -295,6 +404,16 @@ Notice? comeback(Habit h) {
   gaps.sort();
   final mid = gaps[gaps.length ~/ 2];
   final worst = gaps.last;
+  // How many gaps of each length: one, two, three… and everything from six up
+  // in the last bar, because past a week the exact number stops mattering.
+  final tally = List<double>.filled(6, 0);
+  for (final g in gaps) {
+    tally[(g - 1).clamp(0, 5)] += 1;
+  }
+  var top = 1.0;
+  for (final c in tally) {
+    if (c > top) top = c;
+  }
   return Notice(
     NoticeKind.comeback,
     mid == 1
@@ -303,6 +422,13 @@ Notice? comeback(Habit h) {
     worst == 1
         ? 'Nunca has estado más de un día fuera.'
         : 'El hueco más largo que remontaste fue de $worst días.',
+    bars: [for (final c in tally) c / top],
+    ticks: const ['1', '2', '3', '4', '5', '6+'],
+    mark: (mid - 1).clamp(0, 5),
+    more:
+        'Cada barra es cuántas veces estuviste fuera ese número de días. '
+        '${gaps.length} huecos en total, y volviste de todos: el pueblo sigue '
+        'en pie.',
   );
 }
 
@@ -362,6 +488,13 @@ Notice? pairing(Habit h, List<Habit> others, DateTime now) {
       said,
       'Los días de ${a.name}, ${b.name} aparece el ${_pct(near)} de las veces. '
       'El resto de los días, el ${_pct(far)}.',
+      bars: [near, far],
+      ticks: ['con ${a.name}', 'sin ${a.name}'],
+      mark: 0,
+      more:
+          'Contado sobre los $span días desde que existen los dos: '
+          '$withA con ${a.name} y $withoutA sin. Dos barras iguales serían dos '
+          'hábitos que no se enteran el uno del otro.',
     ),
     gap,
   );
@@ -377,6 +510,65 @@ Notice? lifetime(Habit h, DateTime now) {
     '${days.length} días de tu vida.',
     'Desde el ${_date(days.first)} de ${days.first.year}. '
         '${h.total} ${_pieces(h.total)} en total.',
+    bars: _weeks(h, now, 26),
+    more:
+        'Medio año, semana a semana. No hay nada que interpretar acá: es '
+        'sólo lo que hiciste, y es bastante.',
+  );
+}
+
+/// Who is ahead in the valley.
+///
+/// The only competition this app has any business running: everybody is racing
+/// the same thing — one achievement at a time — and having several towns in
+/// sight of each other is what makes that visible at all. Said plainly, with
+/// the gap, and never with a word of encouragement stuck on the end.
+Notice? crownOf(Habit h, List<Habit> all) {
+  final live = [
+    for (final o in all)
+      if (o.total > 0) o,
+  ];
+  if (live.length < 2) return null;
+  live.sort((a, b) {
+    final c = b.total.compareTo(a.total);
+    return c != 0 ? c : a.createdAt.compareTo(b.createdAt);
+  });
+  final me = live.indexWhere((o) => o.id == h.id);
+  if (me < 0) return null;
+  final top = live.first;
+  final bars = [for (final o in live) o.total / top.total];
+  final ticks = [for (final o in live) o.name];
+  if (me == 0) {
+    final next = live[1];
+    final by = top.total - next.total;
+    return Notice(
+      NoticeKind.crown,
+      '${h.name} lleva la corona del valle.',
+      by == 0
+          ? 'Empatado con ${next.name}, a ${top.total} ${_pieces(top.total)}.'
+          : '${top.total} ${_pieces(top.total)}, $by más que ${next.name}.',
+      bars: bars,
+      ticks: ticks,
+      mark: 0,
+      more:
+          'La corona es del pueblo más grande del valle y se ve desde los '
+          'otros. No hace nada: sólo está ahí.',
+    );
+  }
+  final by = top.total - live[me].total;
+  return Notice(
+    NoticeKind.crown,
+    'La corona la tiene ${top.name}.',
+    by == 1
+        ? 'Por una sola pieza.'
+        : 'Por $by piezas: ${top.name} va ${top.total} y ${h.name} va '
+              '${live[me].total}.',
+    bars: bars,
+    ticks: ticks,
+    mark: 0,
+    more:
+        'Cambia de cabeza el día que otro pueblo lo alcanza, y no hace falta '
+        'nada más para quitársela que seguir poniendo piezas.',
   );
 }
 
