@@ -34,9 +34,7 @@ class TownViewController {
 
   /// True once there is more than one town to compare.
   bool get hasValley => (_state?._entries.length ?? 1) > 1;
-  void goToLatest() => _state?.goToLatest();
   void goTo(double x, double z) => _state?.goTo(x, z);
-  void resetView() => _state?.resetView();
   double get travel => _state?._cam.travelTarget ?? 0;
 
   /// How wide the town in front of you reaches, for framing.
@@ -245,13 +243,15 @@ class _TownViewState extends State<TownView>
     defaultValue: -1,
   );
 
-  Palette _buildPalette() {
+  /// La hora con la que se pinta el cielo. La música se mezcla con la misma,
+  /// así que la luz y lo que suena cambian a la vez.
+  double get _hour {
+    if (_hourOverride >= 0) return _hourOverride.toDouble();
     final now = DateTime.now();
-    final hour = _hourOverride >= 0
-        ? _hourOverride.toDouble()
-        : now.hour + now.minute / 60.0;
-    return Palette.forMoment(hour, _displayIntegrity);
+    return now.hour + now.minute / 60.0;
   }
+
+  Palette _buildPalette() => Palette.forMoment(_hour, _displayIntegrity);
 
   // ------------------------------------------------------------------ tick
 
@@ -297,6 +297,7 @@ class _TownViewState extends State<TownView>
     final size01 = math.sqrt(widget.store.shownTotal / 900.0).clamp(0.0, 1.0);
     Sensory.instance.ambience(size01, _displayIntegrity);
     Sensory.instance.ambientOneShot(dt, size01, _displayIntegrity);
+    Sensory.instance.music(_hour, dt, _displayIntegrity);
 
     final pal = _buildPalette();
     _palette = pal;
@@ -519,27 +520,12 @@ class _TownViewState extends State<TownView>
     Sensory.instance.tick();
   }
 
-  void goToLatest() {
-    _touched();
-    _followPlacement(widget.store.shownTotal - 1);
-    Sensory.instance.tick();
-  }
-
   /// Looks at a spot on the valley floor, for the map and the landmark list.
   void goTo(double x, double z) {
     _touched();
     _cam.travelTo(x);
     _cam.focusZTarget = z;
     _cam.follow = false;
-  }
-
-  void resetView() {
-    _touched();
-    _cam.yawTarget = 0.62;
-    _cam.pitchTarget = 0.34;
-    _cam.focusYTarget = 1.4;
-    _cam.distanceTarget = clampD(_town.radius * 1.6, 9, 40);
-    Sensory.instance.tick();
   }
 
   // -------------------------------------------------------------- gestures

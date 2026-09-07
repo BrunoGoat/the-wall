@@ -1,4 +1,7 @@
+import 'dart:math' as math;
+
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 /// Sound and haptics.
@@ -19,17 +22,141 @@ class Sensory {
 
   bool get muted => _muted;
   bool get hapticsOff => _hapticsOff;
+  bool get musicOff => _musicOff;
 
   void setMuted(bool v) {
     _muted = v;
-    for (final p in _amb) {
+    for (var i = 0; i < _amb.length; i++) {
       try {
-        p.setVolume(v ? 0 : _ambAt[_amb.indexOf(p)]);
+        _amb[i].setVolume(v ? 0 : _ambAt[i]);
+      } catch (_) {}
+    }
+    _applyMusic();
+  }
+
+  void setHapticsOff(bool v) => _hapticsOff = v;
+
+  /// La música aparte del resto del sonido: hay quien quiere el viento y los
+  /// pájaros del valle y no quiere que le toquen nada encima.
+  void setMusicOff(bool v) {
+    _musicOff = v;
+    _applyMusic();
+  }
+
+  // ---------------------------------------------------------------- music
+
+  /// Tres capas en re dórico a sesenta pulsos por minuto: el bordón de
+  /// zanfoña, el laúd punteado y una flauta. Se generan en `tool/make_music.py`.
+  ///
+  /// Las tres duran un número entero de compases del mismo pulso pero de
+  /// largos distintos —seis, ocho y diez— así que caen siempre en el mismo
+  /// sitio del compás y aun así la combinación no se repite igual hasta los
+  /// ocho minutos. Como la armonía debajo es un bordón que no se mueve,
+  /// cualquier desfase entre ellas suena bien. Es lo que hacía un juglar con
+  /// una zanfoña: una nota que no para, y encima lo que se le ocurra.
+  static const List<String> _music = [
+    'mus_bordon.wav',
+    'mus_laud.wav',
+    'mus_flauta.wav',
+  ];
+
+  /// El sitio de cada capa en la mezcla, medido sobre el valor eficaz de cada
+  /// archivo y no sobre su pico: los tres se escriben a escala completa para
+  /// no tirar bits, y el equilibrio se pone aquí.
+  static const List<double> _musMix = [0.193, 1.0, 0.231];
+
+  /// Música de fondo quiere decir de fondo. Por debajo del viento.
+  static const double _musLevel = 0.50;
+
+  /// Qué se oye a cada hora, en el orden de arriba. De noche el bordón se
+  /// queda casi solo con la flauta encima, que es lo que suena a noche; al
+  /// mediodía manda el laúd, que es lo que suena a gente trabajando.
+  static const List<double> _atNight = [1.00, 0.22, 0.50]; // las 3
+  static const List<double> _atDawn = [0.85, 0.85, 0.80]; // las 8
+  static const List<double> _atNoon = [0.70, 1.00, 0.65]; // las 14
+  static const List<double> _atDusk = [0.90, 0.55, 0.90]; // las 20
+
+  final List<AudioPlayer> _mus = [];
+  final List<double> _musAt = [0, 0, 0];
+  bool _musReady = false;
+  bool _musicOff = false;
+
+  /// La entrada. Nada debería empezar a sonar de golpe al abrir la app.
+  double _musIn = 0;
+
+  Future<void> _initMusic() async {
+    if (_musReady) return;
+    try {
+      for (final name in _music) {
+        final p = AudioPlayer();
+        await p.setReleaseMode(ReleaseMode.loop);
+        await p.setVolume(0);
+        await p.play(AssetSource('sfx/$name'));
+        _mus.add(p);
+      }
+      _musReady = true;
+    } catch (_) {
+      _musReady = false;
+    }
+  }
+
+  /// Interpola entre las cuatro horas de arriba dando la vuelta al reloj, con
+  /// una curva suave: a las ocho y un minuto no puede sonar distinto que a las
+  /// ocho menos uno.
+  @visibleForTesting
+  static List<double> dayMix(double hour) {
+    const stops = [3.0, 8.0, 14.0, 20.0, 27.0];
+    const mixes = [_atNight, _atDawn, _atNoon, _atDusk, _atNight];
+    final h = hour < stops.first ? hour + 24 : hour;
+    for (var i = 0; i < stops.length - 1; i++) {
+      if (h > stops[i + 1]) continue;
+      final k = ((h - stops[i]) / (stops[i + 1] - stops[i])).clamp(0.0, 1.0);
+      final e = k * k * (3 - 2 * k);
+      return [
+        for (var j = 0; j < 3; j++)
+          mixes[i][j] + (mixes[i + 1][j] - mixes[i][j]) * e,
+      ];
+    }
+    return _atNight;
+  }
+
+  /// La mezcla de este instante. `hour` es la misma hora con la que se pinta
+  /// el cielo, así que la música y la luz cambian juntas.
+  Future<void> music(double hour, double dt, double integrity) async {
+    if (!_musReady) return;
+    if (_muted || _musicOff) return;
+    _musIn = (_musIn + dt / 6.0).clamp(0.0, 1.0);
+    final day = dayMix(hour);
+    // Un pueblo dejado pierde parte de su música, pero no toda: el silencio
+    // absoluto se lee como una app rota, no como un pueblo abandonado.
+    final level =
+        _musLevel * _musIn * (0.72 + 0.28 * integrity.clamp(0.0, 1.0));
+    for (var i = 0; i < _mus.length && i < 3; i++) {
+      final want = _musMix[i] * day[i] * level;
+      // Constante de tiempo larga: pasar de la tarde a la noche es un cambio
+      // de luz, no un cambio de canción.
+      final next = _musAt[i] + (want - _musAt[i]) * (1 - math.exp(-dt / 2.5));
+      if ((next - _musAt[i]).abs() < 0.003) continue;
+      _musAt[i] = next;
+      try {
+        await _mus[i].setVolume(next);
       } catch (_) {}
     }
   }
 
-  void setHapticsOff(bool v) => _hapticsOff = v;
+  void _applyMusic() {
+    final off = _muted || _musicOff;
+    for (var i = 0; i < _mus.length; i++) {
+      try {
+        if (off) {
+          _mus[i].pause();
+        } else {
+          _mus[i].setVolume(_musAt[i]);
+          _mus[i].resume();
+        }
+      } catch (_) {}
+    }
+  }
 
   // ------------------------------------------------------------- ambience
 
@@ -133,6 +260,7 @@ class Sensory {
       _ready = false;
     }
     await _initAmbience();
+    await _initMusic();
   }
 
   Future<void> _play(String asset, {double volume = 1.0}) async {
@@ -211,10 +339,14 @@ class Sensory {
   }
 
   void dispose() {
-    for (final p in _pool) {
+    for (final p in [..._pool, ..._amb, ..._mus]) {
       p.dispose();
     }
     _pool.clear();
+    _amb.clear();
+    _mus.clear();
     _ready = false;
+    _ambReady = false;
+    _musReady = false;
   }
 }

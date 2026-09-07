@@ -178,7 +178,13 @@ class _HomeScreenState extends State<HomeScreen> {
             child: _TopBar(theme: t, store: store, onJourney: _openJourney),
           ),
 
-          // --- right: camera controls
+          // --- right: two ways of looking, and no more than that
+          //
+          // There were four. The other two —volver a la última pieza, enderezar
+          // la vista— hacían lo mismo que un dedo sobre el pueblo, y una
+          // columna de cuatro iconos sobre un valle es una barra de
+          // herramientas encima de un paisaje. Quedan los dos que llevan a un
+          // sitio donde no estabas: este pueblo entero, y el valle entero.
           Positioned(
             right: 10,
             top: media.padding.top + 92,
@@ -197,18 +203,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     tooltip: 'Ver todo el valle',
                     onTap: _wall.frameValley,
                   ),
-                GhostButton(
-                  icon: Icons.center_focus_strong,
-                  theme: t,
-                  tooltip: 'Ir a lo último que pusiste',
-                  onTap: _wall.goToLatest,
-                ),
-                GhostButton(
-                  icon: Icons.threesixty,
-                  theme: t,
-                  tooltip: 'Reiniciar la vista',
-                  onTap: _wall.resetView,
-                ),
               ],
             ),
           ),

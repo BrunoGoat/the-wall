@@ -491,6 +491,21 @@ class _SoundTogglesState extends State<_SoundToggles> {
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           dense: true,
+          value: !Sensory.instance.musicOff,
+          activeThumbColor: t.accent,
+          title: Text('Música', style: t.body),
+          subtitle: Text(
+            'Bordón, laúd y flauta. Cambia con la hora del día.',
+            style: t.bodySoft.copyWith(fontSize: 11.5),
+          ),
+          onChanged: (v) {
+            setState(() => Sensory.instance.setMusicOff(!v));
+            if (v) Sensory.instance.tick();
+          },
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          dense: true,
           value: !Sensory.instance.hapticsOff,
           activeThumbColor: t.accent,
           title: Text('Vibración', style: t.body),
