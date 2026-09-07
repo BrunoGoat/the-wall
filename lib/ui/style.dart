@@ -18,9 +18,12 @@ class UiTheme {
     panel = dark
         ? const Color(0xFF14131A).withValues(alpha: 0.40)
         : const Color(0xFFFBF7ED).withValues(alpha: 0.42);
+    // Still a change in the air, only more of it. What makes a sheet legible
+    // is the blur behind it, not paint: at ninety-five per cent it was a card
+    // laid over the town and the town might as well not have been there.
     panelStrong = dark
-        ? const Color(0xFF14131A).withValues(alpha: 0.92)
-        : const Color(0xFFFBF7ED).withValues(alpha: 0.95);
+        ? const Color(0xFF14131A).withValues(alpha: 0.58)
+        : const Color(0xFFFBF7ED).withValues(alpha: 0.64);
     stroke = fg.withValues(alpha: 0.07);
     accent = palette.accent;
   }
@@ -69,6 +72,61 @@ class UiTheme {
   );
 }
 
+/// The scrim behind a sheet.
+///
+/// Light on purpose: the town is the thing, and a sheet that blacks it out is
+/// a sheet that could have been any app's.
+Color sheetScrim(bool dark) =>
+    Colors.black.withValues(alpha: dark ? 0.34 : 0.24);
+
+/// The one surface every sheet in the app is made of.
+///
+/// Its colour comes from the sky of the moment, so the same sheet is a
+/// different colour at dusk and at noon, and what makes the type legible is
+/// the blur rather than the paint.
+class SheetSurface extends StatelessWidget {
+  const SheetSurface({
+    super.key,
+    required this.theme,
+    required this.child,
+    this.padding = EdgeInsets.zero,
+    this.top = 28,
+    this.all = false,
+  });
+
+  final UiTheme theme;
+  final Widget child;
+  final EdgeInsets padding;
+
+  /// How round the top corners are.
+  final double top;
+
+  /// True for a sheet that floats rather than sitting on the bottom edge.
+  final bool all;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = all
+        ? BorderRadius.circular(top)
+        : BorderRadius.vertical(top: Radius.circular(top));
+    return ClipRRect(
+      borderRadius: radius,
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+        child: Container(
+          padding: padding,
+          decoration: BoxDecoration(
+            color: theme.panelStrong,
+            borderRadius: radius,
+            border: Border.all(color: theme.fg.withValues(alpha: 0.10)),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
 /// A frosted panel used for every floating surface in the app.
 class Frosted extends StatelessWidget {
   const Frosted({
@@ -93,7 +151,10 @@ class Frosted extends StatelessWidget {
     final content = ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+        filter: ui.ImageFilter.blur(
+          sigmaX: strong ? 30 : 18,
+          sigmaY: strong ? 30 : 18,
+        ),
         child: Container(
           padding: padding,
           decoration: BoxDecoration(

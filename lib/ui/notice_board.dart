@@ -40,7 +40,7 @@ class NoticeBoardScreen extends StatefulWidget {
     required UiTheme theme,
   }) => PageRouteBuilder<void>(
     opaque: false,
-    barrierColor: Colors.black.withValues(alpha: 0.55),
+    barrierColor: sheetScrim(theme.dark),
     transitionDuration: const Duration(milliseconds: 260),
     reverseTransitionDuration: const Duration(milliseconds: 200),
     pageBuilder: (_, _, _) =>

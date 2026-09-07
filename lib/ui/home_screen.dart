@@ -319,6 +319,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      barrierColor: sheetScrim(_theme.dark),
       builder: (_) =>
           HabitsSheet(store: widget.store, theme: _theme, startNew: startNew),
     );
@@ -345,6 +346,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      barrierColor: sheetScrim(_theme.dark),
       builder: (_) => JourneySheet(
         store: widget.store,
         theme: _theme,
@@ -536,13 +538,11 @@ class _PreviewBanner extends StatelessWidget {
     final t = theme;
     return GestureDetector(
       onTap: () => store.setPreview(null),
-      child: Container(
+      child: SheetSurface(
+        theme: t,
+        all: true,
+        top: 20,
         padding: const EdgeInsets.fromLTRB(15, 8, 11, 8),
-        decoration: BoxDecoration(
-          color: t.panelStrong,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: t.accent.withValues(alpha: 0.55)),
-        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

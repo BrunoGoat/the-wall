@@ -282,6 +282,7 @@ class LabelSheet extends StatefulWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      barrierColor: sheetScrim(theme.dark),
       builder: (_) =>
           LabelSheet(theme: theme, number: number, initial: initial),
     );
@@ -309,13 +310,9 @@ class _LabelSheetState extends State<LabelSheet> {
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
-      child: Container(
+      child: SheetSurface(
+        theme: t,
         padding: const EdgeInsets.fromLTRB(22, 18, 22, 26),
-        decoration: BoxDecoration(
-          color: t.panelStrong,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          border: Border.all(color: t.stroke),
-        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

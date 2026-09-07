@@ -51,12 +51,8 @@ class _JourneySheetState extends State<JourneySheet> {
       maxChildSize: 0.95,
       expand: false,
       builder: (context, scroll) {
-        return Container(
-          decoration: BoxDecoration(
-            color: t.panelStrong,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-            border: Border.all(color: t.stroke),
-          ),
+        return SheetSurface(
+          theme: t,
           child: Column(
             children: [
               const SizedBox(height: 10),

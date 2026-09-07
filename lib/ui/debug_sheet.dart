@@ -40,13 +40,9 @@ class _DebugSheetState extends State<DebugSheet> {
     final shown = _value.round();
     final layoutReady = store.isPreviewing;
 
-    return Container(
+    return SheetSurface(
+      theme: t,
       padding: const EdgeInsets.fromLTRB(22, 14, 22, 30),
-      decoration: BoxDecoration(
-        color: t.panelStrong,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border.all(color: t.stroke),
-      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,

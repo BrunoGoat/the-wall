@@ -30,6 +30,10 @@ class _HabitsSheetState extends State<HabitsSheet> {
   late int _place;
   bool _creating = false;
 
+  /// The thirty-six marks are only worth a screenful when somebody is
+  /// actually choosing one. Until then this sheet is a name and a mark.
+  bool _picking = false;
+
   @override
   void initState() {
     super.initState();
@@ -40,6 +44,7 @@ class _HabitsSheetState extends State<HabitsSheet> {
     _place = _creating
         ? TownCharacter.forSlot(widget.store.habits.length).order
         : h.character;
+    _picking = false;
   }
 
   @override
@@ -54,6 +59,7 @@ class _HabitsSheetState extends State<HabitsSheet> {
       _name.text = '';
       _symbol = habitSymbols[widget.store.habits.length % habitSymbols.length];
       _place = TownCharacter.forSlot(widget.store.habits.length).order;
+      _picking = false;
     });
   }
 
@@ -106,19 +112,30 @@ class _HabitsSheetState extends State<HabitsSheet> {
 
               Row(
                 children: [
-                  Container(
-                    width: 54,
-                    height: 54,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: t.fg.withValues(alpha: 0.07),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: t.stroke),
-                    ),
-                    child: HabitSigil(
-                      symbol: _symbol,
-                      color: t.accent,
-                      size: 30,
+                  // The mark is the way in to the rest of them. Nothing else
+                  // on this sheet needs a screenful of icons under it.
+                  GestureDetector(
+                    onTap: () {
+                      Sensory.instance.tick();
+                      setState(() => _picking = !_picking);
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      width: 54,
+                      height: 54,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: t.fg.withValues(alpha: _picking ? 0.12 : 0.07),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: _picking ? t.accent : t.stroke,
+                        ),
+                      ),
+                      child: HabitSigil(
+                        symbol: _symbol,
+                        color: t.accent,
+                        size: 30,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -140,39 +157,53 @@ class _HabitsSheetState extends State<HabitsSheet> {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final s in habitSymbols)
-                    InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () => setState(() => _symbol = s),
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          color: s == _symbol
-                              ? t.accent.withValues(alpha: 0.20)
-                              : Colors.transparent,
-                          border: Border.all(
-                            color: s == _symbol ? t.accent : t.stroke,
-                          ),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 190),
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.topCenter,
+                child: _picking
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 16),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final s in habitSymbols)
+                              InkWell(
+                                borderRadius: BorderRadius.circular(12),
+                                onTap: () {
+                                  Sensory.instance.tick();
+                                  setState(() {
+                                    _symbol = s;
+                                    _picking = false;
+                                  });
+                                },
+                                child: Container(
+                                  width: 40,
+                                  height: 40,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    color: s == _symbol
+                                        ? t.accent.withValues(alpha: 0.20)
+                                        : Colors.transparent,
+                                    border: Border.all(
+                                      color: s == _symbol ? t.accent : t.stroke,
+                                    ),
+                                  ),
+                                  child: HabitSigil(
+                                    symbol: s,
+                                    color: s == _symbol
+                                        ? t.accent
+                                        : t.fg.withValues(alpha: 0.62),
+                                    size: 21,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                        child: HabitSigil(
-                          symbol: s,
-                          color: s == _symbol
-                              ? t.accent
-                              : t.fg.withValues(alpha: 0.62),
-                          size: 21,
-                        ),
-                      ),
-                    ),
-                ],
+                      )
+                    : const SizedBox(width: double.infinity),
               ),
 
               const SizedBox(height: 20),
@@ -320,6 +351,7 @@ class _HabitsSheetState extends State<HabitsSheet> {
       context: context,
       builder: (dialog) => AlertDialog(
         backgroundColor: t.panelStrong,
+        elevation: 0,
         title: Text('¿Abandonar ${h.name}?', style: t.body),
         content: Text(
           'Se borra su pueblo entero: ${h.total} piezas. No hay vuelta atrás.',

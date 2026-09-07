@@ -192,6 +192,7 @@ class _GalleryScreenState extends State<GalleryScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      barrierColor: sheetScrim(t.dark),
       builder: (_) => _IndexSheet(all: _all, at: _at, theme: t),
     );
     if (chosen == null || !mounted) return;
@@ -609,68 +610,66 @@ class _IndexSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = theme;
-    return Container(
+    return SizedBox(
       height: MediaQuery.of(context).size.height * 0.78,
-      padding: const EdgeInsets.fromLTRB(8, 12, 8, 8),
-      decoration: BoxDecoration(
-        color: t.panelStrong,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border.all(color: t.stroke),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 36,
-            height: 4,
-            decoration: BoxDecoration(
-              color: t.fgFaint,
-              borderRadius: BorderRadius.circular(2),
+      child: SheetSurface(
+        theme: t,
+        padding: const EdgeInsets.fromLTRB(8, 12, 8, 8),
+        child: Column(
+          children: [
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                color: t.fgFaint,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text('TODO LO QUE SE CONSTRUYE', style: t.label),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text('TODO LO QUE SE CONSTRUYE', style: t.label),
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: ListView.builder(
-              itemCount: all.length,
-              itemBuilder: (context, i) {
-                final e = all[i];
-                final on = i == at;
-                return ListTile(
-                  dense: true,
-                  selected: on,
-                  onTap: () => Navigator.of(context).pop(i),
-                  leading: SizedBox(
-                    width: 34,
-                    child: Text(
-                      '${i + 1}',
+            const SizedBox(height: 8),
+            Expanded(
+              child: ListView.builder(
+                itemCount: all.length,
+                itemBuilder: (context, i) {
+                  final e = all[i];
+                  final on = i == at;
+                  return ListTile(
+                    dense: true,
+                    selected: on,
+                    onTap: () => Navigator.of(context).pop(i),
+                    leading: SizedBox(
+                      width: 34,
+                      child: Text(
+                        '${i + 1}',
+                        style: t.bodySoft.copyWith(fontSize: 11),
+                      ),
+                    ),
+                    title: Text(
+                      e.title,
+                      style: t.body.copyWith(
+                        fontSize: 14,
+                        color: on ? t.accent : t.fg,
+                      ),
+                    ),
+                    subtitle: Text(
+                      e.tier < 0
+                          ? 'casa · ${e.pieces} piezas'
+                          : 'hito ${'·' * (e.tier + 1)} · ${e.pieces} piezas',
                       style: t.bodySoft.copyWith(fontSize: 11),
                     ),
-                  ),
-                  title: Text(
-                    e.title,
-                    style: t.body.copyWith(
-                      fontSize: 14,
-                      color: on ? t.accent : t.fg,
-                    ),
-                  ),
-                  subtitle: Text(
-                    e.tier < 0
-                        ? 'casa · ${e.pieces} piezas'
-                        : 'hito ${'·' * (e.tier + 1)} · ${e.pieces} piezas',
-                    style: t.bodySoft.copyWith(fontSize: 11),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
