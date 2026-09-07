@@ -60,8 +60,11 @@ void main() {
       s.setLabel(0, 'Corrí 10k');
       expect(s.pieceAt(0)!.label, 'Corrí 10k');
       s.setLabel(0, '   ');
-      expect(s.pieceAt(0)!.hasLabel, isFalse,
-          reason: 'blank should clear the note, not store whitespace');
+      expect(
+        s.pieceAt(0)!.hasLabel,
+        isFalse,
+        reason: 'blank should clear the note, not store whitespace',
+      );
     });
 
     test('writing a note never changes what the wall is', () async {
@@ -130,8 +133,9 @@ void main() {
     });
 
     test('a corrupt save starts clean instead of failing', () async {
-      SharedPreferences.setMockInitialValues(
-          {'flutter.la_muralla_state_v2': 'not json at all'});
+      SharedPreferences.setMockInitialValues({
+        'flutter.la_muralla_state_v2': 'not json at all',
+      });
       final s = Store();
       await s.load();
       expect(s.loaded, isTrue);
@@ -144,10 +148,12 @@ void main() {
       final s = await freshStore();
       final today = dayStart(DateTime.now());
       for (final offset in [0, 1, 2, 5, 6]) {
-        s.pieces.add(Piece(
-          index: s.total,
-          placedAt: today.subtract(Duration(days: offset, hours: -12)),
-        ));
+        s.pieces.add(
+          Piece(
+            index: s.total,
+            placedAt: today.subtract(Duration(days: offset, hours: -12)),
+          ),
+        );
       }
       expect(s.streak, 3);
       expect(s.bestStreak, 3);

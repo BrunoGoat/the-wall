@@ -12,7 +12,11 @@ void main() {
   group('one achievement is one piece', () {
     test('n achievements produce n pieces, plus one ghost for the next', () {
       for (final n in [0, 1, 7, 30, 200, 900]) {
-        expect(TownLayout(n, TownCharacter.all.first).pieces.length, n + 1, reason: 'with $n placed');
+        expect(
+          TownLayout(n, TownCharacter.all.first).pieces.length,
+          n + 1,
+          reason: 'with $n placed',
+        );
       }
     });
 
@@ -31,7 +35,8 @@ void main() {
     });
 
     test('the same town is rebuilt exactly the same way', () {
-      final a = TownLayout(333, TownCharacter.all.first), b = TownLayout(333, TownCharacter.all.first);
+      final a = TownLayout(333, TownCharacter.all.first),
+          b = TownLayout(333, TownCharacter.all.first);
       for (var i = 0; i < a.pieces.length; i++) {
         expect(b.pieces[i].cx, a.pieces[i].cx);
         expect(b.pieces[i].y1, a.pieces[i].y1);
@@ -57,13 +62,19 @@ void main() {
         // Something has to touch the ground, and every piece above it has to
         // stand on something already built rather than hang in the air. Water
         // and ploughed rows are cut into the ground, so they sit below it.
-        expect(mine.map((p) => p.y0).reduce(math.min), lessThan(0.001),
-            reason: '${b.name} floats');
+        expect(
+          mine.map((p) => p.y0).reduce(math.min),
+          lessThan(0.001),
+          reason: '${b.name} floats',
+        );
         final tops = <double>[0];
         for (final p in mine) {
           final rests = tops.any((t) => (p.y0 - t).abs() < 0.02 || p.y0 < t);
-          expect(rests, isTrue,
-              reason: '${b.name}: a ${p.kind.name} hangs at ${p.y0}');
+          expect(
+            rests,
+            isTrue,
+            reason: '${b.name}: a ${p.kind.name} hangs at ${p.y0}',
+          );
           tops.add(p.y1);
         }
       }
@@ -83,8 +94,11 @@ void main() {
         expect(built, n, reason: '$n placed');
         for (final p in town.pieces) {
           if (p.index < n) continue;
-          expect(p.capped, isFalse,
-              reason: 'the ghost at $n was treated as built');
+          expect(
+            p.capped,
+            isFalse,
+            reason: 'the ghost at $n was treated as built',
+          );
         }
       }
     });
@@ -113,8 +127,11 @@ void main() {
           if (caps.contains(p.kind) || crowns.contains(p.kind)) continue;
           for (final cap in mine) {
             if (!caps.contains(cap.kind) || !over(p, cap)) continue;
-            expect(p.y0, lessThan(cap.y1 - 0.01),
-                reason: '${b.name}: a ${p.kind.name} sits on the roof');
+            expect(
+              p.y0,
+              lessThan(cap.y1 - 0.01),
+              reason: '${b.name}: a ${p.kind.name} sits on the roof',
+            );
           }
         }
       }
@@ -124,9 +141,11 @@ void main() {
       final city = TownLayout(900, TownCharacter.all.first);
       final seen = <String>{};
       for (final b in city.buildings) {
-        expect(seen.add('${b.cx.toStringAsFixed(3)},${b.cz.toStringAsFixed(3)}'),
-            isTrue,
-            reason: 'two houses on the same plot');
+        expect(
+          seen.add('${b.cx.toStringAsFixed(3)},${b.cz.toStringAsFixed(3)}'),
+          isTrue,
+          reason: 'two houses on the same plot',
+        );
       }
     });
 
@@ -136,10 +155,16 @@ void main() {
           .where((b) => b.isLandmark && b.finished)
           .map((b) => b.name)
           .toList();
-      expect(names.length, greaterThanOrEqualTo(8),
-          reason: 'a year should meet a good handful of landmarks');
-      expect(names.toSet().length, names.length,
-          reason: 'and not the same one twice: \$names');
+      expect(
+        names.length,
+        greaterThanOrEqualTo(8),
+        reason: 'a year should meet a good handful of landmarks',
+      );
+      expect(
+        names.toSet().length,
+        names.length,
+        reason: 'and not the same one twice: \$names',
+      );
     });
   });
 
@@ -161,7 +186,10 @@ void main() {
     test('the town spreads slowly enough to stay one place', () {
       // A hundred times more achievements must not put the far side of town
       // a hundred times further away.
-      expect(TownLayout(9000, TownCharacter.all.first).radius, lessThan(TownLayout(90, TownCharacter.all.first).radius * 12));
+      expect(
+        TownLayout(9000, TownCharacter.all.first).radius,
+        lessThan(TownLayout(90, TownCharacter.all.first).radius * 12),
+      );
     });
   });
 
@@ -194,12 +222,20 @@ void main() {
       for (final l in landmarks) {
         final m = Mason(0, 0, 12345, true);
         l.build(m);
-        expect(m.count, greaterThanOrEqualTo(l.cost),
-            reason: '${l.name} lays ${m.count} pieces but costs ${l.cost}, so '
-                'the last ones would be padding');
-        expect(m.count, lessThanOrEqualTo(l.cost + 3),
-            reason: '${l.name} lays ${m.count} pieces but costs only ${l.cost}, '
-                'so it would never be finished');
+        expect(
+          m.count,
+          greaterThanOrEqualTo(l.cost),
+          reason:
+              '${l.name} lays ${m.count} pieces but costs ${l.cost}, so '
+              'the last ones would be padding',
+        );
+        expect(
+          m.count,
+          lessThanOrEqualTo(l.cost + 3),
+          reason:
+              '${l.name} lays ${m.count} pieces but costs only ${l.cost}, '
+              'so it would never be finished',
+        );
       }
     });
 
@@ -208,14 +244,19 @@ void main() {
         final m = Mason(0, 0, 999, true);
         l.build(m);
         final built = m.finish(l.cost);
-        expect(built.first.y0, lessThan(0.001),
-            reason: '${l.name} starts in the air');
+        expect(
+          built.first.y0,
+          lessThan(0.001),
+          reason: '${l.name} starts in the air',
+        );
         final tops = <double>[0];
         for (final s in built) {
-          final rests =
-              s.y0 < 0.02 || tops.any((t) => s.y0 < t + 0.03);
-          expect(rests, isTrue,
-              reason: '${l.name}: a ${s.kind.name} hangs at ${s.y0}');
+          final rests = s.y0 < 0.02 || tops.any((t) => s.y0 < t + 0.03);
+          expect(
+            rests,
+            isTrue,
+            reason: '${l.name}: a ${s.kind.name} hangs at ${s.y0}',
+          );
           tops.add(s.y1);
         }
       }
@@ -227,19 +268,25 @@ void main() {
         l.build(m);
         var reach = 0.0;
         for (final s in m.finish(l.cost)) {
-          final r = math.max(
-              s.cx.abs() + s.w / 2, s.cz.abs() + s.d / 2);
+          final r = math.max(s.cx.abs() + s.w / 2, s.cz.abs() + s.d / 2);
           if (r > reach) reach = r;
         }
-        expect(reach, closeTo(l.reach, 1e-9),
-            reason: '${l.name} does not know how far it reaches');
+        expect(
+          reach,
+          closeTo(l.reach, 1e-9),
+          reason: '${l.name} does not know how far it reaches',
+        );
         // The town keeps a fixed amount of room clear per tier. A recipe that
         // grows past it would be standing in its neighbours' plots — and the
         // room cannot simply be widened, because the spacing is what decides
         // where every later building goes.
-        expect(reach, lessThanOrEqualTo(l.room),
-            reason: '${l.name} sprawls ${reach.toStringAsFixed(2)}, past the '
-                '${l.room} its tier is given');
+        expect(
+          reach,
+          lessThanOrEqualTo(l.room),
+          reason:
+              '${l.name} sprawls ${reach.toStringAsFixed(2)}, past the '
+              '${l.room} its tier is given',
+        );
       }
     });
 
@@ -273,9 +320,13 @@ void main() {
             final u = built[j];
             held = u.y0 <= s.y0 + 0.03 && u.y1 > s.y0 - 0.03 && over(s, u);
           }
-          expect(held, isTrue,
-              reason: '\${l.name}: a \${s.kind.name} at \${s.y0.toStringAsFixed(2)} '
-                  'has nothing under it');
+          expect(
+            held,
+            isTrue,
+            reason:
+                '\${l.name}: a \${s.kind.name} at \${s.y0.toStringAsFixed(2)} '
+                'has nothing under it',
+          );
         }
       }
     });
@@ -324,8 +375,11 @@ void main() {
         expect(first.length, 10);
         roads.add(first.join(','));
       }
-      expect(roads.length, TownCharacter.all.length,
-          reason: 'dos plots construyen los mismos hitos en el mismo orden');
+      expect(
+        roads.length,
+        TownCharacter.all.length,
+        reason: 'dos plots construyen los mismos hitos en el mismo orden',
+      );
     });
 
     test('every town still opens with something worth waiting for', () {
@@ -339,8 +393,11 @@ void main() {
           if (TownPlan.isLandmarkSlot(b)) first.add(plan.landmarkFor(b).id);
         }
         for (final id in first) {
-          expect(dreary.contains(id), isFalse,
-              reason: '${c.region} abre con $id');
+          expect(
+            dreary.contains(id),
+            isFalse,
+            reason: '${c.region} abre con $id',
+          );
         }
       }
     });

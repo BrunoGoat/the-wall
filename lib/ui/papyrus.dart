@@ -22,22 +22,35 @@ class Papyrus {
 
   static const String serif = 'Chronicle';
 
-  static TextStyle body(double size, {FontWeight w = FontWeight.w400, Color? c}) =>
-      TextStyle(
-        fontFamily: serif,
-        color: c ?? ink,
-        fontSize: size,
-        height: 1.5,
-        fontWeight: w,
-      );
+  static TextStyle body(
+    double size, {
+    FontWeight w = FontWeight.w400,
+    Color? c,
+  }) => TextStyle(
+    fontFamily: serif,
+    color: c ?? ink,
+    fontSize: size,
+    height: 1.5,
+    fontWeight: w,
+  );
 
   /// Roman numerals, because a chronicle does not count in Arabic.
   static String roman(int n) {
     if (n <= 0) return '—';
     const table = <int, String>{
-      1000: 'M', 900: 'CM', 500: 'D', 400: 'CD',
-      100: 'C', 90: 'XC', 50: 'L', 40: 'XL',
-      10: 'X', 9: 'IX', 5: 'V', 4: 'IV', 1: 'I',
+      1000: 'M',
+      900: 'CM',
+      500: 'D',
+      400: 'CD',
+      100: 'C',
+      90: 'XC',
+      50: 'L',
+      40: 'XL',
+      10: 'X',
+      9: 'IX',
+      5: 'V',
+      4: 'IV',
+      1: 'I',
     };
     final b = StringBuffer();
     var left = n;
@@ -51,8 +64,18 @@ class Papyrus {
   }
 
   static const List<String> months = [
-    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+    'enero',
+    'febrero',
+    'marzo',
+    'abril',
+    'mayo',
+    'junio',
+    'julio',
+    'agosto',
+    'septiembre',
+    'octubre',
+    'noviembre',
+    'diciembre',
   ];
 
   /// "el XII día de marzo, año MMXXVI"
@@ -102,7 +125,8 @@ class PapyrusPainter extends CustomPainter {
         Offset(math.min(size.width, x0 + w), y + hashJitter(0.6, seed, 14, i)),
         Paint()
           ..color = Papyrus.fibre.withValues(
-              alpha: 0.035 + hash01(seed, 15, i) * 0.045)
+            alpha: 0.035 + hash01(seed, 15, i) * 0.045,
+          )
           ..strokeWidth = 0.7 + hash01(seed, 16, i) * 0.8,
       );
     }
@@ -114,7 +138,9 @@ class PapyrusPainter extends CustomPainter {
         Offset(x, y0),
         Offset(x + hashJitter(0.8, seed, 18, i), math.min(size.height, y0 + h)),
         Paint()
-          ..color = Papyrus.fibre.withValues(alpha: 0.025 + hash01(seed, 19, i) * 0.03)
+          ..color = Papyrus.fibre.withValues(
+            alpha: 0.025 + hash01(seed, 19, i) * 0.03,
+          )
           ..strokeWidth = 0.7,
       );
     }
@@ -154,7 +180,9 @@ class PapyrusPainter extends CustomPainter {
       canvas.drawRect(Rect.fromLTWH(0, y, w, size.height / 120 + 1), tear);
       final w2 = 1.5 + hash01(seed, 12, i) * 4.5;
       canvas.drawRect(
-          Rect.fromLTWH(size.width - w2, y, w2, size.height / 120 + 1), tear);
+        Rect.fromLTWH(size.width - w2, y, w2, size.height / 120 + 1),
+        tear,
+      );
     }
 
     canvas.restore();
@@ -321,10 +349,10 @@ class PapyrusEntry extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 4),
                   child: Text(
                     'enmendar',
-                    style: Papyrus.body(9.5, c: Papyrus.inkFaint).copyWith(
-                      letterSpacing: 1.1,
-                      fontStyle: FontStyle.italic,
-                    ),
+                    style: Papyrus.body(
+                      9.5,
+                      c: Papyrus.inkFaint,
+                    ).copyWith(letterSpacing: 1.1, fontStyle: FontStyle.italic),
                   ),
                 ),
               ),

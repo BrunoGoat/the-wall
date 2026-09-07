@@ -64,8 +64,11 @@ class TownLandmarkOverlay extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(_icons[mark.tier],
-                        size: 40, color: t.fg.withValues(alpha: 0.88)),
+                    Icon(
+                      _icons[mark.tier],
+                      size: 40,
+                      color: t.fg.withValues(alpha: 0.88),
+                    ),
                     const SizedBox(height: 14),
                     Text(
                       'HITO $ordinal DEL PUEBLO',
@@ -163,8 +166,18 @@ class StoneCard extends StatelessWidget {
   final VoidCallback onClose;
 
   static const _months = [
-    'ene', 'feb', 'mar', 'abr', 'may', 'jun',
-    'jul', 'ago', 'sep', 'oct', 'nov', 'dic'
+    'ene',
+    'feb',
+    'mar',
+    'abr',
+    'may',
+    'jun',
+    'jul',
+    'ago',
+    'sep',
+    'oct',
+    'nov',
+    'dic',
   ];
 
   static String formatDate(DateTime w) =>
@@ -207,8 +220,11 @@ class StoneCard extends StatelessWidget {
                       : Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.edit_outlined,
-                                size: 15, color: t.accent),
+                            Icon(
+                              Icons.edit_outlined,
+                              size: 15,
+                              color: t.accent,
+                            ),
                             const SizedBox(width: 7),
                             Text(
                               'escribir una leyenda',
@@ -276,8 +292,9 @@ class LabelSheet extends StatefulWidget {
 }
 
 class _LabelSheetState extends State<LabelSheet> {
-  late final TextEditingController _ctl =
-      TextEditingController(text: widget.initial ?? '');
+  late final TextEditingController _ctl = TextEditingController(
+    text: widget.initial ?? '',
+  );
 
   @override
   void dispose() {
@@ -289,7 +306,9 @@ class _LabelSheetState extends State<LabelSheet> {
   Widget build(BuildContext context) {
     final t = widget.theme;
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Container(
         padding: const EdgeInsets.fromLTRB(22, 18, 22, 26),
         decoration: BoxDecoration(
@@ -331,10 +350,12 @@ class _LabelSheetState extends State<LabelSheet> {
                 hintText: 'Leí',
                 hintStyle: TextStyle(color: t.fgFaint),
                 counterStyle: TextStyle(color: t.fgFaint, fontSize: 10),
-                enabledBorder:
-                    UnderlineInputBorder(borderSide: BorderSide(color: t.stroke)),
-                focusedBorder:
-                    UnderlineInputBorder(borderSide: BorderSide(color: t.accent)),
+                enabledBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: t.stroke),
+                ),
+                focusedBorder: UnderlineInputBorder(
+                  borderSide: BorderSide(color: t.accent),
+                ),
               ),
             ),
             const SizedBox(height: 10),
@@ -380,6 +401,7 @@ class TravelScrubber extends StatelessWidget {
   final UiTheme theme;
   final double length;
   final double travel;
+
   /// x positions of landmarks along the wall.
   final List<double> marks;
   final void Function(double x) onSeek;
@@ -387,29 +409,31 @@ class TravelScrubber extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (length < 12) return const SizedBox.shrink();
-    return LayoutBuilder(builder: (context, cons) {
-      final w = cons.maxWidth;
-      void seek(Offset local) {
-        onSeek(((local.dx / w).clamp(0.0, 1.0)) * length);
-      }
+    return LayoutBuilder(
+      builder: (context, cons) {
+        final w = cons.maxWidth;
+        void seek(Offset local) {
+          onSeek(((local.dx / w).clamp(0.0, 1.0)) * length);
+        }
 
-      return GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (d) => seek(d.localPosition),
-        onHorizontalDragUpdate: (d) => seek(d.localPosition),
-        child: SizedBox(
-          height: 26,
-          child: CustomPaint(
-            painter: _ScrubberPainter(
-              theme: theme,
-              length: length,
-              travel: travel,
-              marks: marks,
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (d) => seek(d.localPosition),
+          onHorizontalDragUpdate: (d) => seek(d.localPosition),
+          child: SizedBox(
+            height: 26,
+            child: CustomPaint(
+              painter: _ScrubberPainter(
+                theme: theme,
+                length: length,
+                travel: travel,
+                marks: marks,
+              ),
             ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
   }
 }
 
@@ -462,7 +486,9 @@ class _ScrubberPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ScrubberPainter old) =>
-      old.travel != travel || old.length != length || old.marks.length != marks.length;
+      old.travel != travel ||
+      old.length != length ||
+      old.marks.length != marks.length;
 }
 
 /// A ring that fills as today's target for one habit is met.
@@ -481,10 +507,10 @@ class ProgressRing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-        width: size,
-        height: size,
-        child: CustomPaint(painter: _RingPainter(progress, color, track)),
-      );
+    width: size,
+    height: size,
+    child: CustomPaint(painter: _RingPainter(progress, color, track)),
+  );
 }
 
 class _RingPainter extends CustomPainter {

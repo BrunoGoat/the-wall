@@ -15,10 +15,12 @@ void main() {
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-    statusBarColor: Colors.transparent,
-    systemNavigationBarColor: Colors.transparent,
-  ));
+  SystemChrome.setSystemUIOverlayStyle(
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      systemNavigationBarColor: Colors.transparent,
+    ),
+  );
   // The first frame goes up straight away; loading happens behind it, so a
   // slow disk can never turn into a blank screen.
   runApp(const PuebloApp());
@@ -77,8 +79,7 @@ class _PuebloAppState extends State<PuebloApp> {
     Sensory.instance.init();
   }
 
-  static const int _gallery =
-      int.fromEnvironment('GALLERY', defaultValue: -1);
+  static const int _gallery = int.fromEnvironment('GALLERY', defaultValue: -1);
 
   @override
   Widget build(BuildContext context) {
@@ -98,9 +99,11 @@ class _PuebloAppState extends State<PuebloApp> {
       home: !store.loaded
           ? const _Opening()
           : (_gallery >= 0
-              ? GalleryScreen(theme: UiTheme(Palette.forMoment(11, 1)),
-                  start: _gallery)
-              : HomeScreen(store: store)),
+                ? GalleryScreen(
+                    theme: UiTheme(Palette.forMoment(11, 1)),
+                    start: _gallery,
+                  )
+                : HomeScreen(store: store)),
     );
   }
 }

@@ -97,10 +97,6 @@ class TownScene {
 
   final PlacementFx? fx;
 
-
-
-
-
   /// Every town in the valley, one per habit, and which of them is the one
   /// being built right now. They are all drawn: the whole point of a valley
   /// with several towns in it is being able to look at them together.
@@ -215,11 +211,10 @@ class TownPainter extends CustomPainter {
     final rect = Rect.fromLTWH(0, 0, size.width, size.height);
     final span = math.max(1.0, hy - top);
     final paint = Paint()
-      ..shader = ui.Gradient.linear(
-        Offset(0, hy - span),
-        Offset(0, hy),
-        [pal.skyTop, pal.skyHorizon],
-      );
+      ..shader = ui.Gradient.linear(Offset(0, hy - span), Offset(0, hy), [
+        pal.skyTop,
+        pal.skyHorizon,
+      ]);
     canvas.drawRect(rect, paint);
 
     if (pal.starAlpha > 0.02) _drawStars(canvas, size, p, horizonY);
@@ -233,7 +228,10 @@ class TownPainter extends CustomPainter {
           ..shader = ui.Gradient.linear(
             Offset(0, hy - h * 0.22),
             Offset(0, hy),
-            [pal.skyHorizon.withValues(alpha: 0), pal.haze.withValues(alpha: 0.85)],
+            [
+              pal.skyHorizon.withValues(alpha: 0),
+              pal.haze.withValues(alpha: 0.85),
+            ],
           ),
       );
     }
@@ -244,7 +242,11 @@ class TownPainter extends CustomPainter {
     for (var i = 0; i < 130; i++) {
       final az = hash01(i, 3) * math.pi * 2;
       final el = 0.06 + hash01(i, 5) * 1.4;
-      final d = V3(math.sin(az) * math.cos(el), math.sin(el), math.cos(az) * math.cos(el));
+      final d = V3(
+        math.sin(az) * math.cos(el),
+        math.sin(el),
+        math.cos(az) * math.cos(el),
+      );
       final den = d.dot(p.forward);
       if (den <= 0.05) continue;
       final sx = p.cx + p.focal * d.dot(p.right) / den;
@@ -252,7 +254,8 @@ class TownPainter extends CustomPainter {
       if (sx < 0 || sx > size.width || sy < 0 || sy > horizonY) continue;
       final tw = 0.55 + 0.45 * math.sin(scene.time * 1.7 + i * 2.1);
       paint.color = Colors.white.withValues(
-          alpha: (0.25 + 0.55 * hash01(i, 9)) * tw * scene.palette.starAlpha);
+        alpha: (0.25 + 0.55 * hash01(i, 9)) * tw * scene.palette.starAlpha,
+      );
       canvas.drawCircle(Offset(sx, sy), 0.6 + hash01(i, 11) * 1.1, paint);
     }
   }
@@ -281,13 +284,20 @@ class TownPainter extends CustomPainter {
       Offset(sx, sy),
       r * glow * (1 + low * 0.5),
       Paint()
-        ..shader = ui.Gradient.radial(Offset(sx, sy), r * glow * (1 + low * 0.5), [
-          disc.withValues(alpha: day ? 0.32 : 0.20),
-          disc.withValues(alpha: 0.0),
-        ]),
+        ..shader = ui.Gradient.radial(
+          Offset(sx, sy),
+          r * glow * (1 + low * 0.5),
+          [
+            disc.withValues(alpha: day ? 0.32 : 0.20),
+            disc.withValues(alpha: 0.0),
+          ],
+        ),
     );
     canvas.drawCircle(
-        Offset(sx, sy), r, Paint()..color = disc.withValues(alpha: 0.94));
+      Offset(sx, sy),
+      r,
+      Paint()..color = disc.withValues(alpha: 0.94),
+    );
     if (!day) {
       // A bite out of the disc, so it reads as a moon and not a pale sun.
       canvas.drawCircle(
@@ -315,8 +325,11 @@ class TownPainter extends CustomPainter {
         : pal.groundFar;
     canvas.drawRect(
       rect,
-      Paint()..shader = ui.Gradient.linear(
-          Offset(0, hy), Offset(0, size.height), [far, near]),
+      Paint()
+        ..shader = ui.Gradient.linear(Offset(0, hy), Offset(0, size.height), [
+          far,
+          near,
+        ]),
     );
   }
 
@@ -391,11 +404,10 @@ class TownPainter extends CustomPainter {
         final c = isLit ? lit : body;
         final top = math.min(crest, cut - 1);
         return Paint()
-          ..shader = ui.Gradient.linear(
-            Offset(0, top),
-            Offset(0, cut),
-            [c, Color.lerp(c, pal.haze, 0.42 + 0.12 * (2 - li) / 2)!],
-          );
+          ..shader = ui.Gradient.linear(Offset(0, top), Offset(0, cut), [
+            c,
+            Color.lerp(c, pal.haze, 0.42 + 0.12 * (2 - li) / 2)!,
+          ]);
       }
 
       void close() {
@@ -418,11 +430,13 @@ class TownPainter extends CustomPainter {
           look + dx * layer.radius,
           dz * layer.radius,
         );
-        final top = p.project(V3(
-          p.eye.x + dx * layer.radius,
-          math.max(h, layer.base),
-          p.eye.z + dz * layer.radius,
-        ));
+        final top = p.project(
+          V3(
+            p.eye.x + dx * layer.radius,
+            math.max(h, layer.base),
+            p.eye.z + dz * layer.radius,
+          ),
+        );
         if (top == null) {
           close();
           continue;
@@ -468,8 +482,15 @@ class TownPainter extends CustomPainter {
 
   // ------------------------------------------------------------- far wall
 
-  void _quad(Projector p, V3 a, V3 b, V3 c, V3 d, int color,
-      {double? depthOverride}) {
+  void _quad(
+    Projector p,
+    V3 a,
+    V3 b,
+    V3 c,
+    V3 d,
+    int color, {
+    double? depthOverride,
+  }) {
     final pts = [a, b, c, d];
     for (var i = 0; i < 4; i++) {
       final cp = p.cameraOf(pts[i]);
@@ -481,8 +502,14 @@ class TownPainter extends CustomPainter {
   }
 
   /// Clips a camera-space polygon, projects it and stores it for sorting.
-  void _emit(Projector p, Float64List cam, int count, int color,
-      {bool outline = false, double? depthOverride}) {
+  void _emit(
+    Projector p,
+    Float64List cam,
+    int count,
+    int color, {
+    bool outline = false,
+    double? depthOverride,
+  }) {
     final m = clipNear(cam, count, _clipB, p.near);
     if (m < 3) return;
     final f = _nextFace();
@@ -513,13 +540,15 @@ class TownPainter extends CustomPainter {
       if (y > maxY) maxY = y;
     }
     if (maxX < 0 || minX > size.width || maxY < 0 || minY > size.height) return;
-    picks.add(PickTarget(
-      brickIndex,
-      (minX + maxX) / 2,
-      (minY + maxY) / 2,
-      math.max(6.0, math.max(maxX - minX, maxY - minY) * 0.55),
-      scene.labelledBricks.contains(brickIndex),
-    ));
+    picks.add(
+      PickTarget(
+        brickIndex,
+        (minX + maxX) / 2,
+        (minY + maxY) / 2,
+        math.max(6.0, math.max(maxX - minX, maxY - minY) * 0.55),
+        scene.labelledBricks.contains(brickIndex),
+      ),
+    );
   }
 
   // ------------------------------------------------------------------ town
@@ -550,9 +579,10 @@ class TownPainter extends CustomPainter {
     // A tidy square of grey reads as a concrete slab, which is the one thing a
     // medieval town must never look like.
     final pad = Color.lerp(
-        Color.lerp(pal.ground, const Color(0xFFB0946C), 0.72)!,
-        pal.skyLight,
-        0.10)!;
+      Color.lerp(pal.ground, const Color(0xFFB0946C), 0.72)!,
+      pal.skyLight,
+      0.10,
+    )!;
     final half = town.plotPitch * 0.46;
     for (final b in town.buildings) {
       if (b.placedPieces <= 0) continue;
@@ -565,7 +595,12 @@ class TownPainter extends CustomPainter {
         final a = i * math.pi / 4;
         final r = half * hashRange(0.78, 1.12, s, 40, i);
         final at = p.project(
-            V3(b.cx + math.cos(a) * r * 1.32, 0.004, b.cz + math.sin(a) * r * 1.32));
+          V3(
+            b.cx + math.cos(a) * r * 1.32,
+            0.004,
+            b.cz + math.sin(a) * r * 1.32,
+          ),
+        );
         if (at == null) {
           started = false;
           break;
@@ -595,11 +630,13 @@ class TownPainter extends CustomPainter {
     for (final b in town.buildings) {
       if (b.placedPieces <= 0 || b.peakY <= 0.05) continue;
       final h = b.peakY;
-      final at = p.project(V3(
-        b.cx - light.x * drop * h * 0.35,
-        0.006,
-        b.cz - light.z * drop * h * 0.35,
-      ));
+      final at = p.project(
+        V3(
+          b.cx - light.x * drop * h * 0.35,
+          0.006,
+          b.cz - light.z * drop * h * 0.35,
+        ),
+      );
       if (at == null) continue;
       final r = p.focal / at.depth * (1.3 + h * 0.18);
       if (r < 2) continue;
@@ -641,20 +678,19 @@ class TownPainter extends CustomPainter {
       return q == null ? null : Offset(q.x, q.y);
     }
 
-    final lo = [
-      at(x0, y0, z0), at(x1, y0, z0), at(x1, y0, z1), at(x0, y0, z1),
-    ];
-    final hi = [
-      at(x0, y1, z0), at(x1, y1, z0), at(x1, y1, z1), at(x0, y1, z1),
-    ];
+    final lo = [at(x0, y0, z0), at(x1, y0, z0), at(x1, y0, z1), at(x0, y0, z1)];
+    final hi = [at(x0, y1, z0), at(x1, y1, z0), at(x1, y1, z1), at(x0, y1, z1)];
     if (lo.contains(null) || hi.contains(null)) return;
 
     final line = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.1 + charge * 1.6
       ..strokeCap = StrokeCap.round
-      ..color = Color.lerp(pal.accent, Colors.white, 0.35 + charge * 0.4)!
-          .withValues(alpha: alpha);
+      ..color = Color.lerp(
+        pal.accent,
+        Colors.white,
+        0.35 + charge * 0.4,
+      )!.withValues(alpha: alpha);
 
     // Only the uprights and the top: a full cage reads as a bug report.
     final path = Path();
@@ -677,15 +713,19 @@ class TownPainter extends CustomPainter {
     final foot = at(piece.cx, math.max(0.02, y0), piece.cz);
     if (foot != null) {
       final q = p.cameraOf(V3(piece.cx, y0, piece.cz));
-      final r = p.focal / q.z * math.max(piece.w, piece.d) * (0.7 + charge * 0.3);
+      final r =
+          p.focal / q.z * math.max(piece.w, piece.d) * (0.7 + charge * 0.3);
       if (r > 2) {
         canvas.drawCircle(
           foot,
           r,
           Paint()
             ..shader = ui.Gradient.radial(foot, r, [
-              Color.lerp(pal.accent, Colors.white, 0.5)!
-                  .withValues(alpha: 0.10 + charge * 0.30),
+              Color.lerp(
+                pal.accent,
+                Colors.white,
+                0.5,
+              )!.withValues(alpha: 0.10 + charge * 0.30),
               const Color(0x00000000),
             ]),
         );
@@ -695,18 +735,30 @@ class TownPainter extends CustomPainter {
 
   /// The ring that runs out across the ground when something lands or is
   /// finished. Two lines and it is the thing the eye actually follows.
-  void _drawRings(Canvas canvas, Projector p, TownLayout town,
-      {required bool overlay}) {
+  void _drawRings(
+    Canvas canvas,
+    Projector p,
+    TownLayout town, {
+    required bool overlay,
+  }) {
     final pal = scene.palette;
 
-    void ring(double cx, double cz, double r, double alpha, Color c,
-        double width) {
+    void ring(
+      double cx,
+      double cz,
+      double r,
+      double alpha,
+      Color c,
+      double width,
+    ) {
       if (alpha <= 0.01 || r <= 0.02) return;
       const steps = 28;
       final path = Path();
       for (var i = 0; i <= steps; i++) {
         final a = i * 2 * math.pi / steps;
-        final at = p.project(V3(cx + math.cos(a) * r, 0.02, cz + math.sin(a) * r));
+        final at = p.project(
+          V3(cx + math.cos(a) * r, 0.02, cz + math.sin(a) * r),
+        );
         if (at == null) return;
         if (i == 0) {
           path.moveTo(at.x, at.y);
@@ -760,8 +812,14 @@ class TownPainter extends CustomPainter {
       final piece = town.pieceFor(fx.brickIndex);
       if (piece != null) {
         final t = clampD(fx.sinceImpact / 0.55, 0, 1);
-        ring(piece.cx, piece.cz, 0.25 + t * 2.1, (1 - t) * (1 - t) * 0.55,
-            Color.lerp(pal.stoneWarm, Colors.white, 0.4)!, 2.4);
+        ring(
+          piece.cx,
+          piece.cz,
+          0.25 + t * 2.1,
+          (1 - t) * (1 - t) * 0.55,
+          Color.lerp(pal.stoneWarm, Colors.white, 0.4)!,
+          2.4,
+        );
       }
     }
 
@@ -775,9 +833,14 @@ class TownPainter extends CustomPainter {
         final t = clampD((scene.finishedAge - i * 0.22) / 1.5, 0, 1);
         if (t <= 0) continue;
         final ease = 1 - math.pow(1 - t, 3).toDouble();
-        ring(b.cx, b.cz, 0.4 + ease * (b.isLandmark ? 7.5 : 4.4),
-            (1 - t) * (1 - t) * (b.isLandmark ? 0.85 : 0.6),
-            const Color(0xFFF2C25B), b.isLandmark ? 3.0 : 2.2);
+        ring(
+          b.cx,
+          b.cz,
+          0.4 + ease * (b.isLandmark ? 7.5 : 4.4),
+          (1 - t) * (1 - t) * (b.isLandmark ? 0.85 : 0.6),
+          const Color(0xFFF2C25B),
+          b.isLandmark ? 3.0 : 2.2,
+        );
       }
     }
   }
@@ -795,15 +858,16 @@ class TownPainter extends CustomPainter {
       if (x < -r || x > size.width + r || y < -r || y > size.height + r) {
         continue;
       }
-      paint.shader = ui.Gradient.radial(Offset(x, y), r, [
-        warm.withValues(alpha: 0.16 * k),
-        warm.withValues(alpha: 0.055 * k),
-        const Color(0x00000000),
-      ], [
-        0.0,
-        0.38,
-        1.0,
-      ]);
+      paint.shader = ui.Gradient.radial(
+        Offset(x, y),
+        r,
+        [
+          warm.withValues(alpha: 0.16 * k),
+          warm.withValues(alpha: 0.055 * k),
+          const Color(0x00000000),
+        ],
+        [0.0, 0.38, 1.0],
+      );
       canvas.drawCircle(Offset(x, y), r, paint);
     }
   }
@@ -877,8 +941,9 @@ class TownPainter extends CustomPainter {
       canvas.drawRRect(
         RRect.fromRectAndRadius(box, const Radius.circular(13)),
         Paint()
-          ..color = (dark ? Colors.black : Colors.white)
-              .withValues(alpha: (on ? 0.30 : 0.20) * near),
+          ..color = (dark ? Colors.black : Colors.white).withValues(
+            alpha: (on ? 0.30 : 0.20) * near,
+          ),
       );
       if (on) {
         canvas.drawRRect(
@@ -920,8 +985,7 @@ class TownPainter extends CustomPainter {
             const Color(0xFF8E7A63),
             const Color(0xFFF2C25B),
             alive,
-          )!
-              .withValues(alpha: (0.35 + 0.6 * alive) * near),
+          )!.withValues(alpha: (0.35 + 0.6 * alive) * near),
       );
     }
   }
@@ -969,11 +1033,16 @@ class TownPainter extends CustomPainter {
           ..moveTo(at.x - s, at.y - lift * 0.4)
           ..quadraticBezierTo(at.x - s * 0.4, at.y - lift, at.x, at.y)
           ..quadraticBezierTo(
-              at.x + s * 0.4, at.y - lift, at.x + s, at.y - lift * 0.4);
+            at.x + s * 0.4,
+            at.y - lift,
+            at.x + s,
+            at.y - lift * 0.4,
+          );
         canvas.drawPath(path, paint);
       }
     }
   }
+
   /// Every town in the valley, nearest piece first so the budget is spent
   /// where the eye is. One ordering across all of them, so a far town cannot
   /// eat the near one's detail.
@@ -1015,6 +1084,7 @@ class TownPainter extends CustomPainter {
       final dx = q.cx - p.eye.x, dz = q.cz - p.eye.z;
       return dx * dx + dz * dz;
     }
+
     idx.sort((a, b) => far(a).compareTo(far(b)));
 
     for (var k = 0; k < idx.length && k < scene.budget; k++) {
@@ -1042,8 +1112,19 @@ class TownPainter extends CustomPainter {
         // makes putting one down feel like anything at all.
         squash = fx.squash.$2;
       }
-      _emitPiece(p, e.layout, piece, pal, light, decay, night, lift, flash,
-          size, squash: squash);
+      _emitPiece(
+        p,
+        e.layout,
+        piece,
+        pal,
+        light,
+        decay,
+        night,
+        lift,
+        flash,
+        size,
+        squash: squash,
+      );
     }
   }
 
@@ -1087,8 +1168,8 @@ class TownPainter extends CustomPainter {
       return _weather(c, decay, s);
     }
 
-    Color stone() => _weather(
-        Color.lerp(pal.stoneCool, pal.stone, 0.55)!, decay, s);
+    Color stone() =>
+        _weather(Color.lerp(pal.stoneCool, pal.stone, 0.55)!, decay, s);
 
     /// Tile, slate or thatch, in whatever mix this town roofs with.
     Color roofColour() {
@@ -1097,8 +1178,8 @@ class TownPainter extends CustomPainter {
       final base = t < tile
           ? const Color(0xFFC05C38)
           : (t < tile + slate
-              ? const Color(0xFF5B6B72)
-              : const Color(0xFFA8853A));
+                ? const Color(0xFF5B6B72)
+                : const Color(0xFFA8853A));
       return _weather(Color.lerp(base, pal.stone, 0.08)!, decay, s);
     }
 
@@ -1108,31 +1189,92 @@ class TownPainter extends CustomPainter {
       case PieceKind.spire:
         _emitPyramid(p, piece, y0, y1, roofColour(), light, pal, flash);
       case PieceKind.plinth:
-        _emitBox(p, piece, y0, y1,
-            _weather(Color.lerp(pal.stoneCool, pal.stone, 0.5)!, decay, s),
-            light, pal, 0.86, flash, size);
+        _emitBox(
+          p,
+          piece,
+          y0,
+          y1,
+          _weather(Color.lerp(pal.stoneCool, pal.stone, 0.5)!, decay, s),
+          light,
+          pal,
+          0.86,
+          flash,
+          size,
+        );
       case PieceKind.chimney:
-        _emitBox(p, piece, y0, y1,
-            _weather(const Color(0xFF8C6A52), decay, s), light, pal, 0.92,
-            flash, size);
+        _emitBox(
+          p,
+          piece,
+          y0,
+          y1,
+          _weather(const Color(0xFF8C6A52), decay, s),
+          light,
+          pal,
+          0.92,
+          flash,
+          size,
+        );
       case PieceKind.parapet:
-        _emitBox(p, piece, y0, y1,
-            _weather(Color.lerp(pal.stoneCool, pal.stone, 0.62)!, decay, s),
-            light, pal, 0.95, flash, size);
+        _emitBox(
+          p,
+          piece,
+          y0,
+          y1,
+          _weather(Color.lerp(pal.stoneCool, pal.stone, 0.62)!, decay, s),
+          light,
+          pal,
+          0.95,
+          flash,
+          size,
+        );
       case PieceKind.dormer:
         // A window in the roof, not a crate on it: a low front with a small
         // roof of its own, turned across the slope it comes out of. Same one
         // achievement, same place, only drawn as the thing it is.
         final eaves = y0 + (y1 - y0) * 0.58;
-        _emitBox(p, piece, y0, eaves, wall(), light, pal, 0.95, flash, size,
-            lid: false);
-        _emitGable(p, piece, eaves, y1, roofColour(), light, pal, 1.0, flash,
-            along: !piece.alongX);
+        _emitBox(
+          p,
+          piece,
+          y0,
+          eaves,
+          wall(),
+          light,
+          pal,
+          0.95,
+          flash,
+          size,
+          lid: false,
+        );
+        _emitGable(
+          p,
+          piece,
+          eaves,
+          y1,
+          roofColour(),
+          light,
+          pal,
+          1.0,
+          flash,
+          along: !piece.alongX,
+        );
       case PieceKind.porch:
         _emitBox(p, piece, y0, y1, wall(), light, pal, 0.9, flash, size);
       case PieceKind.floor:
-        _emitBox(p, piece, y0, y1, wall(), light, pal, 1.0, flash, size,
-            windows: true, night: night, decay: decay);
+        _emitBox(
+          p,
+          piece,
+          y0,
+          y1,
+          wall(),
+          light,
+          pal,
+          1.0,
+          flash,
+          size,
+          windows: true,
+          night: night,
+          decay: decay,
+        );
       case PieceKind.dome:
         _emitDome(p, piece, y0, y1, roofColour(), light, pal, flash);
       case PieceKind.arcade:
@@ -1173,7 +1315,8 @@ class TownPainter extends CustomPainter {
 
   /// How hard it is blowing just now, so there are calm spells and gusty ones
   /// instead of one endless breeze.
-  double get _windForce => 0.42 + 0.58 * (0.5 + 0.5 * math.sin(scene.time * 0.31));
+  double get _windForce =>
+      0.42 + 0.58 * (0.5 + 0.5 * math.sin(scene.time * 0.31));
 
   // ------------------------------------------------- the landmark vocabulary
 
@@ -1198,8 +1341,11 @@ class TownPainter extends CustomPainter {
       final t = ring / rings;
       final k = math.cos(t * math.pi / 2);
       final a = i * 2 * math.pi / sides;
-      return V3(cx + math.cos(a) * rx * k, y0 + math.sin(t * math.pi / 2) * rise,
-          cz + math.sin(a) * rz * k);
+      return V3(
+        cx + math.cos(a) * rx * k,
+        y0 + math.sin(t * math.pi / 2) * rise,
+        cz + math.sin(a) * rz * k,
+      );
     }
 
     for (var ring = 0; ring < rings; ring++) {
@@ -1208,12 +1354,25 @@ class TownPainter extends CustomPainter {
         final c = at(ring + 1, i + 1), d = at(ring + 1, i);
         final ang = (i + 0.5) * 2 * math.pi / sides;
         final up = (ring + 0.5) / rings;
-        final n = V3(math.cos(ang) * (1 - up * 0.75), 0.35 + up * 0.9,
-                math.sin(ang) * (1 - up * 0.75))
-            .normalized;
-        _quad(p, a, b, c, d,
-            _hazeAt(_shade(n, albedo, light, pal, 1.0, flash, 0), p, cx, cz, pal)
-                .toARGB32());
+        final n = V3(
+          math.cos(ang) * (1 - up * 0.75),
+          0.35 + up * 0.9,
+          math.sin(ang) * (1 - up * 0.75),
+        ).normalized;
+        _quad(
+          p,
+          a,
+          b,
+          c,
+          d,
+          _hazeAt(
+            _shade(n, albedo, light, pal, 1.0, flash, 0),
+            p,
+            cx,
+            cz,
+            pal,
+          ).toARGB32(),
+        );
       }
     }
   }
@@ -1243,16 +1402,40 @@ class TownPainter extends CustomPainter {
 
     // The band over the arches.
     final headY = y0 + ht * 0.72;
-    _emitSlab(p, piece.cx, piece.cz, piece.w, piece.d, headY, y1, albedo, light,
-        pal, 1.0, flash);
+    _emitSlab(
+      p,
+      piece.cx,
+      piece.cz,
+      piece.w,
+      piece.d,
+      headY,
+      y1,
+      albedo,
+      light,
+      pal,
+      1.0,
+      flash,
+    );
 
     final dark = Color.lerp(pal.ink, albedo, 0.22)!;
     for (var i = 0; i <= n; i++) {
       final c = start - step / 2 + i * step;
       final px = along ? c : piece.cx;
       final pz = along ? piece.cz : c;
-      _emitSlab(p, px, pz, along ? pierW : piece.w, along ? piece.d : pierW, y0,
-          headY, albedo, light, pal, 0.92, flash);
+      _emitSlab(
+        p,
+        px,
+        pz,
+        along ? pierW : piece.w,
+        along ? piece.d : pierW,
+        y0,
+        headY,
+        albedo,
+        light,
+        pal,
+        0.92,
+        flash,
+      );
     }
     // The shadow inside each opening, on whichever face the camera can see.
     for (var i = 0; i < n; i++) {
@@ -1260,14 +1443,24 @@ class TownPainter extends CustomPainter {
       final w = step - pierW;
       if (along) {
         final z = e.z > piece.cz ? piece.z1 + 0.004 : piece.z0 - 0.004;
-        _quad(p, V3(c - w / 2, y0, z), V3(c + w / 2, y0, z),
-            V3(c + w / 2, headY, z), V3(c - w / 2, headY, z),
-            _hazeAt(dark, p, piece.cx, piece.cz, pal).toARGB32());
+        _quad(
+          p,
+          V3(c - w / 2, y0, z),
+          V3(c + w / 2, y0, z),
+          V3(c + w / 2, headY, z),
+          V3(c - w / 2, headY, z),
+          _hazeAt(dark, p, piece.cx, piece.cz, pal).toARGB32(),
+        );
       } else {
         final x = e.x > piece.cx ? piece.x1 + 0.004 : piece.x0 - 0.004;
-        _quad(p, V3(x, y0, c - w / 2), V3(x, y0, c + w / 2),
-            V3(x, headY, c + w / 2), V3(x, headY, c - w / 2),
-            _hazeAt(dark, p, piece.cx, piece.cz, pal).toARGB32());
+        _quad(
+          p,
+          V3(x, y0, c - w / 2),
+          V3(x, y0, c + w / 2),
+          V3(x, headY, c + w / 2),
+          V3(x, headY, c - w / 2),
+          _hazeAt(dark, p, piece.cx, piece.cz, pal).toARGB32(),
+        );
       }
     }
     _registerPickAt(p, piece, size, (y0 + y1) / 2);
@@ -1311,7 +1504,12 @@ class TownPainter extends CustomPainter {
 
   /// Ploughed rows, and the crop standing in them rippling with the wind.
   void _emitField(
-      Projector p, TownPiece piece, double y0, Palette pal, double decay) {
+    Projector p,
+    TownPiece piece,
+    double y0,
+    Palette pal,
+    double decay,
+  ) {
     final s = piece.seed;
     // Real crop colours rather than a wash of the ground tone: young green,
     // ripe barley, the deep green of a kitchen garden.
@@ -1329,14 +1527,18 @@ class TownPainter extends CustomPainter {
     for (var i = 0; i < rows; i++) {
       final lean = _gust(piece.cx, piece.cz, i * 0.5) * sway;
       final a = (i + 0.10) / rows, b = (i + 0.86) / rows;
-      final ripe = Color.lerp(crop, const Color(0xFFE0C86A),
-          0.18 * (0.5 + 0.5 * _gust(piece.cx, piece.cz, i * 0.9)))!;
+      final ripe = Color.lerp(
+        crop,
+        const Color(0xFFE0C86A),
+        0.18 * (0.5 + 0.5 * _gust(piece.cx, piece.cz, i * 0.9)),
+      )!;
       final c = _hazeAt(
-          Color.lerp(i.isEven ? ripe : soil, pal.ground, decay * 0.45)!,
-          p,
-          piece.cx,
-          piece.cz,
-          pal);
+        Color.lerp(i.isEven ? ripe : soil, pal.ground, decay * 0.45)!,
+        p,
+        piece.cx,
+        piece.cz,
+        pal,
+      );
       // The crop stands a little proud of the soil, and leans.
       final h = i.isEven ? y + 0.10 : y;
       final push = i.isEven ? lean : 0.0;
@@ -1366,14 +1568,22 @@ class TownPainter extends CustomPainter {
   /// Standing water: a colour of its own, bands of light running across it,
   /// and foam where it meets the bank.
   void _emitWater(
-      Projector p, TownPiece piece, double y0, Palette pal, bool night) {
+    Projector p,
+    TownPiece piece,
+    double y0,
+    Palette pal,
+    bool night,
+  ) {
     final y = y0 + 0.05;
     final deep = night ? const Color(0xFF1E3A52) : const Color(0xFF35707B);
     final lit = night ? const Color(0xFF33556F) : const Color(0xFF5C9AA0);
     // Foam is water with air in it, not paint: it keeps the water's own colour
     // underneath, which is what stops it reading as a white sticker.
     final foam = Color.lerp(
-        night ? const Color(0xFF8FA4B8) : const Color(0xFFE8F4F2), deep, 0.32)!;
+      night ? const Color(0xFF8FA4B8) : const Color(0xFFE8F4F2),
+      deep,
+      0.32,
+    )!;
     final cx = piece.cx, cz = piece.cz;
 
     int tint(Color c) => _hazeAt(c, p, cx, cz, pal).toARGB32();
@@ -1405,15 +1615,20 @@ class TownPainter extends CustomPainter {
       final thick = d * (0.05 + 0.03 * math.sin(scene.time * 1.1 + i));
       if (z + thick > piece.z1) continue;
       final inset = w * 0.06;
-      plate(piece.x0 + inset, piece.x1 - inset, z, z + thick,
-          y + 0.004 + i * 0.002, Color.lerp(deep, lit, 0.55)!);
+      plate(
+        piece.x0 + inset,
+        piece.x1 - inset,
+        z,
+        z + thick,
+        y + 0.004 + i * 0.002,
+        Color.lerp(deep, lit, 0.55)!,
+      );
     }
 
     // Foam: a frill round the edge that breathes with the wind, so still water
     // still looks alive.
     final swell = 0.014 + 0.012 * _windForce;
-    final rim = math.min(
-        math.min(w, d) * (0.05 + 0.025 * _windForce), 0.13);
+    final rim = math.min(math.min(w, d) * (0.05 + 0.025 * _windForce), 0.13);
     if (rim < 0.02) return;
     final fy = y + 0.012;
     for (var side = 0; side < 4; side++) {
@@ -1432,8 +1647,14 @@ class TownPainter extends CustomPainter {
     // And a lick of white further in on the windward side.
     final lick = rim * 0.6 * (0.5 + 0.5 * math.sin(scene.time * 1.7));
     if (lick > 0.01) {
-      plate(piece.x0 + rim, piece.x1 - rim, piece.z0 + rim,
-          piece.z0 + rim + lick, y + swell, foam);
+      plate(
+        piece.x0 + rim,
+        piece.x1 - rim,
+        piece.z0 + rim,
+        piece.z0 + rim + lick,
+        y + swell,
+        foam,
+      );
     }
   }
 
@@ -1462,12 +1683,48 @@ class TownPainter extends CustomPainter {
     final autumn = Color.lerp(settled, const Color(0xFF8A6E42), decay * 0.6)!;
     final bark = const Color(0xFF6B573F);
     final trunk = piece.w * 0.16;
-    _emitSlab(p, piece.cx, piece.cz, trunk, trunk, y0, y0 + ht * 0.42, bark,
-        light, pal, 0.85, flash);
-    _emitSlab(p, piece.cx, piece.cz, piece.w * 0.82, piece.d * 0.82,
-        y0 + ht * 0.36, y0 + ht * 0.74, autumn, light, pal, 0.98, flash);
-    _emitSlab(p, piece.cx, piece.cz, piece.w * 0.52, piece.d * 0.52,
-        y0 + ht * 0.70, y1, autumn, light, pal, 1.08, flash);
+    _emitSlab(
+      p,
+      piece.cx,
+      piece.cz,
+      trunk,
+      trunk,
+      y0,
+      y0 + ht * 0.42,
+      bark,
+      light,
+      pal,
+      0.85,
+      flash,
+    );
+    _emitSlab(
+      p,
+      piece.cx,
+      piece.cz,
+      piece.w * 0.82,
+      piece.d * 0.82,
+      y0 + ht * 0.36,
+      y0 + ht * 0.74,
+      autumn,
+      light,
+      pal,
+      0.98,
+      flash,
+    );
+    _emitSlab(
+      p,
+      piece.cx,
+      piece.cz,
+      piece.w * 0.52,
+      piece.d * 0.52,
+      y0 + ht * 0.70,
+      y1,
+      autumn,
+      light,
+      pal,
+      1.08,
+      flash,
+    );
   }
 
   /// A run of stakes.
@@ -1519,8 +1776,20 @@ class TownPainter extends CustomPainter {
     double flash,
   ) {
     final ht = y1 - y0;
-    _emitSlab(p, piece.cx, piece.cz, 0.09, 0.09, y0, y1,
-        const Color(0xFF6B573F), light, pal, 0.9, flash);
+    _emitSlab(
+      p,
+      piece.cx,
+      piece.cz,
+      0.09,
+      0.09,
+      y0,
+      y1,
+      const Color(0xFF6B573F),
+      light,
+      pal,
+      0.9,
+      flash,
+    );
     // The one thing in the town allowed a colour that is not stone, plaster
     // or tile, and the one thing that flies.
     final pick = hash01(piece.seed, 13);
@@ -1534,24 +1803,49 @@ class TownPainter extends CustomPainter {
     // The free corner lifts and falls; the hoist stays on the pole.
     final wave = ht * 0.11 * gust * _windForce;
     final c = _hazeAt(cloth, p, piece.cx, piece.cz, pal).toARGB32();
-    final shade =
-        _hazeAt(Color.lerp(cloth, Colors.black, 0.22)!, p, piece.cx, piece.cz,
-                pal)
-            .toARGB32();
+    final shade = _hazeAt(
+      Color.lerp(cloth, Colors.black, 0.22)!,
+      p,
+      piece.cx,
+      piece.cz,
+      pal,
+    ).toARGB32();
     if ((e.x - piece.cx).abs() > (e.z - piece.cz).abs()) {
       final z0 = piece.cz + 0.04, z1 = piece.cz + 0.04 + fly;
-      _quad(p, V3(piece.cx, bot, z0), V3(piece.cx, bot + wave, z1),
-          V3(piece.cx, top + wave, z1), V3(piece.cx, top, z0), c);
-      _quad(p, V3(piece.cx, bot, z0), V3(piece.cx, bot + wave, z1),
-          V3(piece.cx, bot + wave - ht * 0.06, z1),
-          V3(piece.cx, bot - ht * 0.02, z0), shade);
+      _quad(
+        p,
+        V3(piece.cx, bot, z0),
+        V3(piece.cx, bot + wave, z1),
+        V3(piece.cx, top + wave, z1),
+        V3(piece.cx, top, z0),
+        c,
+      );
+      _quad(
+        p,
+        V3(piece.cx, bot, z0),
+        V3(piece.cx, bot + wave, z1),
+        V3(piece.cx, bot + wave - ht * 0.06, z1),
+        V3(piece.cx, bot - ht * 0.02, z0),
+        shade,
+      );
     } else {
       final x0 = piece.cx + 0.04, x1 = piece.cx + 0.04 + fly;
-      _quad(p, V3(x0, bot, piece.cz), V3(x1, bot + wave, piece.cz),
-          V3(x1, top + wave, piece.cz), V3(x0, top, piece.cz), c);
-      _quad(p, V3(x0, bot, piece.cz), V3(x1, bot + wave, piece.cz),
-          V3(x1, bot + wave - ht * 0.06, piece.cz),
-          V3(x0, bot - ht * 0.02, piece.cz), shade);
+      _quad(
+        p,
+        V3(x0, bot, piece.cz),
+        V3(x1, bot + wave, piece.cz),
+        V3(x1, top + wave, piece.cz),
+        V3(x0, top, piece.cz),
+        c,
+      );
+      _quad(
+        p,
+        V3(x0, bot, piece.cz),
+        V3(x1, bot + wave, piece.cz),
+        V3(x1, bot + wave - ht * 0.06, piece.cz),
+        V3(x0, bot - ht * 0.02, piece.cz),
+        shade,
+      );
     }
   }
 
@@ -1582,8 +1876,10 @@ class TownPainter extends CustomPainter {
       final a = (i + 0.5) * 2 * math.pi / spokes;
       final px = math.cos(a) * r * 0.88, py = math.sin(a) * r * 0.88;
       final tangential = math.max(r * 2 * math.pi / spokes * 0.62, 0.08);
-      final horiz = math.sin(a).abs() * tangential + math.cos(a).abs() * r * 0.16;
-      final vert = math.cos(a).abs() * tangential + math.sin(a).abs() * r * 0.16;
+      final horiz =
+          math.sin(a).abs() * tangential + math.cos(a).abs() * r * 0.16;
+      final vert =
+          math.cos(a).abs() * tangential + math.sin(a).abs() * r * 0.16;
       _emitSlab(
         p,
         flat ? cx + px : cx,
@@ -1618,9 +1914,20 @@ class TownPainter extends CustomPainter {
         flash,
       );
     }
-    _emitSlab(p, cx, cz, flat ? r * 0.3 : thick * 1.4,
-        flat ? thick * 1.4 : r * 0.3, cy - r * 0.15, cy + r * 0.15, wood, light,
-        pal, 0.88, flash);
+    _emitSlab(
+      p,
+      cx,
+      cz,
+      flat ? r * 0.3 : thick * 1.4,
+      flat ? thick * 1.4 : r * 0.3,
+      cy - r * 0.15,
+      cy + r * 0.15,
+      wood,
+      light,
+      pal,
+      0.88,
+      flash,
+    );
   }
 
   /// Four sails on a windmill's cap, turning.
@@ -1646,11 +1953,17 @@ class TownPainter extends CustomPainter {
 
     // The wheel turns at the wind's own pace, and freewheels a little when the
     // gust drops, so it never looks like a clock hand.
-    final turn = scene.time * (0.55 + 0.75 * _windForce) +
-        hash01(piece.seed, 17) * 6.28;
+    final turn =
+        scene.time * (0.55 + 0.75 * _windForce) + hash01(piece.seed, 17) * 6.28;
 
-    void blade(double ang, double from, double to, double halfW, Color c,
-        double ao) {
+    void blade(
+      double ang,
+      double from,
+      double to,
+      double halfW,
+      Color c,
+      double ao,
+    ) {
       final dx = math.cos(ang), dy = math.sin(ang);
       final nx = -dy * halfW, ny = dx * halfW;
       _quad(
@@ -1659,9 +1972,13 @@ class TownPainter extends CustomPainter {
         V3(cx + dx * to + nx, cy + dy * to + ny, cz),
         V3(cx + dx * to - nx, cy + dy * to - ny, cz),
         V3(cx + dx * from - nx, cy + dy * from - ny, cz),
-        _hazeAt(_shade(const V3(0, 0, -1), c, light, pal, ao, flash, 0), p, cx,
-                cz, pal)
-            .toARGB32(),
+        _hazeAt(
+          _shade(const V3(0, 0, -1), c, light, pal, ao, flash, 0),
+          p,
+          cx,
+          cz,
+          pal,
+        ).toARGB32(),
       );
     }
 
@@ -1671,8 +1988,20 @@ class TownPainter extends CustomPainter {
       blade(a, r * 0.30, r * 0.98, r * 0.20, i.isEven ? cloth : shade, 1.06);
       blade(a, r * 0.06, r * 1.0, r * 0.055, wood, 0.95);
     }
-    _emitSlab(p, cx, cz + 0.06, r * 0.28, 0.22, cy - r * 0.14, cy + r * 0.14,
-        wood, light, pal, 0.88, flash);
+    _emitSlab(
+      p,
+      cx,
+      cz + 0.06,
+      r * 0.28,
+      0.22,
+      cy - r * 0.14,
+      cy + r * 0.14,
+      wood,
+      light,
+      pal,
+      0.88,
+      flash,
+    );
   }
 
   /// A box given by its middle and size rather than by a piece, for the parts
@@ -1696,26 +2025,61 @@ class TownPainter extends CustomPainter {
     final e = p.eye;
     if (p.cameraOf(V3(cx, (y0 + y1) / 2, cz)).z <= p.near) return;
 
-    Color face(V3 n, double k) =>
-        _hazeAt(_shade(n, albedo, light, pal, ao * k, flash, 0), p, cx, cz, pal);
+    Color face(V3 n, double k) => _hazeAt(
+      _shade(n, albedo, light, pal, ao * k, flash, 0),
+      p,
+      cx,
+      cz,
+      pal,
+    );
 
     if (e.z > z1) {
-      _quad(p, V3(x0, y0, z1), V3(x1, y0, z1), V3(x1, y1, z1), V3(x0, y1, z1),
-          face(const V3(0, 0, 1), 1.0).toARGB32());
+      _quad(
+        p,
+        V3(x0, y0, z1),
+        V3(x1, y0, z1),
+        V3(x1, y1, z1),
+        V3(x0, y1, z1),
+        face(const V3(0, 0, 1), 1.0).toARGB32(),
+      );
     } else if (e.z < z0) {
-      _quad(p, V3(x1, y0, z0), V3(x0, y0, z0), V3(x0, y1, z0), V3(x1, y1, z0),
-          face(const V3(0, 0, -1), 1.0).toARGB32());
+      _quad(
+        p,
+        V3(x1, y0, z0),
+        V3(x0, y0, z0),
+        V3(x0, y1, z0),
+        V3(x1, y1, z0),
+        face(const V3(0, 0, -1), 1.0).toARGB32(),
+      );
     }
     if (e.x > x1) {
-      _quad(p, V3(x1, y0, z1), V3(x1, y0, z0), V3(x1, y1, z0), V3(x1, y1, z1),
-          face(const V3(1, 0, 0), 0.94).toARGB32());
+      _quad(
+        p,
+        V3(x1, y0, z1),
+        V3(x1, y0, z0),
+        V3(x1, y1, z0),
+        V3(x1, y1, z1),
+        face(const V3(1, 0, 0), 0.94).toARGB32(),
+      );
     } else if (e.x < x0) {
-      _quad(p, V3(x0, y0, z0), V3(x0, y0, z1), V3(x0, y1, z1), V3(x0, y1, z0),
-          face(const V3(-1, 0, 0), 0.94).toARGB32());
+      _quad(
+        p,
+        V3(x0, y0, z0),
+        V3(x0, y0, z1),
+        V3(x0, y1, z1),
+        V3(x0, y1, z0),
+        face(const V3(-1, 0, 0), 0.94).toARGB32(),
+      );
     }
     if (e.y > y1) {
-      _quad(p, V3(x0, y1, z1), V3(x1, y1, z1), V3(x1, y1, z0), V3(x0, y1, z0),
-          face(const V3(0, 1, 0), 1.04).toARGB32());
+      _quad(
+        p,
+        V3(x0, y1, z1),
+        V3(x1, y1, z1),
+        V3(x1, y1, z0),
+        V3(x0, y1, z0),
+        face(const V3(0, 1, 0), 1.04).toARGB32(),
+      );
     }
   }
 
@@ -1724,13 +2088,15 @@ class TownPainter extends CustomPainter {
     final at = p.project(V3(piece.cx, y, piece.cz));
     if (at == null) return;
     if (at.x < 0 || at.x > size.width || at.y < 0 || at.y > size.height) return;
-    picks.add(PickTarget(
-      piece.index,
-      at.x,
-      at.y,
-      math.max(8.0, p.focal / at.depth * piece.w * 0.4),
-      scene.labelledBricks.contains(piece.index),
-    ));
+    picks.add(
+      PickTarget(
+        piece.index,
+        at.x,
+        at.y,
+        math.max(8.0, p.focal / at.depth * piece.w * 0.4),
+        scene.labelledBricks.contains(piece.index),
+      ),
+    );
   }
 
   Color _weather(Color c, double decay, int seed) {
@@ -1763,27 +2129,51 @@ class TownPainter extends CustomPainter {
     if (p.cameraOf(mid).z <= p.near) return;
 
     Color face(V3 n, double k) => _hazeAt(
-          _shade(n, albedo, light, pal, ao * k, flash, 0),
-          p,
-          mid.x,
-          mid.z,
-          pal,
-        );
+      _shade(n, albedo, light, pal, ao * k, flash, 0),
+      p,
+      mid.x,
+      mid.z,
+      pal,
+    );
 
     final before = _faceCount;
     if (e.z > z1) {
-      _quad(p, V3(x0, y0, z1), V3(x1, y0, z1), V3(x1, y1, z1), V3(x0, y1, z1),
-          face(const V3(0, 0, 1), 1.0).toARGB32());
+      _quad(
+        p,
+        V3(x0, y0, z1),
+        V3(x1, y0, z1),
+        V3(x1, y1, z1),
+        V3(x0, y1, z1),
+        face(const V3(0, 0, 1), 1.0).toARGB32(),
+      );
     } else if (e.z < z0) {
-      _quad(p, V3(x1, y0, z0), V3(x0, y0, z0), V3(x0, y1, z0), V3(x1, y1, z0),
-          face(const V3(0, 0, -1), 1.0).toARGB32());
+      _quad(
+        p,
+        V3(x1, y0, z0),
+        V3(x0, y0, z0),
+        V3(x0, y1, z0),
+        V3(x1, y1, z0),
+        face(const V3(0, 0, -1), 1.0).toARGB32(),
+      );
     }
     if (e.x > x1) {
-      _quad(p, V3(x1, y0, z1), V3(x1, y0, z0), V3(x1, y1, z0), V3(x1, y1, z1),
-          face(const V3(1, 0, 0), 0.94).toARGB32());
+      _quad(
+        p,
+        V3(x1, y0, z1),
+        V3(x1, y0, z0),
+        V3(x1, y1, z0),
+        V3(x1, y1, z1),
+        face(const V3(1, 0, 0), 0.94).toARGB32(),
+      );
     } else if (e.x < x0) {
-      _quad(p, V3(x0, y0, z0), V3(x0, y0, z1), V3(x0, y1, z1), V3(x0, y1, z0),
-          face(const V3(-1, 0, 0), 0.94).toARGB32());
+      _quad(
+        p,
+        V3(x0, y0, z0),
+        V3(x0, y0, z1),
+        V3(x0, y1, z1),
+        V3(x0, y1, z0),
+        face(const V3(-1, 0, 0), 0.94).toARGB32(),
+      );
     }
     // The top is only worth drawing when there is nothing standing on it — but
     // then it must be drawn, or a half-built house is an open box you can see
@@ -1791,8 +2181,14 @@ class TownPainter extends CustomPainter {
     // for the next one is not a light, and on a limewashed wall anything
     // brighter clips to a flat white slab with no form left in it.
     if (e.y > y1 && !piece.capped && lid) {
-      _quad(p, V3(x0, y1, z1), V3(x1, y1, z1), V3(x1, y1, z0), V3(x0, y1, z0),
-          face(const V3(0, 1, 0), 0.84).toARGB32());
+      _quad(
+        p,
+        V3(x0, y1, z1),
+        V3(x1, y1, z1),
+        V3(x1, y1, z0),
+        V3(x0, y1, z0),
+        face(const V3(0, 1, 0), 0.84).toARGB32(),
+      );
     }
     if (_faceCount > before) {
       _registerPick(_facePool[before], piece.index, size);
@@ -1829,10 +2225,13 @@ class TownPainter extends CustomPainter {
     // at its far end, so the wall paints over its own windows — which is the
     // flicker you see the moment the camera swings round. Pinning the window
     // just in front of the depth its wall will sort at settles it for good.
-    double wallDepth(bool onZ, double outward) => p
-            .cameraOf(onZ
-                ? V3((piece.x0 + piece.x1) / 2, my, outward)
-                : V3(outward, my, (piece.z0 + piece.z1) / 2))
+    double wallDepth(bool onZ, double outward) =>
+        p
+            .cameraOf(
+              onZ
+                  ? V3((piece.x0 + piece.x1) / 2, my, outward)
+                  : V3(outward, my, (piece.z0 + piece.z1) / 2),
+            )
             .z -
         0.05;
 
@@ -1858,22 +2257,21 @@ class TownPainter extends CustomPainter {
         final lit = night && rank < 0.72 * lifeCurve;
         final shut = !lit && (boarded || hash01(s, 73, i) < decay * 0.8);
         final colour = lit
-            ? Color.lerp(const Color(0xFF7A5C2E), const Color(0xFFFFD79A),
-                0.35 + 0.65 * lifeCurve)!
+            ? Color.lerp(
+                const Color(0xFF7A5C2E),
+                const Color(0xFFFFD79A),
+                0.35 + 0.65 * lifeCurve,
+              )!
             : Color.lerp(pal.ink, pal.stoneCool, night ? 0.12 : 0.30)!;
         const hw = 0.15;
-        final wc = lit
-            ? colour
-            : _hazeAt(colour, p, piece.cx, piece.cz, pal);
+        final wc = lit ? colour : _hazeAt(colour, p, piece.cx, piece.cz, pal);
 
         // A lit window is a light, not a yellow rectangle. Remember where it
         // fell so a glow can be laid over the town once the walls are down.
         if (lit && _lamps.length < 4 * 220) {
-          final at = p.project(V3(
-            onZ ? c : outward,
-            (wy0 + wy1) / 2,
-            onZ ? outward : c,
-          ));
+          final at = p.project(
+            V3(onZ ? c : outward, (wy0 + wy1) / 2, onZ ? outward : c),
+          );
           if (at != null) {
             final r = p.focal / at.depth * 0.34;
             if (r > 1.2) {
@@ -1911,25 +2309,36 @@ class TownPainter extends CustomPainter {
 
         // Two planks nailed across an empty window.
         final plank = _hazeAt(
-                _weather(const Color(0xFF7A6549), decay, s), p, piece.cx,
-                piece.cz, pal)
-            .toARGB32();
+          _weather(const Color(0xFF7A6549), decay, s),
+          p,
+          piece.cx,
+          piece.cz,
+          pal,
+        ).toARGB32();
         for (var k = 0; k < 2; k++) {
           final py = wy0 + (wy1 - wy0) * (k == 0 ? 0.28 : 0.66);
           final th = (wy1 - wy0) * 0.13;
           final out2 = outward + (outward > 0 ? 0.004 : -0.004);
           if (onZ) {
-            _quad(p, V3(c - hw * 1.25, py - th, out2),
-                V3(c + hw * 1.25, py - th, out2),
-                V3(c + hw * 1.25, py + th, out2),
-                V3(c - hw * 1.25, py + th, out2), plank,
-                depthOverride: board);
+            _quad(
+              p,
+              V3(c - hw * 1.25, py - th, out2),
+              V3(c + hw * 1.25, py - th, out2),
+              V3(c + hw * 1.25, py + th, out2),
+              V3(c - hw * 1.25, py + th, out2),
+              plank,
+              depthOverride: board,
+            );
           } else {
-            _quad(p, V3(out2, py - th, c - hw * 1.25),
-                V3(out2, py - th, c + hw * 1.25),
-                V3(out2, py + th, c + hw * 1.25),
-                V3(out2, py + th, c - hw * 1.25), plank,
-                depthOverride: board);
+            _quad(
+              p,
+              V3(out2, py - th, c - hw * 1.25),
+              V3(out2, py - th, c + hw * 1.25),
+              V3(out2, py + th, c + hw * 1.25),
+              V3(out2, py + th, c - hw * 1.25),
+              plank,
+              depthOverride: board,
+            );
           }
         }
       }
@@ -1980,12 +2389,12 @@ class TownPainter extends CustomPainter {
     final alongX = along ?? piece.alongX;
 
     Color face(V3 n, double k) => _hazeAt(
-          _shade(n, albedo, light, pal, ao * k, flash, 0),
-          p,
-          mx,
-          mz,
-          pal,
-        );
+      _shade(n, albedo, light, pal, ao * k, flash, 0),
+      p,
+      mx,
+      mz,
+      pal,
+    );
 
     // Roughly how many screen pixels a world unit covers out there. A roof on
     // the far side of the valley is a few pixels across and pays for nothing.
@@ -1996,8 +2405,7 @@ class TownPainter extends CustomPainter {
     // Fine enough that a piece of slope is small beside the things that stand
     // on it: the order can still be wrong, but only ever by one piece, and a
     // piece this size is not something anybody sees.
-    int cuts(double len) =>
-        room ? (len * px / 17).ceil().clamp(1, 9) : 1;
+    int cuts(double len) => room ? (len * px / 17).ceil().clamp(1, 9) : 1;
 
     /// One slope, from the eave [a]-[b] up to the ridge [d]-[c].
     void slope(V3 a, V3 b, V3 c, V3 d, int colour) {
@@ -2006,10 +2414,12 @@ class TownPainter extends CustomPainter {
         _quad(p, a, b, c, d, colour);
         return;
       }
-      V3 lerp3(V3 f, V3 t, double k) =>
-          V3(f.x + (t.x - f.x) * k, f.y + (t.y - f.y) * k, f.z + (t.z - f.z) * k);
-      V3 on(double u, double v) =>
-          lerp3(lerp3(a, b, u), lerp3(d, c, u), v);
+      V3 lerp3(V3 f, V3 t, double k) => V3(
+        f.x + (t.x - f.x) * k,
+        f.y + (t.y - f.y) * k,
+        f.z + (t.z - f.z) * k,
+      );
+      V3 on(double u, double v) => lerp3(lerp3(a, b, u), lerp3(d, c, u), v);
       for (var i = 0; i < nu; i++) {
         final u0 = i / nu, u1 = (i + 1) / nu;
         for (var j = 0; j < nv; j++) {
@@ -2026,10 +2436,20 @@ class TownPainter extends CustomPainter {
       final nA = V3(0, run, rise).normalized;
       final nB = V3(0, run, -rise).normalized;
       final end = _gableEnd(face(nA, 1.0), face(nB, 0.92));
-      slope(V3(x0, y0, z1), V3(x1, y0, z1), V3(x1, y1, mz), V3(x0, y1, mz),
-          face(nA, 1.0).toARGB32());
-      slope(V3(x1, y0, z0), V3(x0, y0, z0), V3(x0, y1, mz), V3(x1, y1, mz),
-          face(nB, 0.92).toARGB32());
+      slope(
+        V3(x0, y0, z1),
+        V3(x1, y0, z1),
+        V3(x1, y1, mz),
+        V3(x0, y1, mz),
+        face(nA, 1.0).toARGB32(),
+      );
+      slope(
+        V3(x1, y0, z0),
+        V3(x0, y0, z0),
+        V3(x0, y1, mz),
+        V3(x1, y1, mz),
+        face(nB, 0.92).toARGB32(),
+      );
       // Both ends, always: a roof is a shell, and a missing end is a hole you
       // can see the grass through.
       _tri(p, V3(x1, y0, z0), V3(x1, y0, z1), V3(x1, y1, mz), end);
@@ -2039,10 +2459,20 @@ class TownPainter extends CustomPainter {
       final nA = V3(run, rise, 0).normalized;
       final nB = V3(-run, rise, 0).normalized;
       final end = _gableEnd(face(nA, 1.0), face(nB, 0.92));
-      slope(V3(x1, y0, z0), V3(x1, y0, z1), V3(mx, y1, z1), V3(mx, y1, z0),
-          face(nA, 1.0).toARGB32());
-      slope(V3(x0, y0, z1), V3(x0, y0, z0), V3(mx, y1, z0), V3(mx, y1, z1),
-          face(nB, 0.92).toARGB32());
+      slope(
+        V3(x1, y0, z0),
+        V3(x1, y0, z1),
+        V3(mx, y1, z1),
+        V3(mx, y1, z0),
+        face(nA, 1.0).toARGB32(),
+      );
+      slope(
+        V3(x0, y0, z1),
+        V3(x0, y0, z0),
+        V3(mx, y1, z0),
+        V3(mx, y1, z1),
+        face(nB, 0.92).toARGB32(),
+      );
       _tri(p, V3(x0, y0, z1), V3(x1, y0, z1), V3(mx, y1, z1), end);
       _tri(p, V3(x1, y0, z0), V3(x0, y0, z0), V3(mx, y1, z0), end);
     }
@@ -2088,18 +2518,23 @@ class TownPainter extends CustomPainter {
 
     void side(V3 a, V3 b, V3 n, double k) {
       final colour = _hazeAt(
-              _shade(n.normalized, albedo, light, pal, k, flash, 0), p, mx, mz,
-              pal)
-          .toARGB32();
+        _shade(n.normalized, albedo, light, pal, k, flash, 0),
+        p,
+        mx,
+        mz,
+        pal,
+      ).toARGB32();
       // Cut into bands from the eave up to the point, for the same reason the
       // roof is cut: a whole face cannot be ordered against a thing standing
       // on it, and a band can.
       final n2 = _faceCount < _facePool.length * 0.55
           ? (_span(a, apex) * px / 20).ceil().clamp(1, 6)
           : 1;
-      V3 lerp3(V3 f, V3 t, double q) =>
-          V3(f.x + (t.x - f.x) * q, f.y + (t.y - f.y) * q,
-              f.z + (t.z - f.z) * q);
+      V3 lerp3(V3 f, V3 t, double q) => V3(
+        f.x + (t.x - f.x) * q,
+        f.y + (t.y - f.y) * q,
+        f.z + (t.z - f.z) * q,
+      );
       for (var i = 0; i < n2; i++) {
         final v0 = i / n2, v1 = (i + 1) / n2;
         final a0 = lerp3(a, apex, v0), b0 = lerp3(b, apex, v0);
@@ -2129,12 +2564,7 @@ class TownPainter extends CustomPainter {
   }
 
   /// The name of each landmark the town has finished.
-  void _drawTownLabels(
-    Canvas canvas,
-    Projector p,
-    Size size,
-    TownLayout town,
-  ) {
+  void _drawTownLabels(Canvas canvas, Projector p, Size size, TownLayout town) {
     if (!scene.labels) return;
     // From far enough back the valley is about which town is which, not which
     // building is which. The landmark names stand down for the town signs.
@@ -2153,8 +2583,12 @@ class TownPainter extends CustomPainter {
       final pop = b.index == scene.finished
           ? clampD(scene.finishedAge / 0.55, 0, 1)
           : 1.0;
-      show.add((b.index == scene.finished ? -1.0 : at.depth, at,
-          b.name.toUpperCase(), pop));
+      show.add((
+        b.index == scene.finished ? -1.0 : at.depth,
+        at,
+        b.name.toUpperCase(),
+        pop,
+      ));
     }
     show.sort((a, b) => a.$1.compareTo(b.$1));
     final taken = <Rect>[];
@@ -2163,16 +2597,32 @@ class TownPainter extends CustomPainter {
     }
   }
 
-  Color _shade(V3 n, Color albedo, V3 light, Palette pal, double ao,
-      double flash, double repairGlow) {
+  Color _shade(
+    V3 n,
+    Color albedo,
+    V3 light,
+    Palette pal,
+    double ao,
+    double flash,
+    double repairGlow,
+  ) {
     final ndl = math.max(0.0, n.dot(light));
     final skyTerm = 0.5 + 0.5 * n.y;
     // Stone in shadow is still stone: the sky term is modulated by the albedo
     // so unlit faces stay pale limestone instead of collapsing to black.
     final k = (0.44 + 0.58 * ndl + 0.26 * skyTerm) * ao * pal.contrast;
-    var r = albedo.r * k + pal.sun.r * ndl * 0.06 + pal.skyLight.r * skyTerm * 0.045;
-    var g = albedo.g * k + pal.sun.g * ndl * 0.06 + pal.skyLight.g * skyTerm * 0.045;
-    var b = albedo.b * k + pal.sun.b * ndl * 0.06 + pal.skyLight.b * skyTerm * 0.045;
+    var r =
+        albedo.r * k +
+        pal.sun.r * ndl * 0.06 +
+        pal.skyLight.r * skyTerm * 0.045;
+    var g =
+        albedo.g * k +
+        pal.sun.g * ndl * 0.06 +
+        pal.skyLight.g * skyTerm * 0.045;
+    var b =
+        albedo.b * k +
+        pal.sun.b * ndl * 0.06 +
+        pal.skyLight.b * skyTerm * 0.045;
     if (flash > 0) {
       r = lerpD(r, 1.0, flash * 0.85);
       g = lerpD(g, 0.97, flash * 0.85);
@@ -2243,15 +2693,17 @@ class TownPainter extends CustomPainter {
       text: TextSpan(
         text: name,
         style: TextStyle(
-          color: (dark ? Colors.white : scene.palette.ink)
-              .withValues(alpha: 0.88 * fade),
+          color: (dark ? Colors.white : scene.palette.ink).withValues(
+            alpha: 0.88 * fade,
+          ),
           fontSize: 9.5,
           letterSpacing: 2.6,
           fontWeight: FontWeight.w600,
           shadows: [
             Shadow(
-              color: (dark ? Colors.black : const Color(0xFF3A3426))
-                  .withValues(alpha: (dark ? 0.6 : 0.34) * fade),
+              color: (dark ? Colors.black : const Color(0xFF3A3426)).withValues(
+                alpha: (dark ? 0.6 : 0.34) * fade,
+              ),
               blurRadius: 10,
             ),
           ],
@@ -2276,7 +2728,11 @@ class TownPainter extends CustomPainter {
     // already written simply is not written.
     if (taken != null) {
       final box = Rect.fromLTWH(
-          origin.dx - 6, origin.dy - 3, glow.width + 12, glow.height + 14);
+        origin.dx - 6,
+        origin.dy - 3,
+        glow.width + 12,
+        glow.height + 14,
+      );
       for (final other in taken) {
         if (box.overlaps(other)) return;
       }
@@ -2292,8 +2748,9 @@ class TownPainter extends CustomPainter {
       Offset(cx + w / 2, origin.dy + glow.height + 5),
       Paint()
         ..strokeWidth = 1
-        ..color = (dark ? Colors.white : scene.palette.ink)
-            .withValues(alpha: 0.30 * fade),
+        ..color = (dark ? Colors.white : scene.palette.ink).withValues(
+          alpha: 0.30 * fade,
+        ),
     );
   }
 
@@ -2318,8 +2775,11 @@ class TownPainter extends CustomPainter {
       switch (part.kind) {
         case ParticleKind.dust:
           paint
-            ..color = Color.lerp(pal.stoneWarm, pal.haze, 0.4)!
-                .withValues(alpha: life * 0.42)
+            ..color = Color.lerp(
+              pal.stoneWarm,
+              pal.haze,
+              0.4,
+            )!.withValues(alpha: life * 0.42)
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
           canvas.drawCircle(Offset(pt.x, pt.y), r * (2.2 - life), paint);
           paint.maskFilter = null;
@@ -2328,19 +2788,29 @@ class TownPainter extends CustomPainter {
           canvas.save();
           canvas.translate(pt.x, pt.y);
           canvas.rotate(part.angle);
-          canvas.drawRect(Rect.fromCenter(center: Offset.zero, width: r * 2, height: r * 1.4), paint);
+          canvas.drawRect(
+            Rect.fromCenter(center: Offset.zero, width: r * 2, height: r * 1.4),
+            paint,
+          );
           canvas.restore();
         case ParticleKind.spark:
-          paint.color = Color.lerp(pal.accent, Colors.white, 0.4)!
-              .withValues(alpha: life);
+          paint.color = Color.lerp(
+            pal.accent,
+            Colors.white,
+            0.4,
+          )!.withValues(alpha: life);
           canvas.drawCircle(Offset(pt.x, pt.y), r * 1.3, paint);
         case ParticleKind.gold:
-          paint.color = const Color(0xFFF2C25B)
-              .withValues(alpha: life * life * 0.85);
+          paint.color = const Color(
+            0xFFF2C25B,
+          ).withValues(alpha: life * life * 0.85);
           canvas.drawCircle(Offset(pt.x, pt.y), r * 0.9, paint);
         case ParticleKind.ember:
-          paint.color = Color.lerp(const Color(0xFFFF8A3D), const Color(0xFFFFD79A), life)!
-              .withValues(alpha: life);
+          paint.color = Color.lerp(
+            const Color(0xFFFF8A3D),
+            const Color(0xFFFFD79A),
+            life,
+          )!.withValues(alpha: life);
           canvas.drawCircle(Offset(pt.x, pt.y), r, paint);
         case ParticleKind.moteRepair:
           paint.color = const Color(0xFFBFE8D0).withValues(alpha: life * 0.8);
@@ -2350,18 +2820,23 @@ class TownPainter extends CustomPainter {
           // and takes the colour of the air it is drifting through.
           final age = 1 - life;
           final puff = Color.lerp(
-              Color.lerp(pal.stoneCool, pal.ink, 0.22)!, pal.haze, age * 0.8)!;
+            Color.lerp(pal.stoneCool, pal.ink, 0.22)!,
+            pal.haze,
+            age * 0.8,
+          )!;
           paint
             ..color = puff.withValues(alpha: life * life * 0.30)
             ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2 + age * 6);
-          canvas.drawCircle(
-              Offset(pt.x, pt.y), r * (1.0 + age * 3.2), paint);
+          canvas.drawCircle(Offset(pt.x, pt.y), r * (1.0 + age * 3.2), paint);
           paint.maskFilter = null;
         case ParticleKind.glint:
           final k = math.sin(life * math.pi);
           paint
-            ..color = Color.lerp(pal.sun, Colors.white, 0.5)!
-                .withValues(alpha: k * 0.85)
+            ..color = Color.lerp(
+              pal.sun,
+              Colors.white,
+              0.5,
+            )!.withValues(alpha: k * 0.85)
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.5);
           canvas.drawCircle(Offset(pt.x, pt.y), r * (0.8 + k), paint);
           paint.maskFilter = null;
@@ -2380,8 +2855,11 @@ class TownPainter extends CustomPainter {
       canvas.drawRect(
         Offset.zero & size,
         Paint()
-          ..color = Color.lerp(pal.ink, const Color(0xFF3E4758), 0.55)!
-              .withValues(alpha: 0.06 + decay * 0.20),
+          ..color = Color.lerp(
+            pal.ink,
+            const Color(0xFF3E4758),
+            0.55,
+          )!.withValues(alpha: 0.06 + decay * 0.20),
       );
     }
     // A soft vignette to hold the eye on the town.

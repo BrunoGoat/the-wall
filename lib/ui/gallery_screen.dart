@@ -16,10 +16,7 @@ import 'style.dart';
 
 /// One thing the town knows how to build.
 class _Exhibit {
-  const _Exhibit.mark(this.landmark)
-      : kind = null,
-        name = '',
-        cost = 0;
+  const _Exhibit.mark(this.landmark) : kind = null, name = '', cost = 0;
   const _Exhibit.house(this.kind, this.name, this.cost) : landmark = null;
 
   final Landmark? landmark;
@@ -29,16 +26,17 @@ class _Exhibit {
 
   String get title => landmark?.name ?? name;
   int get pieces => landmark?.cost ?? cost;
-  String get note => landmark?.blurb ?? 'Una de las casas corrientes del pueblo.';
+  String get note =>
+      landmark?.blurb ?? 'Una de las casas corrientes del pueblo.';
   int get tier => landmark?.tier ?? -1;
   String get id => landmark?.id ?? kind!.name;
 }
 
 List<_Exhibit> _catalogue() => [
-      for (final k in BuildingKind.values)
-        _Exhibit.house(k, buildingName[k]!, buildingCost[k]!),
-      for (final m in landmarks) _Exhibit.mark(m),
-    ];
+  for (final k in BuildingKind.values)
+    _Exhibit.house(k, buildingName[k]!, buildingCost[k]!),
+  for (final m in landmarks) _Exhibit.mark(m),
+];
 
 /// The exhibition hall: every structure the town can build, one at a time, in
 /// an empty world.
@@ -236,8 +234,9 @@ class _GalleryScreenState extends State<GalleryScreen>
                   if (f.isFinite && f > 0) _cam.zoomBy(1 / f);
                 } else {
                   _cam.orbitBy(
-                      -d.focalPointDelta.dx * 0.0062,
-                      d.focalPointDelta.dy * 0.0048);
+                    -d.focalPointDelta.dx * 0.0062,
+                    d.focalPointDelta.dy * 0.0048,
+                  );
                 }
               },
               onDoubleTap: () {
@@ -279,7 +278,8 @@ class _GalleryScreenState extends State<GalleryScreen>
               shown: _shown,
               stepping: _step != null,
               region: TownCharacter
-                  .all[_character % TownCharacter.all.length].region,
+                  .all[_character % TownCharacter.all.length]
+                  .region,
               onPrev: () => _go(-1),
               onNext: () => _go(1),
               onWhole: () => _setStep(null),
@@ -344,10 +344,12 @@ class _Header extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(exhibit.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: t.body.copyWith(fontWeight: FontWeight.w600)),
+                Text(
+                  exhibit.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: t.body.copyWith(fontWeight: FontWeight.w600),
+                ),
                 const SizedBox(height: 2),
                 Text(where, style: t.label.copyWith(fontSize: 9)),
               ],
@@ -356,8 +358,10 @@ class _Header extends StatelessWidget {
           TextButton(
             onPressed: onPick,
             style: TextButton.styleFrom(foregroundColor: t.fgSoft),
-            child: Text('${at + 1}/$total',
-                style: t.bodySoft.copyWith(fontSize: 12)),
+            child: Text(
+              '${at + 1}/$total',
+              style: t.bodySoft.copyWith(fontSize: 12),
+            ),
           ),
         ],
       ),
@@ -425,12 +429,7 @@ class _Controls extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _Pill(
-                theme: t,
-                label: 'Completa',
-                on: !stepping,
-                onTap: onWhole,
-              ),
+              _Pill(theme: t, label: 'Completa', on: !stepping, onTap: onWhole),
               const SizedBox(width: 8),
               _Pill(
                 theme: t,
@@ -472,9 +471,11 @@ class _Controls extends StatelessWidget {
                 ),
                 SizedBox(
                   width: 46,
-                  child: Text('$shown/${exhibit.pieces}',
-                      textAlign: TextAlign.right,
-                      style: t.bodySoft.copyWith(fontSize: 12)),
+                  child: Text(
+                    '$shown/${exhibit.pieces}',
+                    textAlign: TextAlign.right,
+                    style: t.bodySoft.copyWith(fontSize: 12),
+                  ),
                 ),
               ],
             ),
@@ -490,8 +491,10 @@ class _Controls extends StatelessWidget {
               TextButton(
                 onPressed: onRegion,
                 style: TextButton.styleFrom(foregroundColor: t.fgSoft),
-                child: Text(region.toUpperCase(),
-                    style: t.label.copyWith(fontSize: 9.5)),
+                child: Text(
+                  region.toUpperCase(),
+                  style: t.label.copyWith(fontSize: 9.5),
+                ),
               ),
               const Spacer(),
               _Round(theme: t, icon: Icons.chevron_right, onTap: onNext),
@@ -524,16 +527,20 @@ class _Pill extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
         decoration: BoxDecoration(
-          color: on ? t.accent.withValues(alpha: 0.20) : t.fg.withValues(alpha: 0.05),
+          color: on
+              ? t.accent.withValues(alpha: 0.20)
+              : t.fg.withValues(alpha: 0.05),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(color: on ? t.accent : t.stroke),
         ),
-        child: Text(label,
-            style: t.bodySoft.copyWith(
-              fontSize: 12.5,
-              color: on ? t.fg : t.fgSoft,
-              fontWeight: on ? FontWeight.w600 : FontWeight.w400,
-            )),
+        child: Text(
+          label,
+          style: t.bodySoft.copyWith(
+            fontSize: 12.5,
+            color: on ? t.fg : t.fgSoft,
+            fontWeight: on ? FontWeight.w600 : FontWeight.w400,
+          ),
+        ),
       ),
     );
   }
@@ -568,11 +575,7 @@ class _Round extends StatelessWidget {
 
 /// The whole catalogue as a list, for jumping straight to one.
 class _IndexSheet extends StatelessWidget {
-  const _IndexSheet({
-    required this.all,
-    required this.at,
-    required this.theme,
-  });
+  const _IndexSheet({required this.all, required this.at, required this.theme});
 
   final List<_Exhibit> all;
   final int at;
@@ -620,14 +623,18 @@ class _IndexSheet extends StatelessWidget {
                   onTap: () => Navigator.of(context).pop(i),
                   leading: SizedBox(
                     width: 34,
-                    child: Text('${i + 1}',
-                        style: t.bodySoft.copyWith(fontSize: 11)),
+                    child: Text(
+                      '${i + 1}',
+                      style: t.bodySoft.copyWith(fontSize: 11),
+                    ),
                   ),
-                  title: Text(e.title,
-                      style: t.body.copyWith(
-                        fontSize: 14,
-                        color: on ? t.accent : t.fg,
-                      )),
+                  title: Text(
+                    e.title,
+                    style: t.body.copyWith(
+                      fontSize: 14,
+                      color: on ? t.accent : t.fg,
+                    ),
+                  ),
                   subtitle: Text(
                     e.tier < 0
                         ? 'casa · ${e.pieces} piezas'

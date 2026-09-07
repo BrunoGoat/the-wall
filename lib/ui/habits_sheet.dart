@@ -48,8 +48,7 @@ class _HabitsSheetState extends State<HabitsSheet> {
     setState(() {
       _creating = true;
       _name.text = '';
-      _symbol = habitSymbols[
-          widget.store.habits.length % habitSymbols.length];
+      _symbol = habitSymbols[widget.store.habits.length % habitSymbols.length];
     });
   }
 
@@ -95,8 +94,10 @@ class _HabitsSheetState extends State<HabitsSheet> {
                 ),
               ),
               const SizedBox(height: 16),
-              Text(_creating ? 'UN HÁBITO NUEVO' : 'ESTE HÁBITO',
-                  style: t.label),
+              Text(
+                _creating ? 'UN HÁBITO NUEVO' : 'ESTE HÁBITO',
+                style: t.label,
+              ),
               const SizedBox(height: 12),
 
               Row(
@@ -110,7 +111,11 @@ class _HabitsSheetState extends State<HabitsSheet> {
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: t.stroke),
                     ),
-                    child: HabitSigil(symbol: _symbol, color: t.accent, size: 30),
+                    child: HabitSigil(
+                      symbol: _symbol,
+                      color: t.accent,
+                      size: 30,
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -178,8 +183,10 @@ class _HabitsSheetState extends State<HabitsSheet> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('SU PUEBLO SERÁ DE ${ch.region.toUpperCase()}',
-                        style: t.label.copyWith(fontSize: 9.5)),
+                    Text(
+                      'SU PUEBLO SERÁ DE ${ch.region.toUpperCase()}',
+                      style: t.label.copyWith(fontSize: 9.5),
+                    ),
                     const SizedBox(height: 6),
                     Text(ch.blurb, style: t.bodySoft),
                   ],
@@ -211,7 +218,9 @@ class _HabitsSheetState extends State<HabitsSheet> {
                         foregroundColor: t.fgSoft,
                         side: BorderSide(color: t.stroke),
                         padding: const EdgeInsets.symmetric(
-                            vertical: 15, horizontal: 16),
+                          vertical: 15,
+                          horizontal: 16,
+                        ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
@@ -229,8 +238,10 @@ class _HabitsSheetState extends State<HabitsSheet> {
                   child: TextButton(
                     onPressed: () => _confirmRemove(context),
                     style: TextButton.styleFrom(foregroundColor: t.fgFaint),
-                    child: Text('Abandonar este hábito',
-                        style: t.bodySoft.copyWith(fontSize: 12)),
+                    child: Text(
+                      'Abandonar este hábito',
+                      style: t.bodySoft.copyWith(fontSize: 12),
+                    ),
                   ),
                 ),
               ],
@@ -264,8 +275,10 @@ class _HabitsSheetState extends State<HabitsSheet> {
               Navigator.of(dialog).pop();
               Navigator.of(context).pop();
             },
-            child: Text('Abandonar',
-                style: TextStyle(color: t.accent, fontWeight: FontWeight.w600)),
+            child: Text(
+              'Abandonar',
+              style: TextStyle(color: t.accent, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),

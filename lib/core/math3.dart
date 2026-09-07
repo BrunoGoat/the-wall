@@ -18,8 +18,7 @@ class V3 {
 
   double dot(V3 o) => x * o.x + y * o.y + z * o.z;
 
-  V3 cross(V3 o) =>
-      V3(y * o.z - z * o.y, z * o.x - x * o.z, x * o.y - y * o.x);
+  V3 cross(V3 o) => V3(y * o.z - z * o.y, z * o.x - x * o.z, x * o.y - y * o.x);
 
   double get length => math.sqrt(x * x + y * y + z * z);
 
@@ -119,7 +118,8 @@ int clipNear(Float64List src, int count, Float64List dst, double near) {
   return out;
 }
 
-double clampD(double v, double lo, double hi) => v < lo ? lo : (v > hi ? hi : v);
+double clampD(double v, double lo, double hi) =>
+    v < lo ? lo : (v > hi ? hi : v);
 
 double lerpD(double a, double b, double t) => a + (b - a) * t;
 

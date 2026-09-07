@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../data/landmarks.dart';
@@ -76,11 +75,11 @@ class _JourneySheetState extends State<JourneySheet> {
                   0 => _Summary(store: widget.store, theme: t),
                   1 => _TownMilestones(store: widget.store, theme: t),
                   _ => _Legends(
-                      store: widget.store,
-                      theme: t,
-                      onGoTo: widget.onGoTo,
-                      onEdit: widget.onEditLabel,
-                    ),
+                    store: widget.store,
+                    theme: t,
+                    onGoTo: widget.onGoTo,
+                    onEdit: widget.onEditLabel,
+                  ),
                 },
               ),
             ],
@@ -107,8 +106,7 @@ class _JourneySheetState extends State<JourneySheet> {
             decoration: BoxDecoration(
               color: on ? t.fg.withValues(alpha: 0.10) : Colors.transparent,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                  color: on ? t.stroke : Colors.transparent),
+              border: Border.all(color: on ? t.stroke : Colors.transparent),
             ),
             child: Text(
               labels[i],
@@ -150,8 +148,7 @@ class _Summary extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 26),
-        Text('LO QUE LLEVA EN PIE',
-            style: t.label),
+        Text('LO QUE LLEVA EN PIE', style: t.label),
         const SizedBox(height: 10),
         _TownBar(store: store, theme: t),
         const SizedBox(height: 26),
@@ -175,8 +172,8 @@ class _Summary extends StatelessWidget {
           integrity > 0.99
               ? 'Todas las ventanas encendidas. Cada día que sumás una pieza siguen así.'
               : integrity > 0.6
-                  ? 'Empiezan a apagarse ventanas. Una sola pieza las vuelve a encender todas.'
-                  : 'El pueblo se está quedando vacío. Una pieza alcanza para que vuelvan a encenderse.',
+              ? 'Empiezan a apagarse ventanas. Una sola pieza las vuelve a encender todas.'
+              : 'El pueblo se está quedando vacío. Una pieza alcanza para que vuelvan a encenderse.',
           style: t.bodySoft,
         ),
         const SizedBox(height: 28),
@@ -196,7 +193,9 @@ class _Summary extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: d.count == 0
                           ? t.fg.withValues(alpha: 0.10)
-                          : t.accent.withValues(alpha: 0.45 + 0.55 * (d.count / maxDay)),
+                          : t.accent.withValues(
+                              alpha: 0.45 + 0.55 * (d.count / maxDay),
+                            ),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -224,7 +223,8 @@ class _Summary extends StatelessWidget {
           theme: t,
           icon: Icons.tune,
           title: 'Ver el pueblo a futuro',
-          subtitle: 'Cómo se vería con 100, 500 o 5000 piezas. No toca las tuyas.',
+          subtitle:
+              'Cómo se vería con 100, 500 o 5000 piezas. No toca las tuyas.',
           open: (nav) => DebugSheet(store: store, theme: t),
         ),
         _PageRow(
@@ -241,15 +241,15 @@ class _Summary extends StatelessWidget {
   }
 
   Widget _stat(UiTheme t, String value, String label) => Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(value, style: t.number),
-            const SizedBox(height: 5),
-            Text(label, style: t.label.copyWith(fontSize: 9, letterSpacing: 1.4)),
-          ],
-        ),
-      );
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(value, style: t.number),
+        const SizedBox(height: 5),
+        Text(label, style: t.label.copyWith(fontSize: 9, letterSpacing: 1.4)),
+      ],
+    ),
+  );
 }
 
 /// How much of the town is standing, and what it is working on.
@@ -280,8 +280,10 @@ class _TownBar extends StatelessWidget {
           children: [
             Text('$built', style: t.number.copyWith(fontSize: 26)),
             const SizedBox(width: 8),
-            Text(built == 1 ? 'EDIFICIO EN PIE' : 'EDIFICIOS EN PIE',
-                style: t.label),
+            Text(
+              built == 1 ? 'EDIFICIO EN PIE' : 'EDIFICIOS EN PIE',
+              style: t.label,
+            ),
           ],
         ),
         if (work != null) ...[
@@ -561,8 +563,8 @@ class _TownMilestones extends StatelessWidget {
                         done
                             ? 'En pie · ${mark.cost} piezas'
                             : active
-                                ? 'En obra · ${placed - first} de ${mark.cost}'
-                                : 'Empieza en la pieza ${first + 1}',
+                            ? 'En obra · ${placed - first} de ${mark.cost}'
+                            : 'Empieza en la pieza ${first + 1}',
                         style: t.bodySoft.copyWith(fontSize: 11.5),
                       ),
                       if (active) ...[
@@ -589,7 +591,6 @@ class _TownMilestones extends StatelessWidget {
   }
 }
 
-
 class _Legends extends StatelessWidget {
   const _Legends({
     required this.store,
@@ -614,14 +615,10 @@ class _Legends extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          const Positioned.fill(
-            child: CustomPaint(painter: PapyrusPainter()),
-          ),
+          const Positioned.fill(child: CustomPaint(painter: PapyrusPainter())),
           Material(
             type: MaterialType.transparency,
-            child: items.isEmpty
-                ? _empty(context)
-                : _log(context, items),
+            child: items.isEmpty ? _empty(context) : _log(context, items),
           ),
         ],
       ),
@@ -629,47 +626,52 @@ class _Legends extends StatelessWidget {
   }
 
   Widget _heading() => Column(
-        children: [
-          const SizedBox(height: 26),
-          Text(
-            'BITÁCORA DEL PUEBLO',
-            textAlign: TextAlign.center,
-            style: Papyrus.body(13, w: FontWeight.w700, c: Papyrus.ink)
-                .copyWith(letterSpacing: 2.6),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '· ${Papyrus.roman(store.total)} ${'piezas asentadas'} ·',
-            textAlign: TextAlign.center,
-            style: Papyrus.body(11.5, c: Papyrus.inkFaint)
-                .copyWith(letterSpacing: 1.2),
-          ),
-          const SizedBox(height: 16),
-          const PapyrusRule(),
-          const SizedBox(height: 4),
-        ],
-      );
+    children: [
+      const SizedBox(height: 26),
+      Text(
+        'BITÁCORA DEL PUEBLO',
+        textAlign: TextAlign.center,
+        style: Papyrus.body(
+          13,
+          w: FontWeight.w700,
+          c: Papyrus.ink,
+        ).copyWith(letterSpacing: 2.6),
+      ),
+      const SizedBox(height: 6),
+      Text(
+        '· ${Papyrus.roman(store.total)} ${'piezas asentadas'} ·',
+        textAlign: TextAlign.center,
+        style: Papyrus.body(
+          11.5,
+          c: Papyrus.inkFaint,
+        ).copyWith(letterSpacing: 1.2),
+      ),
+      const SizedBox(height: 16),
+      const PapyrusRule(),
+      const SizedBox(height: 4),
+    ],
+  );
 
   Widget _empty(BuildContext context) => ListView(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 30),
-        children: [
-          _heading(),
-          const SizedBox(height: 24),
-          Text(
-            'Aquí no hay nada escrito todavía.',
-            textAlign: TextAlign.center,
-            style: Papyrus.body(16.5, w: FontWeight.w600),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Tocá cualquier parte del pueblo y dejale una leyenda: “Leí”, “Corrí”, lo que quieras. No hace falta —la pieza ya está puesta— pero lo que se escribe queda en esta bitácora, y dentro de un año esto va a ser una historia.',
-            textAlign: TextAlign.center,
-            style: Papyrus.body(14, c: Papyrus.inkSoft),
-          ),
-          const SizedBox(height: 26),
-          const PapyrusRule(wide: true),
-        ],
-      );
+    padding: const EdgeInsets.fromLTRB(24, 0, 24, 30),
+    children: [
+      _heading(),
+      const SizedBox(height: 24),
+      Text(
+        'Aquí no hay nada escrito todavía.',
+        textAlign: TextAlign.center,
+        style: Papyrus.body(16.5, w: FontWeight.w600),
+      ),
+      const SizedBox(height: 12),
+      Text(
+        'Tocá cualquier parte del pueblo y dejale una leyenda: “Leí”, “Corrí”, lo que quieras. No hace falta —la pieza ya está puesta— pero lo que se escribe queda en esta bitácora, y dentro de un año esto va a ser una historia.',
+        textAlign: TextAlign.center,
+        style: Papyrus.body(14, c: Papyrus.inkSoft),
+      ),
+      const SizedBox(height: 26),
+      const PapyrusRule(wide: true),
+    ],
+  );
 
   Widget _log(BuildContext context, List<Piece> items) {
     // Broken into months, each with its own illuminated heading.
@@ -680,44 +682,57 @@ class _Legends extends StatelessWidget {
       final m = Papyrus.monthHeading(b.placedAt);
       if (m != month) {
         month = m;
-        rows.add(Padding(
-          padding: EdgeInsets.only(top: i == 0 ? 18 : 26, bottom: 2),
-          child: Text(
-            m,
-            style: Papyrus.body(10.5, w: FontWeight.w700, c: Papyrus.rubric)
-                .copyWith(letterSpacing: 2.0),
+        rows.add(
+          Padding(
+            padding: EdgeInsets.only(top: i == 0 ? 18 : 26, bottom: 2),
+            child: Text(
+              m,
+              style: Papyrus.body(
+                10.5,
+                w: FontWeight.w700,
+                c: Papyrus.rubric,
+              ).copyWith(letterSpacing: 2.0),
+            ),
           ),
-        ));
+        );
         rows.add(const Divider(color: Papyrus.rule, height: 12));
       }
-      rows.add(PapyrusEntry(
-        brick: b,
-        ordinal: i + 1,
-        dropCap: i == 0,
-        onGo: () {
-          final piece = TownLayout(store.total, store.character,
-                  cx: Habit.centreOf(store.habit.slot).$1,
-                  cz: Habit.centreOf(store.habit.slot).$2)
-              .pieceFor(b.index);
-          Navigator.of(context).pop();
-          if (piece != null) onGoTo(piece.cx, piece.cz);
-        },
-        onEdit: () {
-          Navigator.of(context).pop();
-          onEdit(b);
-        },
-      ));
+      rows.add(
+        PapyrusEntry(
+          brick: b,
+          ordinal: i + 1,
+          dropCap: i == 0,
+          onGo: () {
+            final piece = TownLayout(
+              store.total,
+              store.character,
+              cx: Habit.centreOf(store.habit.slot).$1,
+              cz: Habit.centreOf(store.habit.slot).$2,
+            ).pieceFor(b.index);
+            Navigator.of(context).pop();
+            if (piece != null) onGoTo(piece.cx, piece.cz);
+          },
+          onEdit: () {
+            Navigator.of(context).pop();
+            onEdit(b);
+          },
+        ),
+      );
     }
     rows
       ..add(const SizedBox(height: 22))
       ..add(const PapyrusRule(wide: true))
       ..add(const SizedBox(height: 10))
-      ..add(Text(
-        'Y el pueblo sigue creciendo.',
-        textAlign: TextAlign.center,
-        style: Papyrus.body(12.5, c: Papyrus.inkFaint)
-            .copyWith(fontStyle: FontStyle.italic),
-      ));
+      ..add(
+        Text(
+          'Y el pueblo sigue creciendo.',
+          textAlign: TextAlign.center,
+          style: Papyrus.body(
+            12.5,
+            c: Papyrus.inkFaint,
+          ).copyWith(fontStyle: FontStyle.italic),
+        ),
+      );
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 0, 16, 30),

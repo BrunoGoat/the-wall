@@ -68,17 +68,23 @@ class _HomeScreenState extends State<HomeScreen> {
   void _greet() {
     final s = widget.store;
     if (s.total == 0) {
-      _showWhisper('Mantené el botón para poner tu primera piedra',
-          duration: const Duration(seconds: 6));
+      _showWhisper(
+        'Mantené el botón para poner tu primera piedra',
+        duration: const Duration(seconds: 6),
+      );
     } else if (s.integrityAtLaunch < 0.92) {
       final days = s.daysIdle.floor();
-      _showWhisper('$days días sin piezas. El pueblo se está quedando a oscuras.',
-          duration: const Duration(seconds: 5));
+      _showWhisper(
+        '$days días sin piezas. El pueblo se está quedando a oscuras.',
+        duration: const Duration(seconds: 5),
+      );
     }
   }
 
-  void _showWhisper(String msg,
-      {Duration duration = const Duration(seconds: 3)}) {
+  void _showWhisper(
+    String msg, {
+    Duration duration = const Duration(seconds: 3),
+  }) {
     _whisperTimer?.cancel();
     setState(() => _whisper = msg);
     _whisperTimer = Timer(duration, () {
@@ -242,7 +248,9 @@ class _HomeScreenState extends State<HomeScreen> {
               left: 0,
               right: 0,
               bottom: media.padding.bottom + 222,
-              child: Center(child: Whisper(message: _whisper!, theme: t)),
+              child: Center(
+                child: Whisper(message: _whisper!, theme: t),
+              ),
             ),
 
           // --- bottom: travel, then the one button
@@ -298,7 +306,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 onDismiss: () => setState(() => _revealTown = null),
               ),
             ),
-
         ],
       ),
     );
@@ -310,11 +317,8 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => HabitsSheet(
-        store: widget.store,
-        theme: _theme,
-        startNew: startNew,
-      ),
+      builder: (_) =>
+          HabitsSheet(store: widget.store, theme: _theme, startNew: startNew),
     );
   }
 
@@ -365,13 +369,17 @@ class _TopBar extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
                   children: [
-                    Text('${store.total}',
-                        style: t.number.copyWith(shadows: t.halo)),
+                    Text(
+                      '${store.total}',
+                      style: t.number.copyWith(shadows: t.halo),
+                    ),
                     const SizedBox(width: 8),
                     Padding(
                       padding: const EdgeInsets.only(bottom: 2),
-                      child: Text('PIEZAS',
-                          style: t.label.copyWith(shadows: t.halo)),
+                      child: Text(
+                        'PIEZAS',
+                        style: t.label.copyWith(shadows: t.halo),
+                      ),
                     ),
                     if (days > 0) ...[
                       const SizedBox(width: 14),
@@ -409,10 +417,12 @@ class _TopBar extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.only(top: 6, left: 6),
-            child: Icon(Icons.chevron_right,
-                size: 20,
-                color: t.fg.withValues(alpha: 0.40),
-                shadows: t.halo),
+            child: Icon(
+              Icons.chevron_right,
+              size: 20,
+              color: t.fg.withValues(alpha: 0.40),
+              shadows: t.halo,
+            ),
           ),
         ],
       ),

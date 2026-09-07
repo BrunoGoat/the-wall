@@ -108,8 +108,9 @@ class _Chip extends StatelessWidget {
               // itself a small readout of how every habit is going.
               HabitSigil(
                 symbol: habit.symbol,
-                color: (on ? t.accent : t.fg)
-                    .withValues(alpha: 0.42 + 0.58 * lit),
+                color: (on ? t.accent : t.fg).withValues(
+                  alpha: 0.42 + 0.58 * lit,
+                ),
                 size: 19,
               ),
               const SizedBox(width: 8),

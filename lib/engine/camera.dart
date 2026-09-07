@@ -14,6 +14,7 @@ class OrbitCamera {
   static const double minPitch = 0.015;
   static const double maxPitch = 1.50; // ~86 degrees: top-down, never below
   static const double minDistance = 2.2;
+
   /// Far enough back to hold the whole valley — six towns on a ring a hundred
   /// and thirty units out — in one frame.
   static const double maxDistance = 620.0;
@@ -69,12 +70,19 @@ class OrbitCamera {
       clampD(math.max(wallLength * 0.95, 14.0), minDistance, maxDistance);
 
   void zoomBy(double factor) {
-    distanceTarget =
-        clampD(distanceTarget * factor, minDistance, usefulDistance);
+    distanceTarget = clampD(
+      distanceTarget * factor,
+      minDistance,
+      usefulDistance,
+    );
   }
 
   void travelBy(double d) {
-    travelTarget = clampD(travelTarget + d, -2.0, math.max(2.0, wallLength + 2));
+    travelTarget = clampD(
+      travelTarget + d,
+      -2.0,
+      math.max(2.0, wallLength + 2),
+    );
     follow = false;
   }
 
@@ -86,8 +94,11 @@ class OrbitCamera {
   /// Frames the whole wall, used by the "ver toda la muralla" button.
   void frameAll() {
     travelTarget = wallLength / 2;
-    distanceTarget =
-        clampD(math.max(wallLength * 0.62, 8.0), minDistance, usefulDistance);
+    distanceTarget = clampD(
+      math.max(wallLength * 0.62, 8.0),
+      minDistance,
+      usefulDistance,
+    );
     pitchTarget = clampD(0.34 + wallLength * 0.002, minPitch, 0.7);
     yawTarget = _nearest(yawTarget, 0.55);
     focusYTarget = 1.6;
@@ -125,9 +136,13 @@ class OrbitCamera {
     var t = target;
     if (shake > 0) {
       final s = shake;
-      e = e +
-          V3(math.sin(shakePhase * 41.0) * s, math.cos(shakePhase * 53.0) * s,
-              math.sin(shakePhase * 37.0) * s * 0.6);
+      e =
+          e +
+          V3(
+            math.sin(shakePhase * 41.0) * s,
+            math.cos(shakePhase * 53.0) * s,
+            math.sin(shakePhase * 37.0) * s * 0.6,
+          );
     }
     final forward = (t - e).normalized;
     var right = forward.cross(const V3(0, 1, 0));

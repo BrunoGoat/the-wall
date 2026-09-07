@@ -114,8 +114,10 @@ class _TownViewState extends State<TownView>
   int? _selectedPiece;
   double _charge = 0;
 
-  static const int _budgetOverride =
-      int.fromEnvironment('BUDGET', defaultValue: -1);
+  static const int _budgetOverride = int.fromEnvironment(
+    'BUDGET',
+    defaultValue: -1,
+  );
 
   /// How many pieces are worth drawing. Given away when the frame gets long
   /// and won back when it does not, so an old phone shows a smaller town
@@ -163,8 +165,12 @@ class _TownViewState extends State<TownView>
     // moment its count changes.
     _valley.removeWhere((k, _) => k.startsWith('${h.id}:'));
     final (cx, cz) = Habit.centreOf(h.slot);
-    return _valley[key] =
-        TownLayout(n, TownCharacter.forSlot(h.slot), cx: cx, cz: cz);
+    return _valley[key] = TownLayout(
+      n,
+      TownCharacter.forSlot(h.slot),
+      cx: cx,
+      cz: cz,
+    );
   }
 
   /// Puts the camera where a town is best first seen: from its own plaza,
@@ -201,7 +207,10 @@ class _TownViewState extends State<TownView>
     _entries = [
       for (final h in store.habits)
         TownEntry(
-          layout: _layoutOf(h, h.id == store.habit.id ? store.shownTotal : null),
+          layout: _layoutOf(
+            h,
+            h.id == store.habit.id ? store.shownTotal : null,
+          ),
           name: h.name,
           symbol: h.symbol,
           integrity: Store.integrityOf(h),
@@ -225,12 +234,16 @@ class _TownViewState extends State<TownView>
 
   /// Overrides the clock during development so every time of day can be
   /// inspected without waiting for it.
-  static const int _hourOverride = int.fromEnvironment('HOUR', defaultValue: -1);
+  static const int _hourOverride = int.fromEnvironment(
+    'HOUR',
+    defaultValue: -1,
+  );
 
   Palette _buildPalette() {
     final now = DateTime.now();
-    final hour =
-        _hourOverride >= 0 ? _hourOverride.toDouble() : now.hour + now.minute / 60.0;
+    final hour = _hourOverride >= 0
+        ? _hourOverride.toDouble()
+        : now.hour + now.minute / 60.0;
     return Palette.forMoment(hour, _displayIntegrity);
   }
 
@@ -292,7 +305,6 @@ class _TownViewState extends State<TownView>
   /// a degree every few seconds, is a place you keep watching without deciding
   /// to — which is exactly what it should be doing while you are not building.
   void _turnAround(double dt) {
-    
     final show = _showcase;
     if (show != null) {
       _showcaseAge += dt;
@@ -368,7 +380,6 @@ class _TownViewState extends State<TownView>
       }
     }
   }
-
 
   /// Where the camera should sit to watch a piece land, in whichever world we
   /// are building. The wall travels along its own axis; the town orbits its
@@ -471,7 +482,9 @@ class _TownViewState extends State<TownView>
     _touched();
     var far = 20.0;
     for (final e in _entries) {
-      final d = math.sqrt(e.layout.cx * e.layout.cx + e.layout.cz * e.layout.cz);
+      final d = math.sqrt(
+        e.layout.cx * e.layout.cx + e.layout.cz * e.layout.cz,
+      );
       if (d + e.layout.radius > far) far = d + e.layout.radius;
     }
     _cam.travelTarget = 0;

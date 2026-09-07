@@ -62,15 +62,7 @@ class TownPiece {
 
 /// The ordinary houses: the week-by-week fabric of the town. Everything
 /// grander is a [Landmark], and lives in its own catalogue.
-enum BuildingKind {
-  shed,
-  cottage,
-  workshop,
-  house,
-  granary,
-  townhouse,
-  inn,
-}
+enum BuildingKind { shed, cottage, workshop, house, granary, townhouse, inn }
 
 /// How many achievements each kind of building costs.
 const Map<BuildingKind, int> buildingCost = {
@@ -242,13 +234,14 @@ class TownPlan {
     final out = <Landmark>[];
     final taken = <String>{};
     // This town's own order through the openers.
-    final opening = <(double, String)>[
-      for (var i = 0; i < _openers.length; i++)
-        (hash01(character.order, 0x09E4, i), _openers[i]),
-    ]..sort((a, b) {
-        final c = a.$1.compareTo(b.$1);
-        return c != 0 ? c : a.$2.compareTo(b.$2);
-      });
+    final opening =
+        <(double, String)>[
+          for (var i = 0; i < _openers.length; i++)
+            (hash01(character.order, 0x09E4, i), _openers[i]),
+        ]..sort((a, b) {
+          final c = a.$1.compareTo(b.$1);
+          return c != 0 ? c : a.$2.compareTo(b.$2);
+        });
     for (final (_, id) in opening) {
       for (final l in landmarks) {
         if (l.id == id && taken.add(id)) out.add(l);
@@ -270,7 +263,11 @@ class TownPlan {
       var want = _cadence[k % _cadence.length];
       // A tier that has been spent hands over to the next one that has not, so
       // nothing comes round twice while something else is still unbuilt.
-      for (var tries = 0; tries < 3 && at[want] >= pools[want].length; tries++) {
+      for (
+        var tries = 0;
+        tries < 3 && at[want] >= pools[want].length;
+        tries++
+      ) {
         want = (want + 1) % 3;
       }
       out.add(pools[want][at[want]]);
@@ -286,17 +283,17 @@ class TownPlan {
   /// A fixed permutation, so appending a new landmark to the catalogue only
   /// ever changes what comes after everything already standing.
   List<Landmark> _pool(int tier) => _pools.putIfAbsent(tier, () {
-        final of = landmarks.where((l) => l.tier == tier).toList();
-        final keyed = <(double, Landmark)>[
-          for (var i = 0; i < of.length; i++)
-            (hash01(character.order, tier, i), of[i]),
-        ];
-        keyed.sort((a, b) {
-          final c = a.$1.compareTo(b.$1);
-          return c != 0 ? c : a.$2.id.compareTo(b.$2.id);
-        });
-        return [for (final k in keyed) k.$2];
-      });
+    final of = landmarks.where((l) => l.tier == tier).toList();
+    final keyed = <(double, Landmark)>[
+      for (var i = 0; i < of.length; i++)
+        (hash01(character.order, tier, i), of[i]),
+    ];
+    keyed.sort((a, b) {
+      final c = a.$1.compareTo(b.$1);
+      return c != 0 ? c : a.$2.id.compareTo(b.$2.id);
+    });
+    return [for (final k in keyed) k.$2];
+  });
 
   /// The ordinary house on an ordinary plot.
   static BuildingKind kindFor(int b) {
@@ -387,8 +384,8 @@ class TownPlan {
 
 class TownLayout {
   TownLayout(this.placed, this.character, {this.cx = 0, this.cz = 0})
-      : plan = TownPlan.of(character),
-        plotPitch = character.plotPitch {
+    : plan = TownPlan.of(character),
+      plotPitch = character.plotPitch {
     _build();
   }
 
@@ -406,10 +403,10 @@ class TownLayout {
     BuildingKind? kind,
     required this.placed,
     int seed = 0,
-  })  : plan = TownPlan.of(character),
-        plotPitch = character.plotPitch,
-        cx = 0,
-        cz = 0 {
+  }) : plan = TownPlan.of(character),
+       plotPitch = character.plotPitch,
+       cx = 0,
+       cz = 0 {
     final building = TownBuilding(
       index: 0,
       kind: landmark == null ? (kind ?? BuildingKind.house) : null,
@@ -421,19 +418,21 @@ class TownLayout {
     );
     for (final p in _piecesOf(building)) {
       if (pieces.length > placed) break;
-      pieces.add(TownPiece(
-        index: pieces.length,
-        building: 0,
-        kind: p.kind,
-        cx: p.cx,
-        cz: p.cz,
-        w: p.w,
-        d: p.d,
-        y0: p.y0,
-        y1: p.y1,
-        seed: hash32(building.seed, pieces.length, 31),
-        alongX: p.alongX,
-      ));
+      pieces.add(
+        TownPiece(
+          index: pieces.length,
+          building: 0,
+          kind: p.kind,
+          cx: p.cx,
+          cz: p.cz,
+          w: p.w,
+          d: p.d,
+          y0: p.y0,
+          y1: p.y1,
+          seed: hash32(building.seed, pieces.length, 31),
+          alongX: p.alongX,
+        ),
+      );
       if (p.y1 > building.peakY) building.peakY = p.y1;
     }
     final built = math.min(pieces.length, placed);
@@ -504,19 +503,21 @@ class TownLayout {
       final made = _piecesOf(building);
       for (final p in made) {
         if (index >= want) break;
-        pieces.add(TownPiece(
-          index: index,
-          building: b,
-          kind: p.kind,
-          cx: p.cx,
-          cz: p.cz,
-          w: p.w,
-          d: p.d,
-          y0: p.y0,
-          y1: p.y1,
-          seed: hash32(seed, index, 31),
-          alongX: p.alongX,
-        ));
+        pieces.add(
+          TownPiece(
+            index: index,
+            building: b,
+            kind: p.kind,
+            cx: p.cx,
+            cz: p.cz,
+            w: p.w,
+            d: p.d,
+            y0: p.y0,
+            y1: p.y1,
+            seed: hash32(seed, index, 31),
+            alongX: p.alongX,
+          ),
+        );
         if (p.y1 > building.peakY) building.peakY = p.y1;
         index++;
       }
@@ -528,8 +529,10 @@ class TownLayout {
       building.placedPieces = math.max(0, built - building.firstPiece);
       _cap(building.firstPiece, built);
       buildings.add(building);
-      final out = math.sqrt((building.cx - cx) * (building.cx - cx) +
-          (building.cz - cz) * (building.cz - cz));
+      final out = math.sqrt(
+        (building.cx - cx) * (building.cx - cx) +
+            (building.cz - cz) * (building.cz - cz),
+      );
       if (out + building.reach > radius) radius = out + building.reach;
       if (index >= want) break;
     }
@@ -574,7 +577,8 @@ class TownLayout {
           for (var pz = 0; pz < 3; pz++) {
             final x = bx * blockPitch + px * plotPitch + plotPitch / 2;
             final z = bz * blockPitch + pz * plotPitch + plotPitch / 2;
-            final key = math.sqrt(x * x + z * z) +
+            final key =
+                math.sqrt(x * x + z * z) +
                 hashRange(0, 2.2, bx + 991, bz + 991, px, pz);
             all.add((x, z, key));
           }
@@ -621,9 +625,14 @@ class TownLayout {
       // The grid ran out, which only happens for a town far larger than any
       // that will ever be built. Better a crowded corner than no plot at all.
       if (!placedIt) {
-        out.add(all[out.length % all.length].$1 == 0
-            ? (0.0, 0.0)
-            : (all[out.length % all.length].$1, all[out.length % all.length].$2));
+        out.add(
+          all[out.length % all.length].$1 == 0
+              ? (0.0, 0.0)
+              : (
+                  all[out.length % all.length].$1,
+                  all[out.length % all.length].$2,
+                ),
+        );
         reaches.add(r);
       }
     }
@@ -696,10 +705,23 @@ class TownLayout {
         m.floor(wide * 1.15, deep, storey);
         m.roof(wide * 1.25, deep + 0.2, 0.72 * pitch);
         // The side wing stands on the ground beside the inn, not on its roof.
-        m.box(PieceKind.floor, wide * 0.6, deep * 0.7, storey * 0.9,
-            dx: wide * 0.8, ridge: true, at: 0);
-        m.roof(wide * 0.66, deep * 0.76, 0.44,
-            dx: wide * 0.8, at: storey * 0.9, along: !m.alongX);
+        m.box(
+          PieceKind.floor,
+          wide * 0.6,
+          deep * 0.7,
+          storey * 0.9,
+          dx: wide * 0.8,
+          ridge: true,
+          at: 0,
+        );
+        m.roof(
+          wide * 0.66,
+          deep * 0.76,
+          0.44,
+          dx: wide * 0.8,
+          at: storey * 0.9,
+          along: !m.alongX,
+        );
         m.chimney(0.3, 1.0, dx: -wide * 0.4);
         m.chimney(0.26, 0.8, dx: wide * 0.2);
         m.door(wide * 0.7, 0.7, dz: deep * 0.5 + 0.24);

@@ -70,10 +70,10 @@ class HabitSigils {
   static List<Object> marksFor(String id) => _marks(resolveHabitSymbol(id));
 
   static List<_Mark> _marks(String id) => _cache.putIfAbsent(id, () {
-        final pen = _Pen();
-        (_glyphs[id] ?? _glyphs[kDefaultHabitSymbol]!)(pen);
-        return pen.marks;
-      });
+    final pen = _Pen();
+    (_glyphs[id] ?? _glyphs[kDefaultHabitSymbol]!)(pen);
+    return pen.marks;
+  });
 
   /// Paints a mark into [box], which should be square.
   ///
@@ -138,31 +138,35 @@ class _Pen {
 
   /// A closed filled polygon, with any number of holes punched through it.
   void shape(List<double> xy, {List<List<double>> holes = const []}) => fill(
-        (p) => _run(p, xy, true),
-        cut: holes.isEmpty
-            ? null
-            : (p) {
-                for (final h in holes) {
-                  _run(p, h, true);
-                }
-              },
-      );
+    (p) => _run(p, xy, true),
+    cut: holes.isEmpty
+        ? null
+        : (p) {
+            for (final h in holes) {
+              _run(p, h, true);
+            }
+          },
+  );
 
   void poly(double w, List<double> xy) => line(w, (p) => _run(p, xy, false));
 
   void dot(double cx, double cy, double r) => fill(
-      (p) => p.addOval(Rect.fromCircle(center: Offset(cx, cy), radius: r)));
+    (p) => p.addOval(Rect.fromCircle(center: Offset(cx, cy), radius: r)),
+  );
 
   void oval(double l, double t, double r, double b) =>
       fill((p) => p.addOval(Rect.fromLTRB(l, t, r, b)));
 
   void ring(double cx, double cy, double r, double w) => line(
-      w, (p) => p.addOval(Rect.fromCircle(center: Offset(cx, cy), radius: r)));
+    w,
+    (p) => p.addOval(Rect.fromCircle(center: Offset(cx, cy), radius: r)),
+  );
 
-  void rect(double l, double t, double r, double b, {double round = 0}) =>
-      fill((p) => round > 0
-          ? p.addRRect(RRect.fromLTRBR(l, t, r, b, Radius.circular(round)))
-          : p.addRect(Rect.fromLTRB(l, t, r, b)));
+  void rect(double l, double t, double r, double b, {double round = 0}) => fill(
+    (p) => round > 0
+        ? p.addRRect(RRect.fromLTRBR(l, t, r, b, Radius.circular(round)))
+        : p.addRect(Rect.fromLTRB(l, t, r, b)),
+  );
 
   static void _run(Path p, List<double> xy, bool close) {
     p.moveTo(xy[0], xy[1]);
@@ -237,24 +241,28 @@ final Map<String, void Function(_Pen)> _glyphs = {
     });
   },
   'hoja': (p) {
-    p.fill((q) {
-      q.moveTo(88, 8);
-      q.cubicTo(50, 13, 26, 35, 20, 72);
-      q.cubicTo(60, 65, 84, 44, 88, 8);
-      q.close();
-    }, cut: (q) {
-      // The rib, corner to corner. Without it the leaf is only a lozenge.
-      q.moveTo(85, 8);
-      q.lineTo(90, 13);
-      q.lineTo(25, 74);
-      q.lineTo(20, 69);
-      q.close();
-    });
+    p.fill(
+      (q) {
+        q.moveTo(88, 8);
+        q.cubicTo(50, 13, 26, 35, 20, 72);
+        q.cubicTo(60, 65, 84, 44, 88, 8);
+        q.close();
+      },
+      cut: (q) {
+        // The rib, corner to corner. Without it the leaf is only a lozenge.
+        q.moveTo(85, 8);
+        q.lineTo(90, 13);
+        q.lineTo(25, 74);
+        q.lineTo(20, 69);
+        q.close();
+      },
+    );
     p.poly(5, [23, 72, 10, 91]);
   },
   'luna': (p) {
     p.fill(
-      (q) => q.addOval(Rect.fromCircle(center: const Offset(48, 50), radius: 40)),
+      (q) =>
+          q.addOval(Rect.fromCircle(center: const Offset(48, 50), radius: 40)),
       cut: (q) =>
           q.addOval(Rect.fromCircle(center: const Offset(72, 34), radius: 37)),
     );
@@ -274,16 +282,19 @@ final Map<String, void Function(_Pen)> _glyphs = {
   'laud': (p) {
     // A big body and a short neck: at the size a town sign draws it, a small
     // body on a long stalk reads as a spoon.
-    p.fill((q) {
-      q.moveTo(50, 36);
-      q.cubicTo(77, 36, 90, 56, 90, 72);
-      q.cubicTo(90, 88, 72, 98, 50, 98);
-      q.cubicTo(28, 98, 10, 88, 10, 72);
-      q.cubicTo(10, 56, 23, 36, 50, 36);
-      q.close();
-    }, cut: (q) {
-      q.addOval(Rect.fromCircle(center: const Offset(50, 66), radius: 9));
-    });
+    p.fill(
+      (q) {
+        q.moveTo(50, 36);
+        q.cubicTo(77, 36, 90, 56, 90, 72);
+        q.cubicTo(90, 88, 72, 98, 50, 98);
+        q.cubicTo(28, 98, 10, 88, 10, 72);
+        q.cubicTo(10, 56, 23, 36, 50, 36);
+        q.close();
+      },
+      cut: (q) {
+        q.addOval(Rect.fromCircle(center: const Offset(50, 66), radius: 9));
+      },
+    );
     p.rect(43, 6, 57, 42);
     p.rect(33, 0, 67, 11, round: 3);
     // The frets, poking out either side of the neck: the one thing a bottle
@@ -304,19 +315,23 @@ final Map<String, void Function(_Pen)> _glyphs = {
   },
   'escoba': (p) {
     p.poly(8, [66, 6, 49, 52]);
-    p.shape([30, 50, 66, 50, 76, 92, 20, 92], holes: [
-      [29, 63, 33, 63, 33, 92, 29, 92],
-      [41, 62, 45, 62, 45, 92, 41, 92],
-      [53, 62, 57, 62, 57, 92, 53, 92],
-      [65, 63, 69, 63, 69, 92, 65, 92],
-    ]);
+    p.shape(
+      [30, 50, 66, 50, 76, 92, 20, 92],
+      holes: [
+        [29, 63, 33, 63, 33, 92, 29, 92],
+        [41, 62, 45, 62, 45, 92, 41, 92],
+        [53, 62, 57, 62, 57, 92, 53, 92],
+        [65, 63, 69, 63, 69, 92, 65, 92],
+      ],
+    );
   },
   'frasco': (p) {
     p.rect(29, 5, 71, 18, round: 3);
     p.rect(41, 18, 59, 29);
     p.fill(
       (q) => q.addRRect(
-          RRect.fromLTRBR(21, 28, 79, 95, const Radius.circular(11))),
+        RRect.fromLTRBR(21, 28, 79, 95, const Radius.circular(11)),
+      ),
       cut: (q) {
         q.addRect(const Rect.fromLTRB(44, 44, 56, 82));
         q.addRect(const Rect.fromLTRB(31, 57, 69, 69));
@@ -507,17 +522,20 @@ final Map<String, void Function(_Pen)> _glyphs = {
     p.dot(50, 89, 8);
   },
   'escudo': (p) {
-    p.fill((q) {
-      q.moveTo(13, 13);
-      q.lineTo(87, 13);
-      q.lineTo(87, 47);
-      q.cubicTo(87, 74, 68, 88, 50, 95);
-      q.cubicTo(32, 88, 13, 74, 13, 47);
-      q.close();
-    }, cut: (q) {
-      q.addRect(const Rect.fromLTRB(44, 21, 56, 79));
-      q.addRect(const Rect.fromLTRB(21, 38, 79, 50));
-    });
+    p.fill(
+      (q) {
+        q.moveTo(13, 13);
+        q.lineTo(87, 13);
+        q.lineTo(87, 47);
+        q.cubicTo(87, 74, 68, 88, 50, 95);
+        q.cubicTo(32, 88, 13, 74, 13, 47);
+        q.close();
+      },
+      cut: (q) {
+        q.addRect(const Rect.fromLTRB(44, 21, 56, 79));
+        q.addRect(const Rect.fromLTRB(21, 38, 79, 50));
+      },
+    );
   },
   'reloj': (p) {
     p.shape([24, 14, 76, 14, 54, 50, 76, 86, 24, 86, 46, 50]);
@@ -526,13 +544,16 @@ final Map<String, void Function(_Pen)> _glyphs = {
   },
   'farol': (p) {
     p.line(4, (q) {
-      q.addArc(Rect.fromCircle(center: const Offset(50, 18), radius: 9),
-          math.pi, math.pi);
+      q.addArc(
+        Rect.fromCircle(center: const Offset(50, 18), radius: 9),
+        math.pi,
+        math.pi,
+      );
     });
     p.shape([32, 18, 68, 18, 77, 30, 23, 30]);
     p.fill(
-      (q) => q.addRRect(
-          RRect.fromLTRBR(28, 30, 72, 78, const Radius.circular(5))),
+      (q) =>
+          q.addRRect(RRect.fromLTRBR(28, 30, 72, 78, const Radius.circular(5))),
       cut: (q) {
         q.moveTo(50, 39);
         q.cubicTo(63, 52, 63, 63, 56, 69);
@@ -548,10 +569,13 @@ final Map<String, void Function(_Pen)> _glyphs = {
       21, 34, 21, 19, 31, 19, 31, 27, 37, 27, 37, 19, 47, 19, 47, 27, //
       53, 27, 53, 19, 63, 19, 63, 27, 69, 27, 69, 19, 79, 19, 79, 34,
     ]);
-    p.shape([27, 34, 73, 34, 73, 93, 27, 93], holes: [
-      [36, 44, 45, 44, 45, 55, 36, 55],
-      [55, 44, 64, 44, 64, 55, 55, 55],
-      [42, 68, 58, 68, 58, 90, 42, 90],
-    ]);
+    p.shape(
+      [27, 34, 73, 34, 73, 93, 27, 93],
+      holes: [
+        [36, 44, 45, 44, 45, 55, 36, 55],
+        [55, 44, 64, 44, 64, 55, 55, 55],
+        [42, 68, 58, 68, 58, 90, 42, 90],
+      ],
+    );
   },
 };

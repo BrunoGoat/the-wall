@@ -28,6 +28,7 @@ class Sensory {
       } catch (_) {}
     }
   }
+
   void setHapticsOff(bool v) => _hapticsOff = v;
 
   // ------------------------------------------------------------- ambience
@@ -163,9 +164,11 @@ class Sensory {
   /// going up, so the charge can be felt without looking.
   void charge(double progress) {
     if (progress >= 0.99) return; // the impact itself covers the last one
-    _haptic(progress > 0.7
-        ? HapticFeedback.mediumImpact
-        : HapticFeedback.selectionClick);
+    _haptic(
+      progress > 0.7
+          ? HapticFeedback.mediumImpact
+          : HapticFeedback.selectionClick,
+    );
   }
 
   /// The stone hits. This is the payoff.

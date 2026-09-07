@@ -105,7 +105,9 @@ class Store extends ChangeNotifier {
     if (index < 0 || index >= habits.length) return;
     final h = habits[index];
     if (name != null && name.trim().isNotEmpty) h.name = name.trim();
-    if (symbol != null && symbol.isNotEmpty) h.symbol = resolveHabitSymbol(symbol);
+    if (symbol != null && symbol.isNotEmpty) {
+      h.symbol = resolveHabitSymbol(symbol);
+    }
     _save();
     notifyListeners();
   }
@@ -135,8 +137,9 @@ class Store extends ChangeNotifier {
     // Storage must never be able to hold the app hostage: if the platform
     // channel is slow or unavailable we carry on in memory.
     try {
-      _prefs = await SharedPreferences.getInstance()
-          .timeout(const Duration(seconds: 4));
+      _prefs = await SharedPreferences.getInstance().timeout(
+        const Duration(seconds: 4),
+      );
     } catch (_) {
       _prefs = null;
     }
@@ -151,13 +154,15 @@ class Store extends ChangeNotifier {
       _adoptTheWall();
     }
     if (habits.isEmpty) {
-      habits.add(Habit(
-        id: 'h0',
-        name: 'Mi hábito',
-        symbol: kDefaultHabitSymbol,
-        slot: 0,
-        createdAt: DateTime.now(),
-      ));
+      habits.add(
+        Habit(
+          id: 'h0',
+          name: 'Mi hábito',
+          symbol: kDefaultHabitSymbol,
+          slot: 0,
+          createdAt: DateTime.now(),
+        ),
+      );
     }
     active = active.clamp(0, habits.length - 1);
     integrityAtLaunch = integrity;
@@ -168,27 +173,34 @@ class Store extends ChangeNotifier {
   /// Everything laid back when this was one wall becomes the first habit's
   /// town. Nobody loses a year of work to a change of mind about the app.
   void _adoptTheWall() {
-    final raw = _prefs?.getString(_wallKey) ?? _prefs?.getString(_wallLegacyKey);
+    final raw =
+        _prefs?.getString(_wallKey) ?? _prefs?.getString(_wallLegacyKey);
     if (raw == null || raw.isEmpty) return;
     try {
       final j = jsonDecode(raw) as Map<String, dynamic>;
-      final list = ((j['bricks'] as List?) ?? [])
-          .map((e) => Piece.fromJson(e as Map<String, dynamic>))
-          .toList()
-        ..sort((a, b) => a.index.compareTo(b.index));
+      final list =
+          ((j['bricks'] as List?) ?? [])
+              .map((e) => Piece.fromJson(e as Map<String, dynamic>))
+              .toList()
+            ..sort((a, b) => a.index.compareTo(b.index));
       for (var i = 0; i < list.length; i++) {
-        list[i] =
-            Piece(index: i, placedAt: list[i].placedAt, label: list[i].label);
+        list[i] = Piece(
+          index: i,
+          placedAt: list[i].placedAt,
+          label: list[i].label,
+        );
       }
       if (list.isEmpty) return;
-      habits.add(Habit(
-        id: 'h0',
-        name: 'Mi hábito',
-        symbol: kDefaultHabitSymbol,
-        slot: 0,
-        createdAt: list.first.placedAt,
-        pieces: list,
-      ));
+      habits.add(
+        Habit(
+          id: 'h0',
+          name: 'Mi hábito',
+          symbol: kDefaultHabitSymbol,
+          slot: 0,
+          createdAt: list.first.placedAt,
+          pieces: list,
+        ),
+      );
     } catch (_) {
       // A save from a version that no longer exists is not worth crashing for.
     }
@@ -197,16 +209,19 @@ class Store extends ChangeNotifier {
   void _decode(Map<String, dynamic> j) {
     habits
       ..clear()
-      ..addAll(((j['h'] as List?) ?? [])
-          .map((e) => Habit.fromJson(e as Map<String, dynamic>)));
+      ..addAll(
+        ((j['h'] as List?) ?? []).map(
+          (e) => Habit.fromJson(e as Map<String, dynamic>),
+        ),
+      );
     active = (j['a'] as num?)?.toInt() ?? 0;
   }
 
   Map<String, dynamic> _encode() => {
-        'v': 1,
-        'a': active,
-        'h': habits.map((h) => h.toJson()).toList(),
-      };
+    'v': 1,
+    'a': active,
+    'h': habits.map((h) => h.toJson()).toList(),
+  };
 
   void _save() {
     _dirty = true;
@@ -312,9 +327,9 @@ class Store extends ChangeNotifier {
 
   static int _bestStreakOf(Habit h) {
     if (h.pieces.isEmpty) return 0;
-    final days = <DateTime>{for (final p in h.pieces) dayStart(p.placedAt)}
-        .toList()
-      ..sort();
+    final days = <DateTime>{
+      for (final p in h.pieces) dayStart(p.placedAt),
+    }.toList()..sort();
     var best = 1, run = 1;
     for (var i = 1; i < days.length; i++) {
       final gap = days[i].difference(days[i - 1]).inDays;
@@ -357,13 +372,15 @@ class Store extends ChangeNotifier {
 
   Future<void> wipe() async {
     habits.clear();
-    habits.add(Habit(
-      id: 'h${DateTime.now().microsecondsSinceEpoch}',
-      name: 'Mi hábito',
-      symbol: kDefaultHabitSymbol,
-      slot: 0,
-      createdAt: DateTime.now(),
-    ));
+    habits.add(
+      Habit(
+        id: 'h${DateTime.now().microsecondsSinceEpoch}',
+        name: 'Mi hábito',
+        symbol: kDefaultHabitSymbol,
+        slot: 0,
+        createdAt: DateTime.now(),
+      ),
+    );
     active = 0;
     await _prefs?.remove(_key);
     integrityAtLaunch = 1.0;
@@ -373,19 +390,31 @@ class Store extends ChangeNotifier {
   /// Fast-forwards a town for development, so a year of use can be looked at
   /// without waiting a year. Driven by a compile-time define, off by default.
   static const List<String> _debugLabels = [
-    'Leí', 'Corrí', 'Estudié', 'Escribí', 'No fumé', 'Salí a caminar',
-    'Llamé a mamá', 'Ordené el taller', 'Toqué la guitarra', 'Nadé',
+    'Leí',
+    'Corrí',
+    'Estudié',
+    'Escribí',
+    'No fumé',
+    'Salí a caminar',
+    'Llamé a mamá',
+    'Ordené el taller',
+    'Toqué la guitarra',
+    'Nadé',
   ];
 
   void debugFill(int count, {int endedDaysAgo = 0, int? into}) {
     final h = habits[(into ?? active).clamp(0, habits.length - 1)];
     final end = DateTime.now().subtract(Duration(days: endedDaysAgo));
     for (var i = 0; i < count; i++) {
-      h.pieces.add(Piece(
-        index: h.total,
-        placedAt: end.subtract(Duration(minutes: (count - i) * 137)),
-        label: i % 9 == 3 ? _debugLabels[(i ~/ 9) % _debugLabels.length] : null,
-      ));
+      h.pieces.add(
+        Piece(
+          index: h.total,
+          placedAt: end.subtract(Duration(minutes: (count - i) * 137)),
+          label: i % 9 == 3
+              ? _debugLabels[(i ~/ 9) % _debugLabels.length]
+              : null,
+        ),
+      );
     }
     integrityAtLaunch = integrity;
     notifyListeners();

@@ -1,10 +1,6 @@
 /// One achievement, one piece. The index is its permanent place in the town.
 class Piece {
-  const Piece({
-    required this.index,
-    required this.placedAt,
-    this.label,
-  });
+  const Piece({required this.index, required this.placedAt, this.label});
 
   final int index;
   final DateTime placedAt;
@@ -25,16 +21,16 @@ class Piece {
   }
 
   Map<String, dynamic> toJson() => {
-        'i': index,
-        't': placedAt.millisecondsSinceEpoch,
-        if (hasLabel) 'l': label,
-      };
+    'i': index,
+    't': placedAt.millisecondsSinceEpoch,
+    if (hasLabel) 'l': label,
+  };
 
   static Piece fromJson(Map<String, dynamic> j) => Piece(
-        index: (j['i'] as num).toInt(),
-        placedAt: DateTime.fromMillisecondsSinceEpoch((j['t'] as num).toInt()),
-        label: j['l'] as String?,
-      );
+    index: (j['i'] as num).toInt(),
+    placedAt: DateTime.fromMillisecondsSinceEpoch((j['t'] as num).toInt()),
+    label: j['l'] as String?,
+  );
 }
 
 /// A single day in the person's history, used by the small activity strip.

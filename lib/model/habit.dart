@@ -62,25 +62,29 @@ class Habit {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'n': name,
-        's': symbol,
-        'slot': slot,
-        'c': createdAt.millisecondsSinceEpoch,
-        'p': pieces.map((p) => p.toJson()).toList(),
-      };
+    'id': id,
+    'n': name,
+    's': symbol,
+    'slot': slot,
+    'c': createdAt.millisecondsSinceEpoch,
+    'p': pieces.map((p) => p.toJson()).toList(),
+  };
 
   static Habit fromJson(Map<String, dynamic> j) {
-    final list = ((j['p'] as List?) ?? [])
-        .map((e) => Piece.fromJson(e as Map<String, dynamic>))
-        .toList()
-      ..sort((a, b) => a.index.compareTo(b.index));
+    final list =
+        ((j['p'] as List?) ?? [])
+            .map((e) => Piece.fromJson(e as Map<String, dynamic>))
+            .toList()
+          ..sort((a, b) => a.index.compareTo(b.index));
     // A town is built in order and nothing else about a piece matters, so a
     // save with gaps in it is renumbered rather than refused.
     for (var i = 0; i < list.length; i++) {
       if (list[i].index != i) {
         list[i] = Piece(
-            index: i, placedAt: list[i].placedAt, label: list[i].label);
+          index: i,
+          placedAt: list[i].placedAt,
+          label: list[i].label,
+        );
       }
     }
     return Habit(
@@ -91,7 +95,8 @@ class Habit {
       symbol: resolveHabitSymbol(j['s'] as String?),
       slot: (j['slot'] as num?)?.toInt() ?? 0,
       createdAt: DateTime.fromMillisecondsSinceEpoch(
-          (j['c'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch),
+        (j['c'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch,
+      ),
       pieces: list,
     );
   }

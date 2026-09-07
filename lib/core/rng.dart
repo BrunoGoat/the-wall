@@ -40,8 +40,14 @@ double hash01(int a, [int b = 0, int c = 0, int d = 0]) =>
     hash32(a, b, c, d) / 4294967296.0;
 
 /// Uniform value in `[min, max)`.
-double hashRange(double min, double max, int a, [int b = 0, int c = 0, int d = 0]) =>
-    min + (max - min) * hash01(a, b, c, d);
+double hashRange(
+  double min,
+  double max,
+  int a, [
+  int b = 0,
+  int c = 0,
+  int d = 0,
+]) => min + (max - min) * hash01(a, b, c, d);
 
 /// Signed value in `[-amount, amount)`.
 double hashJitter(double amount, int a, [int b = 0, int c = 0, int d = 0]) =>

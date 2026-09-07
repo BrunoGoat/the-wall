@@ -98,7 +98,8 @@ class _HoldToPlaceState extends State<HoldToPlace>
       // Measured against the clock rather than accumulated per frame, so the
       // hold always takes the same real time however fast the device draws.
       _pressedAt ??= elapsed;
-      _charge = (elapsed - _pressedAt!).inMicroseconds /
+      _charge =
+          (elapsed - _pressedAt!).inMicroseconds /
           (HoldToPlace.hold.inMicroseconds);
       // A tick of haptic at each quarter, so the charge is felt building.
       final quarters = (_charge * 4).floor().clamp(0, 4);
@@ -228,14 +229,14 @@ class _HoldToPlaceState extends State<HoldToPlace>
                 fontSize: 8.5,
                 letterSpacing: 2.6,
                 fontWeight: FontWeight.w600,
-                color: _charge > 0.02
-                    ? t.accent
-                    : t.fg.withValues(alpha: 0.45),
+                color: _charge > 0.02 ? t.accent : t.fg.withValues(alpha: 0.45),
                 shadows: t.halo,
               ),
-              child: Text(_down && _fired && widget.rapid
-                  ? 'EN OBRA'
-                  : (_charge > 0.02 ? 'SOSTENÉ' : 'MANTENER')),
+              child: Text(
+                _down && _fired && widget.rapid
+                    ? 'EN OBRA'
+                    : (_charge > 0.02 ? 'SOSTENÉ' : 'MANTENER'),
+              ),
             ),
           ],
         ),
@@ -267,11 +268,17 @@ class _HoldPainter extends CustomPainter {
       c,
       r * 1.35,
       Paint()
-        ..shader = ui.Gradient.radial(c, r * 1.35, [
-          (theme.dark ? Colors.black : const Color(0xFF3A3426))
-              .withValues(alpha: theme.dark ? 0.24 : 0.13),
-          Colors.transparent,
-        ], [0.55, 1.0]),
+        ..shader = ui.Gradient.radial(
+          c,
+          r * 1.35,
+          [
+            (theme.dark ? Colors.black : const Color(0xFF3A3426)).withValues(
+              alpha: theme.dark ? 0.24 : 0.13,
+            ),
+            Colors.transparent,
+          ],
+          [0.55, 1.0],
+        ),
     );
 
     // The track.
@@ -310,13 +317,20 @@ class _HoldPainter extends CustomPainter {
 
     // The stone waiting in the middle: a small mark that swells as the hold
     // builds, so the gesture has something growing to watch.
-    final inner = lerpDouble(r * 0.13, r * 0.62, Curves.easeOut.transform(charge))!;
+    final inner = lerpDouble(
+      r * 0.13,
+      r * 0.62,
+      Curves.easeOut.transform(charge),
+    )!;
     canvas.drawCircle(
       c,
       inner,
       Paint()
-        ..color = Color.lerp(fg.withValues(alpha: 0.55), theme.accent, charge)!
-            .withValues(alpha: 0.55 + 0.45 * charge),
+        ..color = Color.lerp(
+          fg.withValues(alpha: 0.55),
+          theme.accent,
+          charge,
+        )!.withValues(alpha: 0.55 + 0.45 * charge),
     );
 
     // The ring flies outwards as the stone goes up.

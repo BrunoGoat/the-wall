@@ -104,16 +104,18 @@ class Mason {
     double y1, {
     bool? along,
   }) {
-    out.add(Spec(
-      kind: kind,
-      cx: cx + dx,
-      cz: cz + dz,
-      w: w,
-      d: d,
-      y0: y0,
-      y1: y1,
-      alongX: along ?? alongX,
-    ));
+    out.add(
+      Spec(
+        kind: kind,
+        cx: cx + dx,
+        cz: cz + dz,
+        w: w,
+        d: d,
+        y0: y0,
+        y1: y1,
+        alongX: along ?? alongX,
+      ),
+    );
   }
 
   /// A rectangular mass. Raises the course line unless it is [ridge] work or
@@ -147,27 +149,57 @@ class Mason {
 
   /// A pitched roof. Sits on the course line without raising it, so a chimney
   /// laid afterwards comes up through it.
-  void roof(double w, double d, double rise,
-          {double dx = 0, double dz = 0, bool? along, double? at}) =>
-      box(PieceKind.roof, w, d, rise,
-          dx: dx, dz: dz, ridge: true, at: at, along: along);
+  void roof(
+    double w,
+    double d,
+    double rise, {
+    double dx = 0,
+    double dz = 0,
+    bool? along,
+    double? at,
+  }) => box(
+    PieceKind.roof,
+    w,
+    d,
+    rise,
+    dx: dx,
+    dz: dz,
+    ridge: true,
+    at: at,
+    along: along,
+  );
 
   /// A roof that also raises the course line, for a mass built on top of one.
-  void roofUnder(double w, double d, double rise,
-      {double dx = 0, double dz = 0, bool? along}) {
+  void roofUnder(
+    double w,
+    double d,
+    double rise, {
+    double dx = 0,
+    double dz = 0,
+    bool? along,
+  }) {
     box(PieceKind.roof, w, d, rise, dx: dx, dz: dz, along: along);
   }
 
-  void spire(double w, double d, double rise,
-          {double dx = 0, double dz = 0, double? at}) =>
-      box(PieceKind.spire, w, d, rise, dx: dx, dz: dz, at: at);
+  void spire(
+    double w,
+    double d,
+    double rise, {
+    double dx = 0,
+    double dz = 0,
+    double? at,
+  }) => box(PieceKind.spire, w, d, rise, dx: dx, dz: dz, at: at);
 
-  void dome(double w, double d, double rise,
-          {double dx = 0, double dz = 0, double? at}) =>
-      box(PieceKind.dome, w, d, rise, dx: dx, dz: dz, at: at);
+  void dome(
+    double w,
+    double d,
+    double rise, {
+    double dx = 0,
+    double dz = 0,
+    double? at,
+  }) => box(PieceKind.dome, w, d, rise, dx: dx, dz: dz, at: at);
 
-  void parapet(double w, double d, double ht,
-          {double dx = 0, double dz = 0}) =>
+  void parapet(double w, double d, double ht, {double dx = 0, double dz = 0}) =>
       box(PieceKind.parapet, w, d, ht, dx: dx, dz: dz);
 
   void chimney(double side, double ht, {double dx = 0, double dz = 0}) =>
@@ -191,8 +223,16 @@ class Mason {
   void dormer(double w, double ht, {double dx = 0, double dz = 0, double? at}) {
     final ox = alongX ? dx : dz;
     final oz = alongX ? dz : dx;
-    box(PieceKind.dormer, w, w * 0.85, ht,
-        dx: ox, dz: oz, ridge: true, at: at ?? _tilesAt(ox, oz) - ht * 0.42);
+    box(
+      PieceKind.dormer,
+      w,
+      w * 0.85,
+      ht,
+      dx: ox,
+      dz: oz,
+      ridge: true,
+      at: at ?? _tilesAt(ox, oz) - ht * 0.42,
+    );
   }
 
   /// How high the tiles are over a spot, or the course line where no roof
@@ -221,55 +261,140 @@ class Mason {
       _add(PieceKind.tree, dx, dz, spread, spread, 0, ht);
 
   /// A run of stakes along its longer side.
-  void palisade(double len, double ht,
-          {double dx = 0, double dz = 0, bool along = true}) =>
-      _add(PieceKind.palisade, dx, dz, along ? len : 0.22,
-          along ? 0.22 : len, 0, ht, along: along);
+  void palisade(
+    double len,
+    double ht, {
+    double dx = 0,
+    double dz = 0,
+    bool along = true,
+  }) => _add(
+    PieceKind.palisade,
+    dx,
+    dz,
+    along ? len : 0.22,
+    along ? 0.22 : len,
+    0,
+    ht,
+    along: along,
+  );
 
   /// A pole with a banner on it.
   void banner(double ht, {double dx = 0, double dz = 0, double? at}) =>
       _add(PieceKind.banner, dx, dz, 0.5, 0.5, at ?? 0, (at ?? 0) + ht);
 
   /// A run of arches carrying whatever is above them.
-  void arcade(double len, double ht, double depth,
-      {double dx = 0, double dz = 0, bool? along, double? at, bool rise = false}) {
+  void arcade(
+    double len,
+    double ht,
+    double depth, {
+    double dx = 0,
+    double dz = 0,
+    bool? along,
+    double? at,
+    bool rise = false,
+  }) {
     final base = at ?? y;
     final a = along ?? alongX;
-    _add(PieceKind.arcade, dx, dz, a ? len : depth, a ? depth : len, base,
-        base + ht,
-        along: a);
+    _add(
+      PieceKind.arcade,
+      dx,
+      dz,
+      a ? len : depth,
+      a ? depth : len,
+      base,
+      base + ht,
+      along: a,
+    );
     if (rise && at == null) y += ht;
   }
 
   /// A flight of steps climbing towards the centre of the building.
-  void stair(double w, double rise, double run,
-          {double dx = 0, double dz = 0, bool? along, double? at}) =>
-      _add(PieceKind.stair, dx, dz, w, run, at ?? 0, (at ?? 0) + rise,
-          along: along);
+  void stair(
+    double w,
+    double rise,
+    double run, {
+    double dx = 0,
+    double dz = 0,
+    bool? along,
+    double? at,
+  }) => _add(
+    PieceKind.stair,
+    dx,
+    dz,
+    w,
+    run,
+    at ?? 0,
+    (at ?? 0) + rise,
+    along: along,
+  );
 
   /// A water wheel, turning in the plane across its short side.
   void wheel(double diameter, {double dx = 0, double dz = 0, bool? along}) =>
-      _add(PieceKind.wheel, dx, dz, diameter, diameter, 0.0, diameter,
-          along: along);
+      _add(
+        PieceKind.wheel,
+        dx,
+        dz,
+        diameter,
+        diameter,
+        0.0,
+        diameter,
+        along: along,
+      );
 
   /// The sails of a windmill, on the face of whatever they are pinned to.
-  void sails(double diameter, {double dx = 0, double dz = 0, required double at}) =>
-      _add(PieceKind.sail, dx, dz, diameter, diameter, at - diameter / 2,
-          at + diameter / 2);
+  void sails(
+    double diameter, {
+    double dx = 0,
+    double dz = 0,
+    required double at,
+  }) => _add(
+    PieceKind.sail,
+    dx,
+    dz,
+    diameter,
+    diameter,
+    at - diameter / 2,
+    at + diameter / 2,
+  );
 
   /// A single upright: the leg of a well roof, a gallows, the end of a
   /// trellis.
-  void post(double side, double ht,
-          {double dx = 0, double dz = 0, double at = 0}) =>
-      box(PieceKind.parapet, side, side, ht,
-          dx: dx, dz: dz, ridge: true, at: at);
+  void post(
+    double side,
+    double ht, {
+    double dx = 0,
+    double dz = 0,
+    double at = 0,
+  }) => box(
+    PieceKind.parapet,
+    side,
+    side,
+    ht,
+    dx: dx,
+    dz: dz,
+    ridge: true,
+    at: at,
+  );
 
   /// A horizontal member resting on posts. Without [at] it rests on the course
   /// line, which is where the thing it was laid after left off.
-  void beam(double w, double d, double ht,
-          {double dx = 0, double dz = 0, double? at}) =>
-      box(PieceKind.parapet, w, d, ht,
-          dx: dx, dz: dz, ridge: true, at: at ?? y);
+  void beam(
+    double w,
+    double d,
+    double ht, {
+    double dx = 0,
+    double dz = 0,
+    double? at,
+  }) => box(
+    PieceKind.parapet,
+    w,
+    d,
+    ht,
+    dx: dx,
+    dz: dz,
+    ridge: true,
+    at: at ?? y,
+  );
 
   // --------------------------------------------------------------- shortcuts
 
@@ -287,16 +412,39 @@ class Mason {
   /// ordinary [floor] and [roof] with an offset it would inherit whatever
   /// height the main mass had reached, which is how a cottage ends up perched
   /// on top of a bell tower.
-  void outbuilding(double w, double d, double ht, double rise,
-      {double dx = 0, double dz = 0, bool? along}) {
+  void outbuilding(
+    double w,
+    double d,
+    double ht,
+    double rise, {
+    double dx = 0,
+    double dz = 0,
+    bool? along,
+  }) {
     box(PieceKind.floor, w, d, ht, dx: dx, dz: dz, ridge: true, at: 0);
-    box(PieceKind.roof, w + 0.25, d + 0.25, rise,
-        dx: dx, dz: dz, ridge: true, at: ht, along: along);
+    box(
+      PieceKind.roof,
+      w + 0.25,
+      d + 0.25,
+      rise,
+      dx: dx,
+      dz: dz,
+      ridge: true,
+      at: ht,
+      along: along,
+    );
   }
 
   /// A long low body: the nave of a church, the hall of a market.
-  void hall(double w, double d, double ht, double rise,
-      {double dx = 0, double dz = 0, bool? along}) {
+  void hall(
+    double w,
+    double d,
+    double ht,
+    double rise, {
+    double dx = 0,
+    double dz = 0,
+    bool? along,
+  }) {
     floor(w, d, ht, dx: dx, dz: dz);
     roof(w + 0.2, d + 0.2, rise, dx: dx, dz: dz, along: along);
   }
@@ -316,8 +464,15 @@ class Mason {
 
 /// A roof that has been laid, and how high its tiles are over any spot.
 class _Roof {
-  const _Roof(this.dx, this.dz, this.w, this.d, this.base, this.rise,
-      this.alongX);
+  const _Roof(
+    this.dx,
+    this.dz,
+    this.w,
+    this.d,
+    this.base,
+    this.rise,
+    this.alongX,
+  );
   final double dx, dz, w, d, base, rise;
   final bool alongX;
 

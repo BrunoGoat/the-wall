@@ -23,8 +23,9 @@ class DebugSheet extends StatefulWidget {
 }
 
 class _DebugSheetState extends State<DebugSheet> {
-  late double _value =
-      (widget.store.preview ?? widget.store.total).toDouble().clamp(0, 6000);
+  late double _value = (widget.store.preview ?? widget.store.total)
+      .toDouble()
+      .clamp(0, 6000);
 
   void _apply(int n) {
     setState(() => _value = n.toDouble());

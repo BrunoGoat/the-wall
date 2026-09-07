@@ -117,8 +117,10 @@ class _PlacedNoteState extends State<PlacedNote> {
                         ),
                       ),
                       const SizedBox(width: 7),
-                      Text('· pieza ${widget.ordinal}',
-                          style: t.bodySoft.copyWith(fontSize: 11.5)),
+                      Text(
+                        '· pieza ${widget.ordinal}',
+                        style: t.bodySoft.copyWith(fontSize: 11.5),
+                      ),
                     ],
                   ),
                   TextField(

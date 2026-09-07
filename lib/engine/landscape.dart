@@ -53,7 +53,6 @@ class Landscape {
     final shaped = math.pow(clampD(n, 0, 1), 1.55).toDouble();
     return l.base + shaped * l.height;
   }
-
 }
 
 class RidgeLayer {

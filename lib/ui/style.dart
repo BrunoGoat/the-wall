@@ -30,30 +30,31 @@ class UiTheme {
   late final Color fg, fgSoft, fgFaint, panel, panelStrong, stroke, accent;
 
   TextStyle get label => TextStyle(
-        color: fgSoft,
-        fontSize: 9.5,
-        letterSpacing: 2.4,
-        fontWeight: FontWeight.w600,
-      );
+    color: fgSoft,
+    fontSize: 9.5,
+    letterSpacing: 2.4,
+    fontWeight: FontWeight.w600,
+  );
 
   /// A soft halo so type can sit straight on the scene without a card behind
   /// it and still be legible over stone, grass or sky.
   List<Shadow> get halo => [
-        Shadow(
-          color: (dark ? Colors.black : const Color(0xFF3A3426))
-              .withValues(alpha: dark ? 0.55 : 0.30),
-          blurRadius: 12,
-        ),
-      ];
+    Shadow(
+      color: (dark ? Colors.black : const Color(0xFF3A3426)).withValues(
+        alpha: dark ? 0.55 : 0.30,
+      ),
+      blurRadius: 12,
+    ),
+  ];
 
   TextStyle get number => TextStyle(
-        color: fg,
-        fontSize: 30,
-        height: 1.0,
-        fontWeight: FontWeight.w200,
-        letterSpacing: -0.8,
-        fontFeatures: const [ui.FontFeature.tabularFigures()],
-      );
+    color: fg,
+    fontSize: 30,
+    height: 1.0,
+    fontWeight: FontWeight.w200,
+    letterSpacing: -0.8,
+    fontFeatures: const [ui.FontFeature.tabularFigures()],
+  );
 
   TextStyle get body => TextStyle(color: fg, fontSize: 14, height: 1.45);
 
@@ -61,11 +62,11 @@ class UiTheme {
       TextStyle(color: fgSoft, fontSize: 13, height: 1.45);
 
   TextStyle get title => TextStyle(
-        color: fg,
-        fontSize: 22,
-        fontWeight: FontWeight.w500,
-        letterSpacing: 0.2,
-      );
+    color: fg,
+    fontSize: 22,
+    fontWeight: FontWeight.w500,
+    letterSpacing: 0.2,
+  );
 }
 
 /// A frosted panel used for every floating surface in the app.
