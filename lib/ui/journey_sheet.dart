@@ -7,6 +7,7 @@ import '../model/appearance.dart';
 import '../model/piece.dart';
 import '../fx/sensory.dart';
 import '../model/store.dart';
+import 'backup_sheet.dart';
 import 'debug_sheet.dart';
 import 'gallery_screen.dart';
 import 'notice_board.dart';
@@ -216,6 +217,15 @@ class _Summary extends StatelessWidget {
         _SoundToggles(theme: t),
         const SizedBox(height: 4),
         _RapidToggle(theme: t),
+        _SheetRow(
+          theme: t,
+          icon: Icons.save_alt,
+          title: 'Tus datos',
+          subtitle:
+              'Copiar tu valle y volver a meterlo. Vive sólo en este teléfono, '
+              'así que la copia sos vos.',
+          open: (nav) => BackupSheet(store: store, theme: t),
+        ),
         _SheetRow(
           theme: t,
           icon: Icons.tune,

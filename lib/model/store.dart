@@ -247,6 +247,75 @@ class Store extends ChangeNotifier {
     'h': habits.map((h) => h.toJson()).toList(),
   };
 
+  // ------------------------------------------------------- taking it with you
+
+  /// Everything this app knows about you, as one line of text.
+  ///
+  /// Because a town should not be able to disappear for a reason that has
+  /// nothing to do with you. A phone gets lost, a signing key changes and
+  /// Android refuses the update, somebody clears an app's storage by mistake —
+  /// none of those are your fault and none of them should cost you a year of
+  /// mornings. This is the same thing the app writes to storage, handed over
+  /// so you can keep it somewhere it is yours.
+  ///
+  /// It is plain JSON on purpose. Not compressed, not encoded: it is your
+  /// history and you should be able to open it and see it — the dates you laid
+  /// each piece and what you wrote on them, in the order they happened.
+  String exportSave() => jsonEncode(_encode());
+
+  /// What [exportSave] wrote, read back. Returns null when it worked, and the
+  /// reason in Spanish when it did not.
+  ///
+  /// All or nothing: everything is parsed into a new list first, and the
+  /// habits this store is holding are not touched until the whole thing has
+  /// come back clean. A restore that half-worked would be worse than one that
+  /// refused, because it would look like it had worked.
+  String? importSave(String text) {
+    final raw = text.trim();
+    if (raw.isEmpty) return 'No hay nada pegado.';
+    Object? parsed;
+    try {
+      parsed = jsonDecode(raw);
+    } catch (_) {
+      return 'Eso no es una copia de La Muralla.';
+    }
+    if (parsed is! Map<String, dynamic>) {
+      return 'Eso no es una copia de La Muralla.';
+    }
+    final list = parsed['h'];
+    if (list is! List) return 'A esa copia le falta la lista de pueblos.';
+    final read = <Habit>[];
+    try {
+      for (final e in list) {
+        read.add(Habit.fromJson(e as Map<String, dynamic>));
+      }
+    } catch (_) {
+      return 'Esa copia está rota: no pude leer uno de los pueblos.';
+    }
+    if (read.isEmpty) return 'Esa copia no tiene ningún pueblo dentro.';
+    if (read.length > Habit.maxSlots) {
+      return 'Esa copia trae ${read.length} pueblos y el valle tiene sitio '
+          'para ${Habit.maxSlots}.';
+    }
+    habits
+      ..clear()
+      ..addAll(read);
+    active = ((parsed['a'] as num?)?.toInt() ?? 0).clamp(0, habits.length - 1);
+    preview = null;
+    integrityAtLaunch = integrity;
+    _save();
+    notifyListeners();
+    return null;
+  }
+
+  /// How much is in a copy, for saying so out loud before and after.
+  String describe() {
+    final towns = habits.length;
+    final pieces = habits.fold<int>(0, (n, h) => n + h.total);
+    return '$pieces ${pieces == 1 ? 'pieza' : 'piezas'} en '
+        '$towns ${towns == 1 ? 'pueblo' : 'pueblos'}';
+  }
+
   void _save() {
     _dirty = true;
     // Writes are cheap but not free; coalesce bursts into one write.

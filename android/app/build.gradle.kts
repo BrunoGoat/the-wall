@@ -1,9 +1,34 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// The one key every build of this app is signed with.
+//
+// Android will not install a build over one signed with a different key: it
+// refuses the update, and the only way past it is to uninstall, which takes
+// the person's town with it. So the key cannot be a new one each time, and for
+// a while it was — the release build was signed with the *debug* key, and a
+// fresh CI runner has no debug keystore, so Gradle made a new random one on
+// every run and threw it away. Two consecutive builds had two different
+// certificates and neither could update the other.
+//
+// The keystore is not in this repository and must never be: the repository is
+// public, and anybody holding this key could build an APK that Android would
+// happily install over somebody's town. It arrives from a repository secret,
+// which the workflow writes out as `android/key.properties` beside the file it
+// points at. Without it — a local build, a fork — this falls back to the debug
+// key, which is right for a build nobody is going to install over anything.
+val keyProps = Properties()
+val keyFile = rootProject.file("key.properties")
+if (keyFile.exists()) {
+    keyFile.inputStream().use { keyProps.load(it) }
+}
+val signedForReal = keyProps.getProperty("storeFile") != null
 
 android {
     namespace = "com.lamuralla.la_muralla"
@@ -30,11 +55,24 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (signedForReal) {
+            create("muralla") {
+                storeFile = rootProject.file(keyProps.getProperty("storeFile"))
+                storePassword = keyProps.getProperty("storePassword")
+                keyAlias = keyProps.getProperty("keyAlias")
+                keyPassword = keyProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // Signed with the debug key so the APK installs straight onto a
-            // phone for testing. Replace this before any store release.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (signedForReal) {
+                signingConfigs.getByName("muralla")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             isMinifyEnabled = false
             isShrinkResources = false
         }

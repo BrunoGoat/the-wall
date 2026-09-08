@@ -36,8 +36,63 @@ jobs:
       - name: Test
         run: flutter test
 
+      - name: Unlock the signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          # Every build of this app has to be signed with the same key, or
+          # Android refuses to install it over the last one and the only way
+          # past that is to uninstall, which takes the person's town with it.
+          #
+          # Fail loudly rather than fall back. Falling back to the debug key is
+          # what used to happen, and it is silent: a runner with no debug
+          # keystore makes a fresh random one, so the APK builds, publishes,
+          # installs on a clean phone, and only fails on the one thing it was
+          # supposed to do. A red build is a much cheaper way to find out.
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::error::Faltan los secretos ANDROID_KEYSTORE_B64 y/o" \
+                 "ANDROID_KEYSTORE_PASSWORD. Sin ellos la APK saldría firmada" \
+                 "con una clave aleatoria y no se podría instalar encima de la" \
+                 "anterior. Se ponen en Settings > Secrets and variables >" \
+                 "Actions."
+            exit 1
+          fi
+          echo "$KEYSTORE_B64" | base64 -d > android/muralla.jks
+          {
+            echo "storeFile=muralla.jks"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=muralla"
+            echo "keyPassword=$KEYSTORE_PASSWORD"
+          } > android/key.properties
+          echo "keystore: $(stat -c%s android/muralla.jks) bytes"
+
       - name: Build release APK
-        run: flutter build apk --release
+        # El versionCode sube con cada ejecución. Salía de `version: 1.0.0+1`
+        # del pubspec, o sea 1 en todas las builds, y dos APK con el mismo
+        # versionCode no son una actualización de nada.
+        run: flutter build apk --release --build-number=${{ github.run_number }}
+
+      - name: Check it is signed with the key we meant
+        run: |
+          # Que la firma sea la que creemos no es algo que se deba suponer:
+          # es lo único que separa «actualizar» de «desinstalar y perderlo
+          # todo», y ya se rompió una vez sin que nada avisara.
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          APKSIGNER=$(ls "$SDK"/build-tools/*/apksigner 2>/dev/null \
+            | sort -V | tail -1)
+          if [ -z "$APKSIGNER" ]; then
+            echo "::error::No encuentro apksigner, así que no puedo comprobar" \
+                 "con qué clave se firmó. Prefiero fallar a publicar una APK" \
+                 "que a lo mejor nadie puede instalar encima de la suya."
+            exit 1
+          fi
+          "$APKSIGNER" verify --print-certs \
+            build/app/outputs/flutter-apk/app-release.apk | tee certs.txt
+          grep -qi "CN=La Muralla" certs.txt || {
+            echo "::error::La APK no está firmada con la clave de La Muralla."
+            exit 1
+          }
 
       - name: Name the artifact
         id: name
@@ -63,9 +118,14 @@ jobs:
           body: |
             APK de prueba de **La Muralla**.
 
-            Firmada con la clave de debug: se instala directo en el teléfono
-            (Android 7.0 / API 24 o superior). Si tenías una build anterior
-            instalada, desinstalala antes.
+            Se instala encima de la build anterior y **conserva tus pueblos**:
+            todas las builds van firmadas con la misma clave. Android 7.0
+            (API 24) o superior.
+
+            Si viene de una build **anterior a la 50**, ésa sí hay que
+            desinstalarla primero — las de antes iban firmadas con una clave
+            distinta cada vez. Antes de hacerlo, sacá una copia desde
+            *el viaje → Tus datos → Copiar*, y pegala después.
           files: out/*.apk
           prerelease: true
           fail_on_unmatched_files: true
