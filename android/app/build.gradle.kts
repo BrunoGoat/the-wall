@@ -17,12 +17,19 @@ plugins {
 // every run and threw it away. Two consecutive builds had two different
 // certificates and neither could update the other.
 //
-// The keystore is not in this repository and must never be: the repository is
-// public, and anybody holding this key could build an APK that Android would
-// happily install over somebody's town. It arrives from a repository secret,
-// which the workflow writes out as `android/key.properties` beside the file it
-// points at. Without it — a local build, a fork — this falls back to the debug
-// key, which is right for a build nobody is going to install over anything.
+// The keystore is `android/muralla.jks`, and it is committed — which is not
+// where a signing key normally lives. It is here on purpose: the app is not
+// published anywhere, so there is no installed copy of anybody's that somebody
+// holding this key could replace, and in exchange a clone of this repository
+// builds an APK that installs over the last one and keeps the town, with no
+// secret for anybody to paste anywhere. The day it is published this key gets
+// replaced by one that is not in a repository, or by Play's own signing.
+// `android/.gitignore` says the same thing, next to the exception that lets
+// the file through.
+//
+// If the file is ever missing — somebody building from a copy without it —
+// this falls back to the debug key, which is right for a build nobody is going
+// to install over anything.
 val keyProps = Properties()
 val keyFile = rootProject.file("key.properties")
 if (keyFile.exists()) {
