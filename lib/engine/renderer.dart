@@ -151,6 +151,7 @@ class TownScene {
     this.tonight,
     this.tonightKnown = false,
     this.skyNight = 0,
+    this.coat = true,
   });
 
   /// How many achievements have been laid.
@@ -204,6 +205,11 @@ class TownScene {
   /// Si esa constelación ya está anotada. Una anotada se sigue viendo —el
   /// cielo no se apaga porque la hayas mirado— pero más floja y con su nombre.
   final bool tonightKnown;
+
+  /// Si el prado lleva su paño de manchas. Siempre, salvo para el test que
+  /// mide cuánto se raya el suelo sin él — una regla que sólo mira el
+  /// resultado bueno no distingue «lo arreglé» de «mi regla no mide nada».
+  final bool coat;
 
   /// Whether the landmark names are hung over the buildings. The exhibition
   /// hall says the name in its own header, and a second one floating in the
@@ -308,7 +314,7 @@ class TownPainter extends CustomPainter {
     final town = scene.town;
 
     _drawSky(canvas, size, p, horizonY);
-    _drawGround(canvas, size, horizonY);
+    _drawGround(canvas, size, p, horizonY);
     _drawRanges(canvas, p, size, horizonY);
     for (final e in scene.towns) {
       _drawTownGround(canvas, p, e.layout);
@@ -644,7 +650,7 @@ class TownPainter extends CustomPainter {
     }
   }
 
-  void _drawGround(Canvas canvas, Size size, double horizonY) {
+  void _drawGround(Canvas canvas, Size size, Projector p, double horizonY) {
     final pal = scene.palette;
     final hy = clampD(horizonY, -size.height, size.height * 2);
     if (hy > size.height) return;
@@ -661,15 +667,285 @@ class TownPainter extends CustomPainter {
     // Blended by how much of a day it is rather than by whether the sun is up,
     // because the second of those changes colour in a single frame.
     final (far, near) = meadowTone(pal);
+    final lift = scene.coat ? meadowLift(pal) : const Color(0x00000000);
+    // Se teje antes de descontar, porque lo que hay que descontar es
+    // exactamente lo que el paño suma de media, y eso lo sabe el paño.
+    if (scene.coat) _coatTile();
+    // El paño no llega hasta el horizonte, y no por ahorrar. Una mancha
+    // redonda del suelo vista casi de canto se proyecta como una cinta
+    // larguísima y finísima: la perspectiva la estira a lo ancho hasta
+    // convertirla en otra raya horizontal, que es justo lo que se venía a
+    // quitar. Tampoco hace falta que llegue —la hierba a doscientos metros no
+    // tiene manchas, tiene un verde—, así que entra poco a poco, y despacio al
+    // principio porque el aplastamiento cerca del horizonte es brutal y se
+    // suelta despacio.
+    //
+    // El descuento del degradado usa la misma rampa y los mismos tramos. Los
+    // dos son rectos entre tramo y tramo, así que lo que uno suma y lo que el
+    // otro resta se cancelan píxel a píxel y no sólo de media.
+    final stops = <double>[];
+    final ramp = <double>[];
+    for (var i = 0; i <= 10; i++) {
+      final t = i / 10;
+      stops.add(t);
+      ramp.add(math.pow(clampD(t / 0.62, 0, 1), 2.2).toDouble());
+    }
     canvas.drawRect(
       rect,
       Paint()
         ..shader = ui.Gradient.linear(Offset(0, hy), Offset(0, size.height), [
-          far,
-          near,
-        ]),
+          for (var i = 0; i < stops.length; i++)
+            _sink(Color.lerp(far, near, stops[i])!, lift, ramp[i]),
+        ], stops),
+    );
+    _drawMeadowCoat(canvas, rect, p, lift, stops, ramp);
+  }
+
+  static Color _sink(Color c, Color lift, double by) => Color.from(
+    alpha: 1,
+    red: clampD(c.r - lift.r * _coatFill * by, 0, 1),
+    green: clampD(c.g - lift.g * _coatFill * by, 0, 1),
+    blue: clampD(c.b - lift.b * _coatFill * by, 0, 1),
+  );
+
+  /// Las manchas del prado, tendidas sobre el plano del suelo.
+  ///
+  /// Un degradado liso de mil píxeles entre dos verdes que se llevan treinta
+  /// unidades no puede salir liso: a ocho bits no hay más que treinta valores
+  /// entre uno y otro, así que el aparato lo trama, y el tramado del teléfono
+  /// —una matriz ordenada de cuatro por cuatro con cuatro unidades de
+  /// recorrido— se lee como una persiana de rayas horizontales. Las casas y
+  /// las montañas no la tienen porque son rellenos planos: no hay nada entre
+  /// lo que escalonar. El prado era lo único degradado del cuadro, y por eso
+  /// era lo único rayado.
+  ///
+  /// La salida no es afinar el tramado —está por debajo de lo que se puede
+  /// tocar desde aquí— sino quitarle el sitio: un prado tiene manchas. Encima
+  /// del degradado va un paño de ruido suave con bastante más recorrido que el
+  /// escalón que tapa, y el ojo deja de tener ninguna raya recta que seguir.
+  ///
+  /// Va anclado al mundo y en perspectiva de verdad, no pegado a la pantalla:
+  /// un salpicado que se queda quieto mientras el pueblo gira se ve como
+  /// suciedad en el cristal, no como hierba. Y como el suelo es un plano, la
+  /// cámara entera cabe en una matriz —con su división por la profundidad en
+  /// la fila de perspectiva—, así que todo el paño se tiende de una sola
+  /// pasada en vez de a base de sembrar manchas sueltas una por una.
+  void _drawMeadowCoat(
+    Canvas canvas,
+    Rect rect,
+    Projector p,
+    Color lift,
+    List<double> stops,
+    List<double> ramp,
+  ) {
+    if (!scene.coat) return;
+    final ground = _groundPatch(p);
+    if (ground == null) return;
+    canvas.save();
+    canvas.clipRect(rect);
+    // El paño se pinta aparte y se suma entero al final: hay que rebajarlo con
+    // la rampa del horizonte antes de sumarlo, y rebajar y sumar en el mismo
+    // trazo no se puede.
+    canvas.saveLayer(rect, Paint()..blendMode = BlendMode.plus);
+    // Las manchas crecen con la altura del ojo. Desde el valle, a doscientas
+    // unidades de altura, unas manchas de trece unidades serían treinta
+    // repeticiones del paño en pantalla: se ve la baldosa y el prado parece
+    // una moqueta. Creciendo con la altura, en pantalla miden siempre lo
+    // mismo, que es lo único que importa aquí —romper el escalón del
+    // degradado— y de la baldosa nunca se ven más de tres o cuatro.
+    final span = _coatWorld * clampD(p.eye.y / 13, 0.6, 16) / _coatSize;
+    canvas.save();
+    canvas.transform(_groundToScreen(p));
+    canvas.drawPath(
+      ground,
+      Paint()
+        ..colorFilter = ColorFilter.mode(lift, BlendMode.srcIn)
+        ..shader = ImageShader(
+          _coatTile(),
+          TileMode.repeated,
+          TileMode.repeated,
+          Float64List.fromList([
+            span, 0, 0, 0, //
+            0, span, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1,
+          ]),
+          filterQuality: FilterQuality.medium,
+        ),
+    );
+    canvas.restore();
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..blendMode = BlendMode.dstIn
+        ..shader = ui.Gradient.linear(
+          Offset(0, rect.top),
+          Offset(0, rect.bottom),
+          [
+            for (final v in ramp)
+              Color.from(alpha: v, red: 0, green: 0, blue: 0),
+          ],
+          stops,
+        ),
+    );
+    canvas.restore();
+    canvas.restore();
+  }
+
+  /// Cuánto aclara la mancha más clara del prado sobre la más oscura.
+  ///
+  /// Ni una cantidad fija ni una proporción pura del verde que ya hay. Fija,
+  /// a mediodía la hierba saldría plana y de madrugada moteada como un
+  /// leopardo. Pura proporción, pasa lo contrario: de noche el prado es tan
+  /// oscuro que las manchas se quedarían por debajo del escalón que vienen a
+  /// tapar, y de noche es justo cuando se veían las rayas. Así que un poco de
+  /// cada cosa.
+  static Color meadowLift(Palette pal) {
+    final (_, near) = meadowTone(pal);
+    double ch(double v) => clampD(v * 0.14 + 0.030, 0.03, 0.13);
+    return Color.from(
+      alpha: 1,
+      red: ch(near.r),
+      green: ch(near.g),
+      blue: ch(near.b),
     );
   }
+
+  /// El trozo de plano del suelo que está delante de la cámara.
+  ///
+  /// Hay que recortarlo: el plano entero incluye lo que queda detrás del ojo,
+  /// y eso al dividir por la profundidad cambia de signo y se dobla sobre la
+  /// pantalla. La condición «delante» es media plano en el suelo, así que el
+  /// recorte es un trapecio y sale de tres cuentas.
+  Path? _groundPatch(Projector p) {
+    const reach = 6000.0;
+    final f = p.forward;
+    final ef = p.eye.dot(f);
+    final g = math.sqrt(f.x * f.x + f.z * f.z);
+    final path = Path();
+    if (g < 1e-4) {
+      // Mirando a plomo: o se ve el plano entero, o no se ve nada de él.
+      if (-f.y * p.eye.y <= p.near) return null;
+      path.addRect(
+        Rect.fromCenter(
+          center: Offset(p.eye.x, p.eye.z),
+          width: reach,
+          height: reach,
+        ),
+      );
+      return path;
+    }
+    final gx = f.x / g, gz = f.z / g;
+    // Profundidad de un punto del suelo: g * (ĝ · punto) - eye·forward.
+    final s0 = (p.near + ef) / g;
+    void go(double s, double t, bool first) {
+      final x = gx * s - gz * t, z = gz * s + gx * t;
+      first ? path.moveTo(x, z) : path.lineTo(x, z);
+    }
+
+    go(s0, -reach, true);
+    go(s0, reach, false);
+    go(s0 + reach, reach, false);
+    go(s0 + reach, -reach, false);
+    path.close();
+    return path;
+  }
+
+  /// La cámara, para el plano del suelo y sólo para él, como una matriz.
+  ///
+  /// Vale porque todo lo que se pinta con ella tiene y = 0: entran (x, z) y
+  /// sale el píxel, con la división por la profundidad hecha por la fila de
+  /// perspectiva en vez de a mano.
+  static Float64List _groundToScreen(Projector p) {
+    final er = p.eye.dot(p.right);
+    final eu = p.eye.dot(p.up);
+    final ef = p.eye.dot(p.forward);
+    final f = p.focal;
+    return Float64List.fromList([
+      // Columna de x.
+      f * p.right.x + p.cx * p.forward.x,
+      p.cy * p.forward.x - f * p.up.x,
+      0,
+      p.forward.x,
+      // Columna de z, que aquí hace de y.
+      f * p.right.z + p.cx * p.forward.z,
+      p.cy * p.forward.z - f * p.up.z,
+      0,
+      p.forward.z,
+      // La tercera entrada no se usa: todo esto está a ras de suelo.
+      0, 0, 1, 0,
+      // Columna del término independiente.
+      -f * er - p.cx * ef,
+      f * eu - p.cy * ef,
+      0,
+      -ef,
+    ]);
+  }
+
+  /// El paño de manchas, tejido una vez y guardado.
+  ///
+  /// Ruido de valor en tres tamaños, con la rejilla más gruesa llevando la
+  /// mitad del peso: manchas grandes con grano fino encima, que es a lo que se
+  /// parece la hierba. Los tres tamaños dividen al paño, así que repite sin
+  /// costura, y ninguno es tan grueso como para que se note dónde empieza otra
+  /// vez. Sale a sesenta y cuatro píxeles y lo suaviza el filtrado al
+  /// estirarlo: no hace falta más resolución para algo que no tiene ni un
+  /// borde.
+  static const double _coatSize = 64;
+  static const double _coatWorld = 14;
+  static const double _coatMean = 0.4624;
+
+  /// Lo que el paño suma de media, contado sobre el paño ya tejido en vez de
+  /// supuesto: el estirón lo recorta por los dos extremos y no lo hace por
+  /// igual, así que la media de verdad no es la mitad justa. Es el número que
+  /// el degradado se descuenta de antemano.
+  static double _coatFill = 0.5;
+  static ui.Image? _coat;
+
+  static ui.Image _coatTile() {
+    final had = _coat;
+    if (had != null) return had;
+    const n = 64;
+    final rec = ui.PictureRecorder();
+    final c = Canvas(rec);
+    final paint = Paint();
+    var fill = 0.0;
+    for (var y = 0; y < n; y++) {
+      for (var x = 0; x < n; x++) {
+        final v =
+            0.50 * _weave(x, y, 8, 0x11) +
+            0.32 * _weave(x, y, 16, 0x22) +
+            0.18 * _weave(x, y, 32, 0x33);
+        // Tres ruidos sumados se apiñan en el medio: sin estirarlos, el paño
+        // usaría un tercio del recorrido que se le da y las manchas no se
+        // verían. Se estira alrededor de su propia media, que es la que hay
+        // que conservar para que el verde promedio no se mueva.
+        final a = clampD(0.5 + (v - _coatMean) * 1.9, 0, 1);
+        fill += a;
+        paint.color = Color.from(alpha: a, red: 1, green: 1, blue: 1);
+        c.drawRect(Rect.fromLTWH(x.toDouble(), y.toDouble(), 1, 1), paint);
+      }
+    }
+    _coatFill = fill / (n * n);
+    return _coat = rec.endRecording().toImageSync(n, n);
+  }
+
+  /// Una capa del ruido: valores por vértice de una rejilla de `cells` por
+  /// `cells` que se cierra sobre sí misma, interpolados con una curva suave
+  /// para que no se vean las aristas de la rejilla.
+  static double _weave(int x, int y, int cells, int salt) {
+    const n = 64;
+    final fx = x * cells / n, fy = y * cells / n;
+    final ix = fx.floor(), iy = fy.floor();
+    final tx = _ease(fx - ix), ty = _ease(fy - iy);
+    double at(int a, int b) =>
+        hash01((a % cells + cells) % cells, (b % cells + cells) % cells, salt);
+    final top = at(ix, iy) + (at(ix + 1, iy) - at(ix, iy)) * tx;
+    final bot = at(ix, iy + 1) + (at(ix + 1, iy + 1) - at(ix, iy + 1)) * tx;
+    return top + (bot - top) * ty;
+  }
+
+  static double _ease(double t) => t * t * (3 - 2 * t);
 
   /// Three ranges of hills standing all the way round the horizon.
   ///
