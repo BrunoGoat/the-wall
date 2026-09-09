@@ -4,24 +4,12 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../data/tunes.dart';
 import '../model/appearance.dart';
-
-/// Which family a sound belongs to, for listing them in an order that means
-/// something to somebody looking for one to switch off.
-enum Sounds {
-  /// Made by something you did.
-  doing,
-
-  /// The valley speaking up on its own: a bell, a cockerel, a crow.
-  valley,
-
-  /// The three loops the place itself is made of.
-  air,
-}
 
 /// One noise, with a name a person would recognise it by.
 class SoundBite {
-  const SoundBite(this.id, this.file, this.name, this.level, this.of);
+  const SoundBite(this.id, this.file, this.name, this.level);
 
   /// Never changes: it is what a silenced sound is written down as.
   final String id;
@@ -30,7 +18,6 @@ class SoundBite {
 
   /// How loud this one is relative to the others, before the slider.
   final double level;
-  final Sounds of;
 }
 
 /// Sound and haptics.
@@ -54,40 +41,17 @@ class Sensory {
 
   /// Everything this app can make a noise with, by name.
   ///
-  /// A catalogue rather than file names scattered through the code, because
-  /// every one of these can now be silenced on its own and listened to on
-  /// demand, and both of those need something to point at.
+  /// Five, and cada uno es algo que hiciste vos. Hubo cuatro más que decía el
+  /// pueblo por su cuenta —campana, gallo, cuervo, gozne— y tres bucles de
+  /// aire de valle. Se fueron: un pueblo que grazna solo cada veintitantos
+  /// segundos no aporta nada y se nota mal, y un bucle de viento de ocho
+  /// segundos se oye que es un bucle de ocho segundos.
   static const List<SoundBite> catalogue = [
-    SoundBite('place', 'place.wav', 'Poner una pieza', 0.72, Sounds.doing),
-    SoundBite('tap', 'tap.wav', 'Toque', 0.45, Sounds.doing),
-    SoundBite('repair', 'repair.wav', 'Reparar', 0.70, Sounds.doing),
-    SoundBite(
-      'milestone',
-      'milestone.wav',
-      'Obra terminada',
-      0.85,
-      Sounds.doing,
-    ),
-    SoundBite('epic', 'epic.wav', 'Hito del pueblo', 0.90, Sounds.doing),
-    SoundBite('bell', 'bell.wav', 'Campana', 0.30, Sounds.valley),
-    SoundBite('cock', 'cock.wav', 'Gallo', 0.30, Sounds.valley),
-    SoundBite('crow', 'crow.wav', 'Cuervo', 0.24, Sounds.valley),
-    SoundBite('creak', 'creak.wav', 'Gozne', 0.24, Sounds.valley),
-    SoundBite(
-      'amb_field',
-      'amb_field.wav',
-      'Viento y pájaros',
-      0.40,
-      Sounds.air,
-    ),
-    SoundBite(
-      'amb_town',
-      'amb_town.wav',
-      'Murmullo del pueblo',
-      0.46,
-      Sounds.air,
-    ),
-    SoundBite('amb_life', 'amb_life.wav', 'Día de mercado', 0.40, Sounds.air),
+    SoundBite('place', 'place.wav', 'Poner una pieza', 0.72),
+    SoundBite('tap', 'tap.wav', 'Toque', 0.45),
+    SoundBite('repair', 'repair.wav', 'Reparar', 0.70),
+    SoundBite('milestone', 'milestone.wav', 'Obra terminada', 0.85),
+    SoundBite('epic', 'epic.wav', 'Hito del pueblo', 0.90),
   ];
 
   static SoundBite? biteOf(String id) {
@@ -97,39 +61,11 @@ class Sensory {
     return null;
   }
 
-  // ---------------------------------------------------------------- music
+  // ---------------------------------------------------------------- música
 
-  /// Tres capas en re dórico a sesenta pulsos por minuto: el bordón de
-  /// zanfoña, el laúd punteado y una flauta. Se generan en `tool/make_music.py`.
-  ///
-  /// Las tres duran un número entero de compases del mismo pulso pero de
-  /// largos distintos —seis, ocho y diez— así que caen siempre en el mismo
-  /// sitio del compás y aun así la combinación no se repite igual hasta los
-  /// ocho minutos. Como la armonía debajo es un bordón que no se mueve,
-  /// cualquier desfase entre ellas suena bien. Es lo que hacía un juglar con
-  /// una zanfoña: una nota que no para, y encima lo que se le ocurra.
-  static const List<String> _music = [
-    'mus_bordon.wav',
-    'mus_laud.wav',
-    'mus_flauta.wav',
-  ];
-
-  /// El sitio de cada capa en la mezcla, medido sobre el valor eficaz de cada
-  /// archivo y no sobre su pico: los tres se escriben a escala completa para
-  /// no tirar bits, y el equilibrio se pone aquí.
-  static const List<double> _musMix = [0.193, 1.0, 0.231];
-
-  /// Música de fondo quiere decir de fondo. Por debajo del viento.
-  /// Half the slider is what the app has always sounded like.
-  double get _musLevel => _wants.musicVolume;
-
-  /// Qué se oye a cada hora, en el orden de arriba. De noche el bordón se
-  /// queda casi solo con la flauta encima, que es lo que suena a noche; al
-  /// mediodía manda el laúd, que es lo que suena a gente trabajando.
-  static const List<double> _atNight = [1.00, 0.22, 0.50]; // las 3
-  static const List<double> _atDawn = [0.85, 0.85, 0.80]; // las 8
-  static const List<double> _atNoon = [0.70, 1.00, 0.65]; // las 14
-  static const List<double> _atDusk = [0.90, 0.55, 0.90]; // las 20
+  /// La pieza que está sonando. Se cambia en caliente desde los ajustes.
+  Tune _tune = tunes.first;
+  Tune get tune => _tune;
 
   final List<AudioPlayer> _mus = [];
   final List<double> _musAt = [0, 0, 0];
@@ -145,6 +81,13 @@ class Sensory {
   /// La entrada. Nada debería empezar a sonar de golpe al abrir la app.
   double _musIn = 0;
 
+  /// La última hora que nos pasaron, para poder saltar a la mezcla correcta al
+  /// cambiar de pieza sin esperar a que llegue el fotograma siguiente.
+  double _lastHour = 12;
+
+  /// Media es como sonaba antes de que hubiera dónde tocarlo.
+  double get _musLevel => _wants.musicVolume;
+
   /// An hour to pretend it is, for listening to the mix of a moment that is
   /// not now. Null means the real clock, which is what it is for everybody who
   /// is not standing in the settings screen holding the slider.
@@ -156,27 +99,40 @@ class Sensory {
     _hourOverride = hour;
     // Straight there rather than eased: this is a tool for comparing two
     // moments, and a tool that takes ten seconds to answer is not one.
-    if (hour == null) return;
-    final day = dayMix(hour);
-    final level = _musLevel * (_musIn <= 0 ? 1 : _musIn);
-    for (var i = 0; i < _mus.length && i < 3; i++) {
-      _musAt[i] = _musMix[i] * day[i] * level;
-      _musSent[i] = _musAt[i];
-      try {
-        _mus[i].setVolume(_musAt[i].clamp(0.0, 1.0));
-      } catch (_) {}
-    }
+    if (hour != null) _jump();
   }
 
   /// What each layer is playing at right now, for showing it.
   List<double> get heard => List.unmodifiable(_musAt);
 
-  Future<void> _initMusic() async {
-    if (_musReady) return;
+  /// Cuál suena hoy: una al azar de las que estén en la rotación, cada vez que
+  /// se abre la app. Con una sola elegida, ésa siempre.
+  Tune _pick() {
+    final want = [
+      for (final t in tunes)
+        if (_wants.inRotation(t.id)) t,
+    ];
+    if (want.isEmpty) return tunes.first;
+    return want[DateTime.now().microsecondsSinceEpoch % want.length];
+  }
+
+  Future<void> _loadTune(Tune want) async {
+    for (final p in _mus) {
+      try {
+        await p.stop();
+        await p.dispose();
+      } catch (_) {}
+    }
+    _mus.clear();
+    for (var i = 0; i < 3; i++) {
+      _musAt[i] = 0;
+      _musSent[i] = 0;
+    }
+    _tune = want;
     // One at a time, each on its own: a layer that will not start is one
     // layer missing, not three. It used to be a single try around the loop,
     // so the first failure took the whole piece with it and said nothing.
-    for (final name in _music) {
+    for (final name in want.files) {
       try {
         final p = AudioPlayer();
         await p.setReleaseMode(ReleaseMode.loop);
@@ -190,14 +146,40 @@ class Sensory {
     _musReady = _mus.isNotEmpty;
   }
 
-  /// Interpola entre las cuatro horas de arriba dando la vuelta al reloj, con
+  /// Pone otra pieza, ya. Para el disquito de los ajustes.
+  ///
+  /// Sin la entrada lenta y sin esperar al fotograma siguiente: alguien que
+  /// acaba de pedir oír un disco quiere oírlo. Y la que se elige aquí es la
+  /// que sigue sonando al cerrar la pantalla — probar una y que al volver
+  /// suene otra sería una broma pesada.
+  Future<void> playTune(Tune want) async {
+    await _loadTune(want);
+    _musIn = 1.0;
+    _jump();
+  }
+
+  /// El volumen que le toca a cada capa ahora mismo, sin transición.
+  void _jump() {
+    final day = dayMix(_tune, _hourOverride ?? _lastHour);
+    final level = _musLevel * (_musIn <= 0 ? 1 : _musIn);
+    for (var i = 0; i < _mus.length && i < 3; i++) {
+      _musAt[i] = day[i] * level;
+      _musSent[i] = _musAt[i];
+      try {
+        _mus[i].setVolume(_musAt[i].clamp(0.0, 1.0));
+      } catch (_) {}
+    }
+  }
+
+  /// Interpola entre las cuatro horas de la pieza dando la vuelta al reloj, con
   /// una curva suave: a las ocho y un minuto no puede sonar distinto que a las
   /// ocho menos uno.
+  ///
   /// Not only for tests any more: the settings screen shows this, so somebody
   /// can hear what four in the morning sounds like without waiting for it.
-  static List<double> dayMix(double hour) {
+  static List<double> dayMix(Tune tune, double hour) {
     const stops = [3.0, 8.0, 14.0, 20.0, 27.0];
-    const mixes = [_atNight, _atDawn, _atNoon, _atDusk, _atNight];
+    final mixes = [...tune.hours, tune.hours.first];
     final h = hour < stops.first ? hour + 24 : hour;
     for (var i = 0; i < stops.length - 1; i++) {
       if (h > stops[i + 1]) continue;
@@ -208,21 +190,22 @@ class Sensory {
           mixes[i][j] + (mixes[i + 1][j] - mixes[i][j]) * e,
       ];
     }
-    return _atNight;
+    return tune.hours.first;
   }
 
   /// La mezcla de este instante. `hour` es la misma hora con la que se pinta
   /// el cielo, así que la música y la luz cambian juntas.
   Future<void> music(double hour, double dt, double integrity) async {
+    _lastHour = hour;
     if (!_musReady) return;
     if (_asleep || !_wants.hearsMusic) return;
     _musIn = (_musIn + dt / 6.0).clamp(0.0, 1.0);
-    final day = dayMix(_hourOverride ?? hour);
+    final day = dayMix(_tune, _hourOverride ?? hour);
     // Un pueblo dejado pierde parte de su música, pero no toda: el silencio
     // absoluto se lee como una app rota, no como un pueblo abandonado.
     final level =
         _musLevel * _musIn * (0.72 + 0.28 * integrity.clamp(0.0, 1.0));
-    final want = [for (var i = 0; i < 3; i++) _musMix[i] * day[i] * level];
+    final want = [for (var i = 0; i < 3; i++) day[i] * level];
     for (var i = 0; i < _mus.length && i < 3; i++) {
       // El estado se mueve siempre, con o sin llamada.
       _musAt[i] = approach(_musAt[i], want[i], dt);
@@ -275,16 +258,6 @@ class Sensory {
         }
       } catch (_) {}
     }
-    for (var i = 0; i < _amb.length; i++) {
-      final off = _asleep || !_wants.hears(_layers[i]);
-      try {
-        if (off) {
-          _amb[i].pause();
-        } else {
-          _amb[i].resume();
-        }
-      } catch (_) {}
-    }
   }
 
   /// True while the app is not the thing on screen.
@@ -304,90 +277,6 @@ class Sensory {
     if (!_asleep) return;
     _asleep = false;
     settle();
-  }
-
-  // ------------------------------------------------------------- ambience
-
-  /// The three layers of the valley's own noise. They stack rather than swap:
-  /// the field is always there, the town murmur comes in as the place grows,
-  /// and the busy layer only once it is both big and lived in.
-  static const List<String> _layers = ['amb_field', 'amb_town', 'amb_life'];
-  final List<AudioPlayer> _amb = [];
-  final List<double> _ambAt = [0, 0, 0];
-  final List<double> _ambSent = [0, 0, 0];
-  bool _ambReady = false;
-
-  /// One-shots, and which of them belong to a town that is doing well.
-  static const List<String> _alive = ['bell', 'cock'];
-  static const List<String> _empty = ['crow', 'creak'];
-  double _sinceOneShot = 0;
-
-  Future<void> _initAmbience() async {
-    if (_ambReady) return;
-    // One at a time, for the same reason as the music: a layer that will not
-    // start is one layer missing, not all of them.
-    for (final name in _layers) {
-      try {
-        final p = AudioPlayer();
-        await p.setReleaseMode(ReleaseMode.loop);
-        await p.setVolume(0);
-        await p.play(AssetSource('sfx/${biteOf(name)!.file}'));
-        _amb.add(p);
-      } catch (_) {
-        _amb.add(AudioPlayer());
-      }
-    }
-    _ambReady = _amb.isNotEmpty;
-  }
-
-  /// How loud the valley is, from how big and how lit the town in front of you
-  /// is.
-  ///
-  /// A big, kept-up town is a place with people in it and sounds like one. A
-  /// small or abandoned one is not silent — that would read as broken — it just
-  /// keeps the wind and loses the voices, which is what nobody home sounds
-  /// like.
-  Future<void> ambience(double size01, double integrity) async {
-    if (!_ambReady) return;
-    final life = size01.clamp(0.0, 1.0) * (0.35 + 0.65 * integrity);
-    final shape = [
-      0.30 + 0.10 * (1 - life),
-      0.46 * _ramp(life, 0.08, 0.55),
-      0.40 * _ramp(life, 0.42, 0.95),
-    ];
-    for (var i = 0; i < _amb.length && i < shape.length; i++) {
-      // Each layer can be silenced on its own, and the whole valley rides the
-      // same slider the rest of the effects do.
-      final want = _asleep || !_wants.hears(_layers[i])
-          ? 0.0
-          : shape[i] * _effectsGain;
-      // Eased, so walking between two towns is a change of place rather than a
-      // switch being thrown. The state moves every frame whatever happens: the
-      // threshold below decides whether to spend a call on the player, and
-      // nothing else — mixing those two was what left the music at zero.
-      _ambAt[i] += (want - _ambAt[i]) * 0.10;
-      if ((_ambAt[i] - _ambSent[i]).abs() < 0.004) continue;
-      _ambSent[i] = _ambAt[i];
-      try {
-        await _amb[i].setVolume(_ambAt[i].clamp(0.0, 1.0));
-      } catch (_) {}
-    }
-  }
-
-  static double _ramp(double v, double a, double b) =>
-      ((v - a) / (b - a)).clamp(0.0, 1.0);
-
-  /// Every so often, one sound that says what kind of place this is.
-  void ambientOneShot(double dt, double size01, double integrity) {
-    if (!_ready || _asleep) return;
-    _sinceOneShot += dt;
-    // Busy towns speak up often; a quiet one only now and then.
-    final gap = 26.0 - 16.0 * size01.clamp(0.0, 1.0) * integrity;
-    if (_sinceOneShot < gap) return;
-    _sinceOneShot = 0;
-    final alive = integrity > 0.6 && size01 > 0.10;
-    final pool = alive ? _alive : _empty;
-    _say(pool[DateTime.now().microsecond % pool.length]);
   }
 
   /// How this app asks Android and iOS for the speaker.
@@ -438,8 +327,7 @@ class Sensory {
     } catch (_) {
       _ready = false;
     }
-    await _initAmbience();
-    await _initMusic();
+    await _loadTune(_pick());
   }
 
   /// Plays one of the catalogue, at whatever the person left the effects
@@ -541,14 +429,12 @@ class Sensory {
   }
 
   void dispose() {
-    for (final p in [..._pool, ..._amb, ..._mus]) {
+    for (final p in [..._pool, ..._mus]) {
       p.dispose();
     }
     _pool.clear();
-    _amb.clear();
     _mus.clear();
     _ready = false;
-    _ambReady = false;
     _musReady = false;
   }
 }

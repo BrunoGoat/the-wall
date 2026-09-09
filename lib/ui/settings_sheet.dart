@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/landmarks.dart';
 import '../engine/town.dart';
+import '../data/tunes.dart';
 import '../fx/sensory.dart';
 import '../model/appearance.dart';
 import '../model/store.dart';
@@ -94,8 +95,8 @@ class _SettingsSheetState extends State<SettingsSheet> {
         ),
         _Switch(
           theme: t,
-          title: 'Efectos y valle',
-          subtitle: 'Lo que suena al poner una pieza, y el viento.',
+          title: 'Efectos',
+          subtitle: 'Lo que suena al poner una pieza.',
           on: !wants.effectsOff,
           enabled: !wants.soundOff,
           onChanged: (v) => wants.setEffectsOff(!v),
@@ -103,7 +104,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
         _Switch(
           theme: t,
           title: 'Música',
-          subtitle: 'Bordón, laúd y flauta. Cambia con la hora del día.',
+          subtitle: 'De fondo, y distinta según la hora del día.',
           on: !wants.musicOff,
           enabled: !wants.soundOff,
           onChanged: (v) => wants.setMusicOff(!v),
@@ -137,21 +138,35 @@ class _SettingsSheetState extends State<SettingsSheet> {
           style: t.bodySoft.copyWith(fontSize: 11.5, height: 1.4),
         ),
         const SizedBox(height: 8),
-        for (final group in Sounds.values) ...[
-          Padding(
-            padding: const EdgeInsets.only(top: 12, bottom: 2),
-            child: Text(
-              _groupName(group),
-              style: t.label.copyWith(fontSize: 9, color: t.fgFaint),
-            ),
+        for (final bite in Sensory.catalogue)
+          _Bite(
+            theme: t,
+            bite: bite,
+            enabled: !wants.soundOff && !wants.effectsOff,
           ),
-          for (final bite in Sensory.catalogue.where((b) => b.of == group))
-            _Bite(
-              theme: t,
-              bite: bite,
-              enabled: !wants.soundOff && !wants.effectsOff,
-            ),
-        ],
+
+        const SizedBox(height: 26),
+        _Head(theme: t, text: 'LOS DISCOS'),
+        Text(
+          'Tocá el disco para oírlo ahora mismo. La casilla decide cuáles '
+          'entran en el sorteo: al abrir la app suena una de ellas al azar.'
+          '${wants.rotation == tunes.length ? '' : ' Ahora hay '
+                    '${wants.rotation} elegido${wants.rotation == 1 ? '' : 's'}.'}',
+          style: t.bodySoft.copyWith(fontSize: 11.5, height: 1.4),
+        ),
+        const SizedBox(height: 6),
+        for (final tune in tunes)
+          _Disc(
+            theme: t,
+            tune: tune,
+            playing: Sensory.instance.tune.id == tune.id,
+            enabled: !wants.soundOff && !wants.musicOff,
+            onPlay: () async {
+              await Sensory.instance.playTune(tune);
+              if (mounted) setState(() {});
+            },
+            onKeep: (v) => wants.setRotation(tune.id, v),
+          ),
 
         const SizedBox(height: 26),
         _Head(theme: t, text: 'LA MÚSICA A CUALQUIER HORA'),
@@ -209,12 +224,6 @@ class _SettingsSheetState extends State<SettingsSheet> {
       ],
     );
   }
-
-  static String _groupName(Sounds of) => switch (of) {
-    Sounds.doing => 'LO QUE HACÉS',
-    Sounds.valley => 'LO QUE DICE EL PUEBLO',
-    Sounds.air => 'EL AIRE DEL VALLE',
-  };
 }
 
 class _Head extends StatelessWidget {
@@ -383,6 +392,87 @@ class _Bite extends StatelessWidget {
   }
 }
 
+/// Una de las cinco piezas: el disco para oírla y la casilla para dejarla en
+/// el sorteo.
+class _Disc extends StatelessWidget {
+  const _Disc({
+    required this.theme,
+    required this.tune,
+    required this.playing,
+    required this.enabled,
+    required this.onPlay,
+    required this.onKeep,
+  });
+
+  final UiTheme theme;
+  final Tune tune;
+
+  /// La que suena ahora mismo. Lleva el disco relleno y el nombre en color:
+  /// con cinco filas iguales, saber cuál estás oyendo es la mitad de poder
+  /// compararlas.
+  final bool playing;
+  final bool enabled;
+  final VoidCallback onPlay;
+  final void Function(bool keep) onKeep;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = theme;
+    final keep = Appearance.instance.inRotation(tune.id);
+    return Opacity(
+      opacity: enabled ? 1 : 0.42,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          children: [
+            IconButton(
+              onPressed: enabled ? onPlay : null,
+              icon: Icon(
+                playing ? Icons.album : Icons.album_outlined,
+                size: 26,
+              ),
+              color: playing ? t.accent : t.fg.withValues(alpha: 0.65),
+              tooltip: 'Oír ${tune.name}',
+              visualDensity: VisualDensity.compact,
+            ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tune.name,
+                    style: t.body.copyWith(
+                      fontSize: 14,
+                      color: playing ? t.accent : t.fg,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    tune.blurb,
+                    style: t.bodySoft.copyWith(fontSize: 11, height: 1.3),
+                  ),
+                ],
+              ),
+            ),
+            Checkbox(
+              value: keep,
+              activeColor: t.accent,
+              visualDensity: VisualDensity.compact,
+              onChanged: enabled
+                  ? (v) {
+                      Sensory.instance.tick();
+                      onKeep(v ?? false);
+                    }
+                  : null,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// The music at any hour of the day, and what it is playing while you listen.
 class _Clock extends StatelessWidget {
   const _Clock({required this.theme, required this.at, required this.onPick});
@@ -398,14 +488,21 @@ class _Clock extends StatelessWidget {
     ('Tarde', 20),
   ];
 
-  static const List<String> _layers = ['Bordón', 'Laúd', 'Flauta'];
+  /// Las tres capas de cualquiera de las cinco, por lo que hacen y no por qué
+  /// instrumento son: en una es un Rhodes y en otra una caja de música, pero
+  /// en las cinco es la parte que se mueve.
+  static const List<String> _layers = [
+    'Cama',
+    'Lo que se mueve',
+    'Lo de arriba',
+  ];
 
   @override
   Widget build(BuildContext context) {
     final t = theme;
     final now = DateTime.now();
     final hour = at ?? (now.hour + now.minute / 60.0);
-    final mix = Sensory.dayMix(hour);
+    final mix = Sensory.dayMix(Sensory.instance.tune, hour);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

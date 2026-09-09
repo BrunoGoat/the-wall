@@ -313,11 +313,6 @@ class _TownViewState extends State<TownView>
 
     _spawnAmbient(dt);
 
-    // What the valley sounds like from here: a big, kept-up town has people in
-    // it; a small or abandoned one keeps the wind and loses the voices.
-    final size01 = math.sqrt(widget.store.shownTotal / 900.0).clamp(0.0, 1.0);
-    Sensory.instance.ambience(size01, _displayIntegrity);
-    Sensory.instance.ambientOneShot(dt, size01, _displayIntegrity);
     Sensory.instance.music(_hour, dt, _displayIntegrity);
 
     final pal = _buildPalette();

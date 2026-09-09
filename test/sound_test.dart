@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:la_muralla/data/tunes.dart';
 import 'package:la_muralla/fx/sensory.dart';
 import 'package:la_muralla/model/appearance.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -71,14 +72,87 @@ void main() {
       expect(Sensory.biteOf('no existe'), isNull);
     });
 
-    test('cada familia tiene algo dentro', () {
-      for (final of in Sounds.values) {
+    test('todo lo que suena es algo que hiciste vos', () {
+      // Se fueron los cuatro que decía el pueblo por su cuenta —campana,
+      // gallo, cuervo, gozne— y los tres bucles de aire del valle. Lo que
+      // queda tiene que seguir siendo respuesta a un dedo, no relleno: un
+      // sonido que sale solo cada tantos segundos no lo pidió nadie.
+      expect(Sensory.catalogue.length, 5);
+      for (final gone in [
+        'bell',
+        'cock',
+        'crow',
+        'creak',
+        'amb_field',
+        'amb_town',
+        'amb_life',
+      ]) {
+        expect(Sensory.biteOf(gone), isNull, reason: '$gone volvió');
         expect(
-          Sensory.catalogue.where((b) => b.of == of),
-          isNotEmpty,
-          reason: 'la familia $of quedó vacía',
+          File('assets/sfx/$gone.wav').existsSync(),
+          isFalse,
+          reason: '$gone.wav sigue ocupando sitio en la app',
         );
       }
+    });
+  });
+
+  group('el sorteo de discos', () {
+    test('sin elegir nada, entran las cinco', () async {
+      final a = await fresh();
+      expect(a.rotation, tunes.length);
+      for (final t in tunes) {
+        expect(a.inRotation(t.id), isTrue, reason: t.id);
+      }
+    });
+
+    test('quitar una deja las otras cuatro', () async {
+      final a = await fresh();
+      await a.setRotation(tunes.first.id, false);
+      expect(a.inRotation(tunes.first.id), isFalse);
+      expect(a.rotation, tunes.length - 1);
+      for (final t in tunes.skip(1)) {
+        expect(a.inRotation(t.id), isTrue, reason: t.id);
+      }
+    });
+
+    test('dejar una sola es dejar una sola, no dejarlas todas', () async {
+      // El caso que se rompe si «vacío quiere decir todas» está mal escrito:
+      // quitar cuatro de cinco tiene que dejar una, y no volver a cinco.
+      final a = await fresh();
+      for (final t in tunes.skip(1)) {
+        await a.setRotation(t.id, false);
+      }
+      expect(a.rotation, 1);
+      expect(a.inRotation(tunes.first.id), isTrue);
+      expect(a.inRotation(tunes.last.id), isFalse);
+    });
+
+    test('quedarse sin ninguna vuelve a querer decir todas', () async {
+      // Nadie apaga las cinco para quedarse sin música: para eso está el
+      // interruptor de la música, dos dedos más arriba. Apagar la última es un
+      // dedo que se fue, y dejar la app muda por eso sería una trampa.
+      final a = await fresh();
+      for (final t in tunes) {
+        await a.setRotation(t.id, false);
+      }
+      expect(a.rotation, tunes.length);
+      for (final t in tunes) {
+        expect(a.inRotation(t.id), isTrue, reason: t.id);
+      }
+    });
+
+    test('y se acuerda de cuáles al volver a abrir', () async {
+      final a = await fresh();
+      await a.setRotation('bruma', false);
+      await a.setRotation('caja', false);
+      await a.flush();
+      final b = Appearance.instance;
+      await b.load();
+      expect(b.inRotation('bruma'), isFalse);
+      expect(b.inRotation('caja'), isFalse);
+      expect(b.inRotation('tarde'), isTrue);
+      expect(b.rotation, tunes.length - 2);
     });
   });
 
@@ -215,11 +289,15 @@ void main() {
 
   group('la música a cualquier hora', () {
     test('la herramienta da una mezcla distinta para cada momento', () {
-      final noche = Sensory.dayMix(3), medio = Sensory.dayMix(14);
+      final noche = Sensory.dayMix(tunes.first, 3),
+          medio = Sensory.dayMix(tunes.first, 14);
       expect(noche, isNot(medio));
       // Y el reloj da la vuelta: las 24 son las 0.
       for (var i = 0; i < 3; i++) {
-        expect(Sensory.dayMix(24)[i], closeTo(Sensory.dayMix(0)[i], 0.001));
+        expect(
+          Sensory.dayMix(tunes.first, 24)[i],
+          closeTo(Sensory.dayMix(tunes.first, 0)[i], 0.001),
+        );
       }
     });
   });

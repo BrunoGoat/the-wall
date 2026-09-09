@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../data/tunes.dart';
+
 /// The handful of things about the app that are a preference rather than a
 /// record of what you did.
 ///
@@ -44,6 +46,30 @@ class Appearance extends ChangeNotifier {
   /// exceptions, so a sound added later is heard rather than quietly missing.
   final Set<String> _hushed = <String>{};
 
+  /// Qué piezas entran en el sorteo de cada apertura.
+  ///
+  /// Vacío quiere decir todas, y eso es a propósito por dos motivos. Uno, que
+  /// una instalación nueva las oiga todas antes de tener que elegir. Y dos,
+  /// que quedarse sin ninguna no es un estado que tenga sentido: quien no
+  /// quiere música tiene el interruptor de la música justo arriba, así que
+  /// apagar la última es casi siempre un dedo que se fue, no una decisión.
+  final Set<String> _rotation = <String>{};
+
+  bool inRotation(String id) => _rotation.isEmpty || _rotation.contains(id);
+
+  /// Cuántas hay elegidas de verdad, para poder decirlo en la pantalla.
+  int get rotation => _rotation.isEmpty ? tunes.length : _rotation.length;
+
+  Future<void> setRotation(String id, bool on) async {
+    // Vacío es «todas», así que quitar la primera hay que escribirlo como
+    // «todas menos ésta» y no como un conjunto de una.
+    if (_rotation.isEmpty) _rotation.addAll(tunes.map((t) => t.id));
+    if (on ? !_rotation.add(id) : !_rotation.remove(id)) return;
+    // Y si se quedó sin ninguna, vuelve a querer decir todas.
+    if (_rotation.length >= tunes.length) _rotation.clear();
+    await _keep();
+  }
+
   /// The one switch that covers everything, music included.
   bool get soundOff => _soundOff;
   bool get musicOff => _musicOff;
@@ -59,7 +85,25 @@ class Appearance extends ChangeNotifier {
   /// Whether the music is allowed to play at all.
   bool get hearsMusic => !_soundOff && !_musicOff;
 
+  /// Todo como salió de fábrica.
+  ///
+  /// Leer no es mezclar con lo que hubiera: sin esto, un arranque que no
+  /// encuentra nada guardado se queda con lo que hubiese en memoria de antes,
+  /// que en la app es sólo el primer arranque pero en cualquier otro sitio
+  /// —un test, un reinicio en caliente— es basura del anterior.
+  void _forgetSound() {
+    _soundOff = false;
+    _musicOff = false;
+    _effectsOff = false;
+    _hapticsOff = false;
+    _musicVolume = _midway;
+    _effectsVolume = _midway;
+    _hushed.clear();
+    _rotation.clear();
+  }
+
   Future<void> load() async {
+    _forgetSound();
     try {
       final prefs = await SharedPreferences.getInstance();
       _rapid = prefs.getBool(_rapidKey) ?? false;
@@ -95,6 +139,10 @@ class Appearance extends ChangeNotifier {
           _hushed
             ..clear()
             ..addAll(value.split(',').where((s) => s.isNotEmpty));
+        case 'tunes':
+          _rotation
+            ..clear()
+            ..addAll(value.split(',').where((s) => s.isNotEmpty));
       }
     }
   }
@@ -107,6 +155,7 @@ class Appearance extends ChangeNotifier {
     'musicVol=$_musicVolume',
     'effectsVol=$_effectsVolume',
     'hushed=${_hushed.join(',')}',
+    'tunes=${_rotation.join(',')}',
   ];
 
   Timer? _writeSoon;
