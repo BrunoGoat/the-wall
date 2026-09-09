@@ -371,15 +371,17 @@ class TownPainter extends CustomPainter {
     if (hy > size.height) return;
     final rect = Rect.fromLTWH(0, hy, size.width, size.height - hy);
     if (rect.height <= 0) return;
-    // The wall stands on a dry plain; the town stands in a meadow. The same
-    // ground, read to suit what is built on it.
-    final meadow = true && pal.isDaylight;
-    final near = meadow
-        ? Color.lerp(pal.ground, const Color(0xFF6B8F3E), 0.45)!
-        : pal.ground;
-    final far = meadow
-        ? Color.lerp(pal.groundFar, const Color(0xFF7E9A4C), 0.38)!
-        : pal.groundFar;
+    // The town stands in a meadow, and a meadow is a meadow at midnight too.
+    //
+    // The green used to be applied only in daylight, so after dark the field
+    // fell back to the bare ground colour — a neutral blue-black, and the same
+    // blue-black the hills behind it are made of. Field and skyline became one
+    // dark shape with a line through it. At night it takes a deep blue-green
+    // instead: dark enough to be night, green enough to still be grass.
+    //
+    // Blended by how much of a day it is rather than by whether the sun is up,
+    // because the second of those changes colour in a single frame.
+    final (far, near) = meadowTone(pal);
     canvas.drawRect(
       rect,
       Paint()
@@ -415,6 +417,26 @@ class TownPainter extends CustomPainter {
   ///    with a straight line back to the start — that is where the huge wedges
   ///    across the view came from. Now only the arc actually in front of the
   ///    camera is walked at all, and each strip is closed by construction.
+  /// The two colours the meadow is painted between: at the horizon, and at
+  /// your feet.
+  static (Color far, Color near) meadowTone(Palette pal) {
+    final day = pal.daylight;
+    final nearGreen = Color.lerp(
+      const Color(0xFF1B4A4E),
+      const Color(0xFF6B8F3E),
+      day,
+    )!;
+    final farGreen = Color.lerp(
+      const Color(0xFF265158),
+      const Color(0xFF7E9A4C),
+      day,
+    )!;
+    return (
+      Color.lerp(pal.groundFar, farGreen, 0.30 + 0.10 * day)!,
+      Color.lerp(pal.ground, nearGreen, 0.34 + 0.13 * day)!,
+    );
+  }
+
   /// What one range is painted with: the colour of its body, and the colour
   /// its foot fades to where it meets the horizon.
   ///

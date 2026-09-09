@@ -96,6 +96,56 @@ void main() {
       }
     });
 
+    test('el pasto se distingue de las colinas, a cualquier hora', () {
+      // Lo que se veía de noche: el verde del prado sólo se aplicaba de día,
+      // así que en cuanto se ponía el sol el campo caía al color crudo del
+      // suelo — el mismo azul negruzco del que están hechas las colinas — y el
+      // prado y el horizonte se volvían una sola mancha con una raya en medio.
+      for (final hour in everyHour) {
+        final pal = Palette.forMoment(hour, 1.0);
+        final (_, grass) = TownPainter.meadowTone(pal);
+        final (hill, _) = TownPainter.rangeTone(pal, 0, howMany);
+        expect(
+          _apart(grass, hill),
+          greaterThan(0.10),
+          reason:
+              'a las ${hour.toStringAsFixed(1)} el prado y la colina más '
+              'cercana son casi del mismo color',
+        );
+      }
+    });
+
+    test('y sigue siendo pasto de noche: verde, aunque oscuro', () {
+      // Sólo con el sol bajo el horizonte. A la hora dorada un prado es más
+      // rojo que verde y así tiene que ser: lo está alumbrando un sol naranja
+      // a ras del suelo. Lo que no puede pasar es que de noche deje de ser
+      // pasto, que es lo que pasaba.
+      for (final hour in everyHour) {
+        final pal = Palette.forMoment(hour, 1.0);
+        if (pal.daylight > 0.2) continue;
+        final (far, near) = TownPainter.meadowTone(pal);
+        for (final grass in [far, near]) {
+          expect(
+            grass.g,
+            greaterThan(grass.r),
+            reason: 'a las ${hour.toStringAsFixed(1)} el pasto no tiene verde',
+          );
+        }
+      }
+    });
+
+    test('y de noche es oscuro, no un prado de mediodía a oscuras', () {
+      final noche = TownPainter.meadowTone(Palette.forMoment(2, 1.0)).$2;
+      final medio = TownPainter.meadowTone(Palette.forMoment(13, 1.0)).$2;
+      expect(
+        noche.computeLuminance(),
+        lessThan(medio.computeLuminance() * 0.30),
+        reason: 'el prado de noche tiene que ser mucho más oscuro',
+      );
+      // Y azulado: de noche el azul le gana al rojo con holgura.
+      expect(noche.b, greaterThan(noche.r * 1.3));
+    });
+
     test('una sola cordillera no divide por cero', () {
       final pal = Palette.forMoment(12, 1.0);
       final (body, foot) = TownPainter.rangeTone(pal, 0, 1);

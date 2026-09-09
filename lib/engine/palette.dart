@@ -59,6 +59,13 @@ class Palette {
 
   bool get isDaylight => sunDir.y > 0.02;
 
+  /// How much of a day it is, from nought in the dark to one at noon.
+  ///
+  /// A number and not a yes-or-no, for everything that should change *through*
+  /// dusk rather than at one instant during it. `isDaylight` flips in a single
+  /// frame, and anything hung off it changes colour in that frame.
+  double get daylight => clampD(0.5 + sunDir.y * 2.2, 0.0, 1.0);
+
   /// The moon rides the opposite arc, so there is still a direction to the
   /// light at night instead of flat ambience.
   V3 get moonDir {

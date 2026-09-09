@@ -24,6 +24,10 @@ class HabitsSheet extends StatefulWidget {
   State<HabitsSheet> createState() => _HabitsSheetState();
 }
 
+/// Borrar un pueblo entero no se deshace, así que se dice en el color con el
+/// que se dicen esas cosas.
+const Color _danger = Color(0xFFD9705F);
+
 class _HabitsSheetState extends State<HabitsSheet> {
   late final TextEditingController _name;
   late String _symbol;
@@ -53,24 +57,21 @@ class _HabitsSheetState extends State<HabitsSheet> {
     super.dispose();
   }
 
-  void _startNew() {
-    setState(() {
-      _creating = true;
-      _name.text = '';
-      _symbol = habitSymbols[widget.store.habits.length % habitSymbols.length];
-      _place = TownCharacter.forSlot(widget.store.habits.length).order;
-      _picking = false;
-    });
+  /// Editing writes as you go, so there is no button to press and nothing to
+  /// lose by closing the sheet. A save button on a screen with two fields is a
+  /// button asking you to confirm that you meant the thing you just did.
+  ///
+  /// Founding is the other case and keeps its button: a town is a decision,
+  /// and the region it is founded with can never be changed afterwards.
+  void _keep() {
+    if (_creating) return;
+    final store = widget.store;
+    store.renameHabit(store.active, name: _name.text, symbol: _symbol);
   }
 
-  void _commit() {
-    final store = widget.store;
+  void _found() {
     Sensory.instance.tick();
-    if (_creating) {
-      store.addHabit(_name.text, _symbol, character: _place);
-    } else {
-      store.renameHabit(store.active, name: _name.text, symbol: _symbol);
-    }
+    widget.store.addHabit(_name.text, _symbol, character: _place);
     Navigator.of(context).pop();
   }
 
@@ -104,11 +105,10 @@ class _HabitsSheetState extends State<HabitsSheet> {
                 ),
               ),
               const SizedBox(height: 16),
-              Text(
-                _creating ? 'UN HÁBITO NUEVO' : 'ESTE HÁBITO',
-                style: t.label,
-              ),
-              const SizedBox(height: 12),
+              if (_creating) ...[
+                Text('UN HÁBITO NUEVO', style: t.label),
+                const SizedBox(height: 12),
+              ],
 
               Row(
                 children: [
@@ -131,10 +131,37 @@ class _HabitsSheetState extends State<HabitsSheet> {
                           color: _picking ? t.accent : t.stroke,
                         ),
                       ),
-                      child: HabitSigil(
-                        symbol: _symbol,
-                        color: t.accent,
-                        size: 30,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        alignment: Alignment.center,
+                        children: [
+                          HabitSigil(
+                            symbol: _symbol,
+                            color: t.accent,
+                            size: 30,
+                          ),
+                          // A pencil in the corner, because a mark that opens
+                          // thirty-six other marks does not look like a thing
+                          // you can press unless it says so.
+                          Positioned(
+                            right: -3,
+                            bottom: -3,
+                            child: Container(
+                              padding: const EdgeInsets.all(3),
+                              decoration: BoxDecoration(
+                                color: t.dark
+                                    ? const Color(0xFF1A1A22)
+                                    : const Color(0xFFF3EEE3),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.edit,
+                                size: 10,
+                                color: t.accent.withValues(alpha: 0.9),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -142,6 +169,7 @@ class _HabitsSheetState extends State<HabitsSheet> {
                   Expanded(
                     child: TextField(
                       controller: _name,
+                      onChanged: (_) => _keep(),
                       style: t.body.copyWith(fontSize: 17),
                       textCapitalization: TextCapitalization.sentences,
                       maxLength: 24,
@@ -177,6 +205,7 @@ class _HabitsSheetState extends State<HabitsSheet> {
                                     _symbol = s;
                                     _picking = false;
                                   });
+                                  _keep();
                                 },
                                 child: Container(
                                   width: 40,
@@ -211,11 +240,10 @@ class _HabitsSheetState extends State<HabitsSheet> {
               // is founded, and then never again: the character decides how
               // wide the plots are and in what order the hundred and twelve
               // arrive, so changing it later would move pieces laid years ago.
-              Text(
-                _creating ? 'QUÉ CLASE DE PUEBLO' : 'SU PUEBLO',
-                style: t.label,
-              ),
-              const SizedBox(height: 10),
+              if (_creating) ...[
+                Text('QUÉ CLASE DE PUEBLO', style: t.label),
+                const SizedBox(height: 10),
+              ],
               if (_creating)
                 Row(
                   children: [
@@ -263,13 +291,27 @@ class _HabitsSheetState extends State<HabitsSheet> {
                   key: ValueKey(ch.region),
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      ch.region.toUpperCase(),
-                      style: t.label.copyWith(
-                        fontSize: 11,
-                        color: t.accent,
-                        letterSpacing: 2.4,
-                      ),
+                    Row(
+                      children: [
+                        // Smaller than the habit's own mark on purpose: this
+                        // one says what kind of place it is, not what the
+                        // habit is, and the size says which of the two you
+                        // are looking at.
+                        HabitSigil(
+                          symbol: ch.symbol,
+                          color: t.accent.withValues(alpha: 0.85),
+                          size: 17,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          ch.region.toUpperCase(),
+                          style: t.label.copyWith(
+                            fontSize: 11,
+                            color: t.accent,
+                            letterSpacing: 2.4,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 5),
                     Text(ch.blurb, style: t.bodySoft),
@@ -285,54 +327,40 @@ class _HabitsSheetState extends State<HabitsSheet> {
                 ),
               ],
 
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: _commit,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: t.accent.withValues(alpha: 0.85),
-                        foregroundColor: t.dark ? Colors.black : Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
+              // Only when founding. Editing writes as you type, so there is
+              // nothing here to confirm and nothing to lose by closing.
+              if (_creating) ...[
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: _found,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: t.accent.withValues(alpha: 0.85),
+                      foregroundColor: t.dark ? Colors.black : Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 15),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      child: Text(_creating ? 'Fundar el pueblo' : 'Guardar'),
                     ),
+                    child: const Text('Fundar el pueblo'),
                   ),
-                  if (!_creating && store.canAddHabit) ...[
-                    const SizedBox(width: 10),
-                    OutlinedButton(
-                      onPressed: _startNew,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: t.fgSoft,
-                        side: BorderSide(color: t.stroke),
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 15,
-                          horizontal: 16,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: const Icon(Icons.add, size: 19),
-                    ),
-                  ],
-                ],
-              ),
+                ),
+              ],
 
               if (!_creating && store.habits.length > 1) ...[
-                const SizedBox(height: 6),
+                const SizedBox(height: 10),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton(
                     onPressed: () => _confirmRemove(context),
-                    style: TextButton.styleFrom(foregroundColor: t.fgFaint),
+                    style: TextButton.styleFrom(foregroundColor: _danger),
                     child: Text(
-                      'Abandonar este hábito',
-                      style: t.bodySoft.copyWith(fontSize: 12),
+                      'Eliminar este hábito',
+                      style: t.bodySoft.copyWith(
+                        fontSize: 12.5,
+                        color: _danger,
+                      ),
                     ),
                   ),
                 ),
@@ -352,7 +380,7 @@ class _HabitsSheetState extends State<HabitsSheet> {
       builder: (dialog) => AlertDialog(
         backgroundColor: t.panelStrong,
         elevation: 0,
-        title: Text('¿Abandonar ${h.name}?', style: t.body),
+        title: Text('¿Eliminar ${h.name}?', style: t.body),
         content: Text(
           'Se borra su pueblo entero: ${h.total} piezas. No hay vuelta atrás.',
           style: t.bodySoft,
@@ -368,9 +396,9 @@ class _HabitsSheetState extends State<HabitsSheet> {
               Navigator.of(dialog).pop();
               Navigator.of(context).pop();
             },
-            child: Text(
-              'Abandonar',
-              style: TextStyle(color: t.accent, fontWeight: FontWeight.w600),
+            child: const Text(
+              'Eliminar',
+              style: TextStyle(color: _danger, fontWeight: FontWeight.w600),
             ),
           ),
         ],
