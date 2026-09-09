@@ -8,6 +8,22 @@ import 'package:la_muralla/data/landmarks.dart';
 import 'package:la_muralla/engine/town.dart';
 import 'package:la_muralla/engine/mason.dart';
 
+/// Los hitos que un pueblo levanta, en orden, sin crónica escrita: o sea, lo
+/// que decidiría hoy un pueblo recién fundado.
+List<String> road(
+  TownCharacter c,
+  int howMany, {
+  List<String> from = const [],
+}) {
+  final out = <String>[];
+  for (final w in TownPlan.of(c).walk(from)) {
+    final mark = w.landmark;
+    if (mark != null) out.add(mark.id);
+    if (out.length >= howMany) break;
+  }
+  return out;
+}
+
 void main() {
   group('one achievement is one piece', () {
     test('n achievements produce n pieces, plus one ghost for the next', () {
@@ -333,13 +349,7 @@ void main() {
     });
 
     test('a long life meets a hundred landmarks without repeating one', () {
-      final plan = TownPlan.of(TownCharacter.all.first);
-      final seen = <String>[];
-      for (var b = 0; b < 12000; b++) {
-        if (!TownPlan.isLandmarkSlot(b)) continue;
-        seen.add(plan.landmarkFor(b).id);
-        if (seen.length >= 100) break;
-      }
+      final seen = road(TownCharacter.all.first, 100);
       expect(seen.length, 100, reason: 'only ${seen.length} landmarks come up');
       expect(seen.toSet().length, 100, reason: 'a landmark came round twice');
     });
@@ -359,11 +369,7 @@ void main() {
       // days. Every plot walks its own road.
       final roads = <String>{};
       for (final c in TownCharacter.all) {
-        final plan = TownPlan.of(c);
-        final first = <String>[];
-        for (var b = 0; b < 400 && first.length < 10; b++) {
-          if (TownPlan.isLandmarkSlot(b)) first.add(plan.landmarkFor(b).id);
-        }
+        final first = road(c, 10);
         expect(first.length, 10);
         roads.add(first.join(','));
       }
@@ -379,12 +385,7 @@ void main() {
       // before the mill, and that is a bad first month whichever plot it is.
       const dreary = {'porqueriza', 'osario', 'picota', 'camposanto', 'horca'};
       for (final c in TownCharacter.all) {
-        final plan = TownPlan.of(c);
-        final first = <String>[];
-        for (var b = 0; b < 200 && first.length < 4; b++) {
-          if (TownPlan.isLandmarkSlot(b)) first.add(plan.landmarkFor(b).id);
-        }
-        for (final id in first) {
+        for (final id in road(c, 4)) {
           expect(
             dreary.contains(id),
             isFalse,

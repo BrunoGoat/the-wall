@@ -95,10 +95,20 @@ class BuiltTown {
     this.weatherBox,
     this.bounds,
     this.placed,
-    this.sign,
-  );
+    this.sign, {
+    this.knots = const [],
+  });
   final Order? root;
   final List<BuiltCluster> clusters;
+
+  /// Los grupos que hubo que fundir por no haber plano que los separase.
+  ///
+  /// Se guardan aparte porque no son grupos del pueblo sino del árbol de
+  /// orden, y porque **son lo más caro que hay aquí**: cortar unos miles de
+  /// caras en un solo árbol. Guardarlos es lo que hace que poner una pieza no
+  /// vuelva a cortarlos todos: el mundo sólo crece, así que un enredo hecho de
+  /// las mismas piezas es el mismo enredo y su árbol sigue valiendo.
+  final List<BuiltCluster> knots;
 
   /// The pieces that only blow in the wind, which carry no masonry and are
   /// painted by hand every frame.
@@ -369,14 +379,19 @@ BuiltTown _build(TownLayout layout, int placed, BuiltTown? before) {
   for (final l in leaves) {
     whole = whole.union(l.bounds);
   }
+  final knots = <BuiltCluster>[];
+  final again = <String, BuiltCluster>{
+    for (final c in before?.knots ?? const <BuiltCluster>[]) c.key: c,
+  };
   return BuiltTown(
-    _order(leaves),
+    _order(leaves, again, knots),
     clusters,
     weather,
     weatherBox,
     whole,
     placed,
     _sign(layout, take),
+    knots: knots,
   );
 }
 
@@ -388,7 +403,11 @@ BuiltTown _build(TownLayout layout, int placed, BuiltTown? before) {
 /// nothing at all — no geometry is cut to make it. Only when no plane can be
 /// found does anything get cut, and then it is cut once, here, and never
 /// thought about again.
-Order _order(List<OrderLeaf> leaves) {
+Order _order(
+  List<OrderLeaf> leaves,
+  Map<String, BuiltCluster> again,
+  List<BuiltCluster> knots,
+) {
   if (leaves.length == 1) return leaves.first;
   final cut = _separator(leaves);
   var b = leaves.first.bounds;
@@ -396,6 +415,34 @@ Order _order(List<OrderLeaf> leaves) {
     b = b.union(l.bounds);
   }
   if (cut == null) {
+    // Ningún plano los separa **a todos a la vez**. Pero eso no quiere decir
+    // que todos se enreden con todos: casi siempre son dos o tres edificios
+    // metidos uno en otro y doscientas casas que no tienen nada que ver.
+    //
+    // Fundir el grupo entero por eso era cortar cuarenta mil caras para
+    // resolver un enredo entre dos, y volver a hacerlo con cada pieza que
+    // caía: novecientos milisegundos por logro en un pueblo de cinco años.
+    // Así que primero se busca quién se enreda con quién —solaparse en los
+    // tres ejes, propagado— y se funde cada nudo por separado. Con los nudos
+    // hechos un bulto, el resto vuelve a separarse por planos, que es exacto y
+    // no cuesta nada.
+    final solid = [
+      for (final l in leaves)
+        if (l.cluster != null) l,
+    ];
+    if (solid.length > 1) {
+      final parts = _knots(solid);
+      if (parts.length > 1) {
+        final next = <OrderLeaf>[
+          for (final k in parts)
+            if (k.length == 1) k.first else _tie(k, again, knots),
+          for (final l in leaves)
+            if (l.cluster == null) l,
+        ];
+        if (next.length < leaves.length) return _order(next, again, knots);
+      }
+    }
+
     // No plane separates them: they interleave, so they are filed into one
     // tree, which settles it exactly at the cost of some cutting. Built from
     // whole faces rather than from anybody's offcuts.
@@ -420,19 +467,19 @@ Order _order(List<OrderLeaf> leaves) {
       after(l);
     }
     if (source.isNotEmpty) {
+      // El mismo enredo que la última vez es el mismo árbol.
+      //
+      // Esto era lo caro de todo el archivado, y se pagaba entero en cada
+      // pieza: cortar unos miles de caras en un solo árbol BSP, otra vez, para
+      // llegar al mismo resultado. El mundo sólo crece, así que un enredo
+      // hecho exactamente de las mismas piezas no puede haber cambiado.
       final list = members.toList()..sort();
-      after(
-        OrderLeaf(
-          b,
-          cluster: BuiltCluster(
-            list.join(','),
-            b,
-            BspTree.build(source),
-            members,
-            source,
-          ),
-        ),
-      );
+      final key = list.join(',');
+      final made =
+          again[key] ??
+          BuiltCluster(key, b, BspTree.build(source), members, source);
+      knots.add(made);
+      after(OrderLeaf(made.bounds, cluster: made));
     }
     for (final l in over) {
       after(l);
@@ -440,7 +487,78 @@ Order _order(List<OrderLeaf> leaves) {
     return out ?? leaves.first;
   }
   final (axis, at, low, high) = cut;
-  return OrderSplit(axis, at, _order(low), _order(high), b);
+  return OrderSplit(
+    axis,
+    at,
+    _order(low, again, knots),
+    _order(high, again, knots),
+    b,
+  );
+}
+
+/// Quién se enreda con quién: grupos de hojas que se solapan en los tres ejes,
+/// propagado.
+///
+/// Dos cajas que no se solapan en algún eje tienen un plano entre ellas y no
+/// hace falta cortar nada. Las que se solapan en los tres pueden estar una
+/// dentro de otra, y ésas —y sólo ésas— hay que resolverlas cortando.
+List<List<OrderLeaf>> _knots(List<OrderLeaf> leaves) {
+  final n = leaves.length;
+  final owner = List<int>.generate(n, (i) => i);
+  int root(int k) {
+    var r = k;
+    while (owner[r] != r) {
+      r = owner[r] = owner[owner[r]];
+    }
+    return r;
+  }
+
+  // Barrido por x, igual que el agrupado de más arriba: dos cosas en puntas
+  // opuestas del pueblo no llegan a compararse.
+  final by = List<int>.generate(n, (i) => i)
+    ..sort((a, b) => leaves[a].bounds.x0.compareTo(leaves[b].bounds.x0));
+  for (var a = 0; a < n; a++) {
+    final i = by[a];
+    final bi = leaves[i].bounds;
+    for (var b = a + 1; b < n; b++) {
+      final j = by[b];
+      final bj = leaves[j].bounds;
+      if (bj.x0 >= bi.x1) break;
+      if (bi.y1 <= bj.y0 || bj.y1 <= bi.y0) continue;
+      if (bi.z1 <= bj.z0 || bj.z1 <= bi.z0) continue;
+      final ri = root(i), rj = root(j);
+      if (ri != rj) owner[ri] = rj;
+    }
+  }
+  final out = <int, List<OrderLeaf>>{};
+  for (var i = 0; i < n; i++) {
+    (out[root(i)] ??= []).add(leaves[i]);
+  }
+  return out.values.toList();
+}
+
+/// Un nudo, cortado en un solo árbol — o el que ya se cortó la vez pasada.
+OrderLeaf _tie(
+  List<OrderLeaf> knot,
+  Map<String, BuiltCluster> again,
+  List<BuiltCluster> knots,
+) {
+  var b = knot.first.bounds;
+  final source = <Facet>[];
+  final members = <int>{};
+  for (final l in knot) {
+    b = b.union(l.bounds);
+    final c = l.cluster!;
+    source.addAll(c.source);
+    members.addAll(c.members);
+  }
+  final list = members.toList()..sort();
+  final key = list.join(',');
+  final made =
+      again[key] ??
+      BuiltCluster(key, b, BspTree.build(source), members, source);
+  knots.add(made);
+  return OrderLeaf(made.bounds, cluster: made);
 }
 
 /// The most even plane that nothing straddles, or null when there is none.

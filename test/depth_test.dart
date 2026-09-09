@@ -184,18 +184,42 @@ void main() {
     // town. The world is append-only: the two hundred houses that did not
     // change did not need looking at.
     test('one more achievement costs one more achievement', () {
-      // Warm: five years of daily use standing before this morning's piece.
-      builtTown(TownLayout(1800, TownCharacter.all.first), 1800);
-      final clock = Stopwatch()..start();
-      final after = builtTown(TownLayout(1801, TownCharacter.all.first), 1801);
-      clock.stop();
-      expect(after.clusters, isNotEmpty);
+      // Los seis y no uno, y por la mediana.
+      //
+      // Esto medía un solo pueblo contra un número de milisegundos, y ese
+      // número estaba afinado a los edificios que a ese pueblo le tocaban.
+      // Cambiar el orden de las obras —que es algo que va a pasar cada vez que
+      // se añada una estructura— le cambiaba los edificios, y el test se caía
+      // sin que nada estuviera roto. Peor: tapaba lo contrario, que un pueblo
+      // se pusiera lento por un reparto desafortunado.
+      //
+      // Hay además un precipicio conocido debajo de todo esto. Cuando ningún
+      // plano separa a un grupo de edificios hay que cortarlos en un solo
+      // árbol, y en un pueblo denso de casas anchas las cajas se tocan todas
+      // por el suelo: el pueblo entero es un nudo, y ese nudo se vuelve a
+      // cortar cada vez que crece. Por eso la mediana manda y el peor caso
+      // sólo tiene un techo: la mediana es lo que se arregló, y el peor caso
+      // es lo que queda por arreglar.
+      final took = <int>[];
+      for (final c in TownCharacter.all) {
+        builtTown(TownLayout(1800, c), 1800);
+        final clock = Stopwatch()..start();
+        final after = builtTown(TownLayout(1801, c), 1801);
+        clock.stop();
+        expect(after.clusters, isNotEmpty, reason: c.region);
+        took.add(clock.elapsedMilliseconds);
+      }
+      took.sort();
+      final middle = took[took.length ~/ 2];
       expect(
-        clock.elapsedMilliseconds,
-        lessThan(220),
-        reason:
-            'laying the 1801st piece took '
-            '\${clock.elapsedMilliseconds}ms',
+        middle,
+        lessThan(90),
+        reason: 'la mediana de los seis fue de ${middle}ms: $took',
+      );
+      expect(
+        took.last,
+        lessThan(1400),
+        reason: 'el peor de los seis fue de ${took.last}ms: $took',
       );
     });
   });

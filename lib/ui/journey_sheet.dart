@@ -134,7 +134,11 @@ class _Summary extends StatelessWidget {
         Row(
           children: [
             _stat(t, '${store.total}', 'PIEZAS'),
-            _stat(t, '${store.plan.finishedBuildings(store.total)}', 'CASAS'),
+            _stat(
+              t,
+              '${store.plan.finishedBuildings(store.total, store.habit.chronicle)}',
+              'CASAS',
+            ),
             _stat(t, '${store.streak}', 'RACHA'),
             _stat(t, '${store.bestStreak}', 'MEJOR'),
           ],
@@ -234,8 +238,11 @@ class _TownBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = theme;
-    final built = store.plan.finishedBuildings(store.total);
-    final work = store.plan.underway(store.total);
+    final built = store.plan.finishedBuildings(
+      store.total,
+      store.habit.chronicle,
+    );
+    final work = store.plan.underway(store.total, store.habit.chronicle);
     final left = work?.$2 ?? 0;
     final name = work?.$1 ?? '';
     final cost = left > 0 ? left : 1;
@@ -294,7 +301,10 @@ class _TownMilestones extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = theme;
     final placed = store.total;
-    final rows = store.plan.landmarksAround(placed);
+    final rows = store.plan.landmarksAround(
+      placed,
+      chronicle: store.habit.chronicle,
+    );
 
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(22, 14, 22, 40),

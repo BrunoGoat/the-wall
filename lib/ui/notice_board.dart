@@ -88,7 +88,9 @@ class _NoticeBoardScreenState extends State<NoticeBoardScreen>
   @override
   void initState() {
     super.initState();
-    final work = TownPlan.of(widget.habit.place).underway(widget.habit.total);
+    final work = TownPlan.of(
+      widget.habit.place,
+    ).underway(widget.habit.total, widget.habit.chronicle);
     _said = noticesFor(
       widget.habit,
       others: widget.store.habits,

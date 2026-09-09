@@ -20,8 +20,10 @@ class Habit {
     required this.createdAt,
     int? character,
     List<Piece>? pieces,
+    List<String>? chronicle,
   }) : character = character ?? TownCharacter.forSlot(slot).order,
-       pieces = pieces ?? [];
+       pieces = pieces ?? [],
+       chronicle = chronicle ?? [];
 
   /// Never reused and never changed: it is what a saved town is filed under.
   final String id;
@@ -51,6 +53,16 @@ class Habit {
   TownCharacter get place => TownCharacter.byOrder(character);
 
   final List<Piece> pieces;
+
+  /// Qué fue cada edificio de este pueblo, en orden y escrito el día que se
+  /// empezó.
+  ///
+  /// Es lo que hace que el catálogo pueda crecer. Sin esto, el orden de las
+  /// obras se recalculaba entero en cada arranque a partir del catálogo, así
+  /// que añadir un hito le cambiaba las casas a un pueblo de treinta piezas.
+  /// Con esto, lo que ya se empezó está escrito y no se vuelve a decidir; lo
+  /// que se decide es sólo lo que todavía no empezó, y ahí sí entra lo nuevo.
+  final List<String> chronicle;
 
   int get total => pieces.length;
 
@@ -82,6 +94,7 @@ class Habit {
     'ch': character,
     'c': createdAt.millisecondsSinceEpoch,
     'p': pieces.map((p) => p.toJson()).toList(),
+    'w': chronicle,
   };
 
   static Habit fromJson(Map<String, dynamic> j) {
@@ -108,6 +121,9 @@ class Habit {
       // means the same thing, so nobody's habit changes what it is about.
       symbol: resolveHabitSymbol(j['s'] as String?),
       slot: (j['slot'] as num?)?.toInt() ?? 0,
+      // Una copia vieja no la trae: se rellena al cargar, a partir del
+      // catálogo de hoy, y desde entonces queda escrita.
+      chronicle: [for (final e in (j['w'] as List?) ?? []) e.toString()],
       // A save from before towns could be chosen keeps the one its plot was
       // given, so nobody's town changes shape under them.
       character: (j['ch'] as num?)?.toInt(),

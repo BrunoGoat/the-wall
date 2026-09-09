@@ -2950,15 +2950,15 @@ final List<Landmark> landmarks = [
   Landmark(
     'observatorio',
     'Observatorio',
-    38,
+    36,
     2,
     'Una torre con una cúpula que se abre. Desde esta noche el pueblo no sólo '
         'mira el suelo que pisa: hay alguien arriba anotando lo que pasa en el '
         'cielo, y lo que anota queda escrito para todo el valle.',
     (m) {
-      m.plinth(5.2, 5.2, 0.42);
-      m.stair(1.7, 0.42, 1.2, dz: -3.0);
-      m.stair(1.7, 0.30, 0.9, dz: -3.9, at: -0.30);
+      m.plinth(4.6, 4.6, 0.42);
+      m.stair(1.7, 0.42, 1.2, dz: -2.9);
+      m.stair(1.7, 0.30, 0.9, dz: -3.8, at: -0.30);
       m.door(1.0, 1.6, dz: -1.6);
       // La columnata de la terraza: ocho postes y el arquitrabe encima. Una
       // cúpula sobre un tambor pelado es un silo.
@@ -2968,8 +2968,8 @@ final List<Landmark> landmarks = [
       ]) {
         m.post(0.24, 1.7, dx: dx, dz: dz, at: 0.42);
       }
-      for (final (w, d, dz) in const [(4.6, 0.3, -2.1), (4.6, 0.3, 2.1)]) {
-        m.beam(w, d, 0.24, dz: dz, at: 2.12);
+      for (final dz in const [-2.1, 2.1]) {
+        m.beam(4.6, 0.3, 0.24, dz: dz, at: 2.12);
       }
       for (final dx in const [-2.1, 2.1]) {
         m.beam(0.3, 4.6, 0.24, dx: dx, at: 2.12);
@@ -2983,8 +2983,6 @@ final List<Landmark> landmarks = [
       // observatorio y no una cúpula más.
       m.post(0.22, 1.2, dx: 0.4);
       m.beam(1.5, 0.28, 0.28, dx: 0.4);
-      m.tree(1.5, 2.2, dx: -3.2, dz: 2.6);
-      m.tree(1.3, 1.9, dx: 3.3, dz: -2.4);
     },
   ),
 ];

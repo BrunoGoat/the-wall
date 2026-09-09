@@ -140,9 +140,31 @@ class TownBuilding {
 
 /// The order the town is built in.
 ///
-/// A pure function of the building's number, exactly like the wall's plan, so
-/// the hundredth achievement lands on the same piece of the same house whether
-/// it is placed today or replayed on a fresh install.
+/// Y, sobre todo, **cómo se le añaden cosas al catálogo sin mover nada de lo
+/// que ya está en pie**.
+///
+/// Antes esto era una función pura del catálogo: la baraja de hitos se
+/// ordenaba por la posición de cada uno en la lista, así que meter uno nuevo
+/// —o incluso ponerlo en otro sitio— le cambiaba el índice a todos los de su
+/// nivel y con él la baraja entera. Un pueblo de treinta piezas se despertaba
+/// con otras casas. Y no es un caso raro: añadir estructuras es lo que va a
+/// pasar todo el tiempo.
+///
+/// Dos cambios, y hacen falta los dos:
+///
+///  1. **Se puntúa por identificador y no por índice.** La puntuación de un
+///     hito sale de su propio `id` y del carácter del pueblo, de nada más. Un
+///     hito nuevo entra en la baraja con su puntuación y no le mueve la suya a
+///     ninguno de los demás. Eso arregla el orden *relativo*.
+///  2. **Lo decidido se escribe.** Aun con lo anterior, un hito nuevo con
+///     buena puntuación se colaría delante de cosas ya construidas. Así que en
+///     cuanto un edificio se empieza —en cuanto se puede leer su nombre en la
+///     pantalla— queda anotado en la crónica del hábito, y de ahí no se mueve
+///     nunca más. Lo que se decide es sólo lo que todavía no empezó.
+///
+/// El resultado es el que se pedía: un pueblo con treinta piezas sigue igual
+/// después de la actualización, y la siguiente estructura que levante puede
+/// perfectamente ser la que se acaba de añadir.
 class TownPlan {
   TownPlan._(this.character);
 
@@ -152,6 +174,10 @@ class TownPlan {
       _plans.putIfAbsent(c.order, () => TownPlan._(c));
 
   final TownCharacter character;
+
+  /// Cómo se anota un edificio corriente en la crónica, para no confundir
+  /// `casa` la casa con `casa` el hito que algún día se llame así.
+  static const String kindMark = '#';
 
   /// Landmarks arrive at a widening cadence, so the first one is close enough
   /// to be worth waiting for and the twentieth does not arrive every fortnight.
@@ -178,40 +204,6 @@ class TownPlan {
     return n;
   }
 
-  /// The tier a town of this many buildings is ready to attempt.
-  ///
-  /// Small works first, then the works of a town, then the ones it only tries
-  /// once it is sure of itself — but never so strictly that the catalogue runs
-  /// dry, which is why the band widens as the town grows.
-  static int tierFor(int landmarkNo) {
-    if (landmarkNo < 3) return 0;
-    if (landmarkNo < 6) return 1;
-    if (landmarkNo < 8) return 0;
-    if (landmarkNo % 5 == 4) return 0;
-    if (landmarkNo % 5 == 2 || landmarkNo < 12) return 1;
-    return 2;
-  }
-
-  /// The nth landmark the town builds.
-  ///
-  /// Taken from a single sequence that runs through the whole catalogue before
-  /// anything comes round again, so a lifetime of use meets a hundred different
-  /// things rather than the same four. The sequence is front-loaded with the
-  /// small works and back-loaded with the grand ones, which is the order a real
-  /// town builds in: the well before the cathedral.
-  Landmark landmarkFor(int b) {
-    final seq = _sequence;
-    return seq[landmarkNumber(b) % seq.length];
-  }
-
-  List<Landmark>? _seq;
-
-  /// The pattern of tiers the sequence follows, repeated until the catalogue is
-  /// spent. Roughly a third small, half middling and a fifth grand, which is
-  /// about the shape of the catalogue itself, so all three run out together and
-  /// the fallback below almost never fires.
-  static const List<int> _cadence = [0, 1, 0, 1, 2, 1, 0, 1, 2, 1];
-
   /// The landmarks worth opening a town with.
   ///
   /// A town's first two years should show what the place is capable of — a mill
@@ -219,6 +211,11 @@ class TownPlan {
   /// pigsty and a charnel house, which is what an honest shuffle keeps handing
   /// out. So the openers are chosen; but *which* of them a given town gets, and
   /// in what order, is its own, so two habits never walk the same road.
+  ///
+  /// Ésta es además la lista donde se mete algo que tiene que salirle a todo el
+  /// mundo, como el observatorio: quien no haya terminado sus obras de apertura
+  /// —que son las dieciocho primeras— se lo va a encontrar, y a quien ya las
+  /// tenga no se le mueve ni una piedra.
   static const List<String> _openers = [
     'pozo',
     'horno',
@@ -237,95 +234,79 @@ class TownPlan {
     'iglesia',
     'lagar',
     'atalaya',
+    'observatorio',
     'claustro',
     'acueducto',
     'concejo',
   ];
 
-  List<Landmark> get _sequence {
-    final cached = _seq;
-    if (cached != null) return cached;
-
-    final out = <Landmark>[];
-    final taken = <String>{};
-    // This town's own order through the openers.
-    final opening =
-        <(double, String)>[
-          for (var i = 0; i < _openers.length; i++)
-            (hash01(character.order, 0x09E4, i), _openers[i]),
-        ]..sort((a, b) {
-          final c = a.$1.compareTo(b.$1);
-          return c != 0 ? c : a.$2.compareTo(b.$2);
-        });
-    for (final (_, id) in opening) {
-      for (final l in landmarks) {
-        if (l.id == id && taken.add(id)) out.add(l);
-      }
+  /// Un número estable a partir de un texto. FNV-1a, que es corto y reparte
+  /// bien.
+  ///
+  /// De aquí sale todo: la puntuación de un hito depende de su nombre y no de
+  /// dónde esté escrito, y por eso el catálogo puede crecer, reordenarse o
+  /// perder entradas sin que a los demás les pase nada.
+  static int idHash(String id) {
+    var h = 0x811c9dc5;
+    for (final c in id.codeUnits) {
+      h = ((h ^ c) * 0x01000193) & 0x7fffffff;
     }
-
-    // El observatorio no se sortea, y va en el mismo sitio en los seis.
-    //
-    // Es la puerta de una cosa entera —el cielo, y las ocho constelaciones que
-    // hay que salir a reconocer— y dejarlo al azar del catálogo significaba
-    // que a un pueblo le tocase el séptimo y a otro no le tocase en veinte mil
-    // piezas. Una función que se abre por suerte no es una función. Va después
-    // de las primeras obras: cuando el pueblo ya es un pueblo, alguien levanta
-    // la vista.
-    const looksUp = 3;
-    for (final l in landmarks) {
-      if (l.id == 'observatorio' && taken.add(l.id)) {
-        out.insert(math.min(looksUp, out.length), l);
-      }
-    }
-
-    // Everything else, in the widening cadence: mostly small works while the
-    // town is small, mostly grand ones once it is not.
-    final pools = [
-      for (var t = 0; t < 3; t++)
-        _pool(t).where((l) => !taken.contains(l.id)).toList(),
-    ];
-    final at = [0, 0, 0];
-    var total = 0;
-    for (final pool in pools) {
-      total += pool.length;
-    }
-    for (var k = 0; k < total; k++) {
-      var want = _cadence[k % _cadence.length];
-      // A tier that has been spent hands over to the next one that has not, so
-      // nothing comes round twice while something else is still unbuilt.
-      for (
-        var tries = 0;
-        tries < 3 && at[want] >= pools[want].length;
-        tries++
-      ) {
-        want = (want + 1) % 3;
-      }
-      out.add(pools[want][at[want]]);
-      at[want]++;
-    }
-    return _seq = out;
+    return h;
   }
 
-  final Map<int, List<Landmark>> _pools = {};
-
-  /// One tier's catalogue, shuffled once and then kept.
+  /// Cuándo le toca a un hito, en este pueblo. Un número y ya.
   ///
-  /// A fixed permutation, so appending a new landmark to the catalogue only
-  /// ever changes what comes after everything already standing.
-  List<Landmark> _pool(int tier) => _pools.putIfAbsent(tier, () {
-    final of = landmarks.where((l) => l.tier == tier).toList();
-    final keyed = <(double, Landmark)>[
-      for (var i = 0; i < of.length; i++)
-        (hash01(character.order, tier, i), of[i]),
-    ];
-    keyed.sort((a, b) {
-      final c = a.$1.compareTo(b.$1);
-      return c != 0 ? c : a.$2.id.compareTo(b.$2.id);
-    });
-    return [for (final k in keyed) k.$2];
-  });
+  /// Es la pieza central de todo esto. El orden en que un pueblo construye es
+  /// **ordenar el catálogo por este número**, y nada más: ni cadencias por
+  /// posición, ni turnos que ruedan de un nivel a otro cuando se agota, ni
+  /// nada que dependa de cuántos hitos haya. Todo eso cascadea — meter uno
+  /// cambiaba cuándo se vaciaba su nivel, y eso movía los turnos de los otros
+  /// dos.
+  ///
+  /// Ordenar por un número que sólo depende del hito y del pueblo no puede
+  /// cascadear: meter uno nuevo lo mete en su sitio de la lista ordenada y a
+  /// los demás no les toca ni el orden relativo. Eso es exactamente lo que
+  /// hacía falta.
+  ///
+  /// Las obras de apertura se van muy abajo, así que salen primero, barajadas
+  /// entre ellas. Y los niveles se solapan a propósito: sesenta y cinco
+  /// centésimas de sesgo por nivel sobre un azar que vale uno entero, así que
+  /// un pueblo empieza con obras chicas y termina con catedrales, pero por el
+  /// medio se mezclan en vez de venir en tres bloques.
+  double _when(Landmark l) {
+    final r = hash01(character.order, 0x51, idHash(l.id));
+    return (_openers.contains(l.id) ? -10.0 : l.tier * 0.65) + r;
+  }
 
-  /// The ordinary house on an ordinary plot.
+  /// El catálogo entero en el orden en que este pueblo lo construye.
+  ///
+  /// Se guarda, pero atado al tamaño del catálogo: en la app no cambia nunca
+  /// en marcha, y en un test que le mete uno se rehace.
+  List<String> get order {
+    if (_order != null && _orderOf == landmarks.length) return _order!;
+    final all = [...landmarks]
+      ..sort((a, b) {
+        final c = _when(a).compareTo(_when(b));
+        return c != 0 ? c : a.id.compareTo(b.id);
+      });
+    _orderOf = landmarks.length;
+    return _order = [for (final l in all) l.id];
+  }
+
+  List<String>? _order;
+  int? _orderOf;
+
+  /// El hito número `no` de este pueblo: el primero de su orden que todavía no
+  /// construyó.
+  String landmarkFor(int no, Set<String> used) {
+    for (final id in order) {
+      if (!used.contains(id)) return id;
+    }
+    // Catálogo entero construido, que son ciento y pico obras y muchos años.
+    // Vuelve a empezar en vez de dejar al pueblo sin nada que hacer.
+    return order[no % order.length];
+  }
+
   static BuildingKind kindFor(int b) {
     // Ordinary houses get grander as the town does, but never so much that a
     // small one stops appearing: a town of nothing but mansions is a suburb.
@@ -361,83 +342,173 @@ class TownPlan {
     return pool[hash32(b, 0x71c3, 5) % pool.length];
   }
 
+  /// Lo que se construye en el turno `b`, sabiendo lo que ya se construyó.
+  String decide(int b, Set<String> used) => isLandmarkSlot(b)
+      ? landmarkFor(landmarkNumber(b), used)
+      : '$kindMark${kindFor(b).name}';
+
+  /// El hito de esa anotación, o nulo si era un edificio corriente.
+  ///
+  /// Por índice y no recorriendo el catálogo: esto se pregunta una vez por
+  /// edificio, y un pueblo de cinco años tiene doscientos cincuenta. Buscar a
+  /// mano entre ciento y pico eran sesenta mil comparaciones de texto por
+  /// pueblo, y se notaba en el fotograma en que cae una pieza.
+  static Landmark? landmarkOf(String id) {
+    if (id.startsWith(kindMark)) return null;
+    if (_byId == null || _byIdOf != landmarks.length) {
+      _byId = {for (final l in landmarks) l.id: l};
+      _byIdOf = landmarks.length;
+    }
+    return _byId![id];
+  }
+
+  static Map<String, Landmark>? _byId;
+  static int? _byIdOf;
+
+  static BuildingKind kindOf(String id) {
+    final want = id.startsWith(kindMark) ? id.substring(1) : id;
+    for (final k in BuildingKind.values) {
+      if (k.name == want) return k;
+    }
+    return BuildingKind.house;
+  }
+
+  static int costOfId(String id) =>
+      landmarkOf(id)?.cost ?? buildingCost[kindOf(id)]!;
+
+  static String nameOfId(String id) =>
+      landmarkOf(id)?.name ?? buildingName[kindOf(id)]!;
+
+  /// La obra del pueblo, turno a turno.
+  ///
+  /// Lee de la crónica mientras alcance y decide de ahí en adelante. Lo que
+  /// devuelve más allá de lo ya empezado es una previsión, y puede cambiar si
+  /// mañana se añade algo al catálogo — que es justo lo que tiene que poder
+  /// pasar, y por eso lo empezado se anota y lo previsto no.
+  Iterable<Works> walk(List<String> chronicle) sync* {
+    final used = <String>{};
+    var from = 0;
+    for (var b = 0; b < 20000; b++) {
+      final id = b < chronicle.length ? chronicle[b] : decide(b, used);
+      if (!id.startsWith(kindMark)) used.add(id);
+      final cost = costOfId(id);
+      yield Works(b, id, cost, from);
+      from += cost;
+    }
+  }
+
+  /// Hasta dónde llega la crónica que hace falta para `placed` piezas.
+  ///
+  /// Se anota todo edificio que ya se pueda ver o leer: el que tiene piezas
+  /// puestas y el que está a punto de empezar, porque su nombre ya está en la
+  /// cabecera. Lo que viene después queda abierto, y ahí es donde entra lo que
+  /// se añada mañana.
+  List<String> chronicleFor(int placed, List<String> chronicle) {
+    final out = <String>[];
+    for (final w in walk(chronicle)) {
+      if (w.from > placed) break;
+      out.add(w.id);
+    }
+    return out;
+  }
+
   /// What the town is putting up right now, how much of it is left, and
   /// whether it is one of the hundred and twelve landmarks.
-  ///
-  /// A pure walk over the plan, so the label at the top of the screen never
-  /// needs a laid-out town to say what is being built.
-  (String, int, bool)? underway(int placed) {
-    var cursor = 0;
-    for (var b = 0; b < 20000; b++) {
-      final mark = isLandmarkSlot(b) ? landmarkFor(b) : null;
-      final cost = mark?.cost ?? buildingCost[kindFor(b)]!;
-      if (placed < cursor + cost) {
-        final name = mark?.name ?? buildingName[kindFor(b)]!;
-        return (name, cursor + cost - placed, mark != null);
+  (String, int, bool)? underway(
+    int placed, [
+    List<String> chronicle = const [],
+  ]) {
+    for (final w in walk(chronicle)) {
+      if (placed < w.from + w.cost) {
+        return (
+          nameOfId(w.id),
+          w.from + w.cost - placed,
+          landmarkOf(w.id) != null,
+        );
       }
-      cursor += cost;
     }
     return null;
   }
 
   /// Every landmark the town has built or is about to, with the achievement
-  /// it starts at and what it costs. Enough to show the road ahead without
-  /// laying out a town to do it.
-  List<(Landmark, int)> landmarksAround(int placed, {int ahead = 500}) {
+  /// it starts at. Enough to show the road ahead without laying out a town.
+  List<(Landmark, int)> landmarksAround(
+    int placed, {
+    int ahead = 500,
+    List<String> chronicle = const [],
+  }) {
     final out = <(Landmark, int)>[];
-    var cursor = 0;
-    for (var b = 0; b < 20000; b++) {
-      final mark = isLandmarkSlot(b) ? landmarkFor(b) : null;
-      final cost = mark?.cost ?? buildingCost[kindFor(b)]!;
-      if (mark != null) out.add((mark, cursor));
-      cursor += cost;
-      if (cursor > placed + ahead) break;
+    for (final w in walk(chronicle)) {
+      final mark = landmarkOf(w.id);
+      if (mark != null) out.add((mark, w.from));
+      if (w.from + w.cost > placed + ahead) break;
     }
     return out;
   }
 
   /// Si el pueblo ya terminó este hito.
-  ///
-  /// Un paseo por el plan, sin construir nada: qué hitos tiene un pueblo es
-  /// una pregunta que se contesta con el plan y el número de piezas, y armar
-  /// seis pueblos enteros en memoria para saber si alguno tiene una cúpula
-  /// sería pagar un mundo por un sí o un no.
-  bool built(String landmarkId, int placed) {
-    var cursor = 0;
-    for (var b = 0; b < 20000; b++) {
-      final mark = isLandmarkSlot(b) ? landmarkFor(b) : null;
-      final cost = mark?.cost ?? buildingCost[kindFor(b)]!;
+  bool built(
+    String landmarkId,
+    int placed, [
+    List<String> chronicle = const [],
+  ]) {
+    for (final w in walk(chronicle)) {
       // En cuanto uno no está terminado, no lo está ninguno de los de después.
-      if (cursor + cost > placed) return false;
-      if (mark?.id == landmarkId) return true;
-      cursor += cost;
+      if (w.from + w.cost > placed) return false;
+      if (w.id == landmarkId) return true;
     }
     return false;
   }
 
   /// How many buildings the town has finished.
-  int finishedBuildings(int placed) {
-    var cursor = 0, n = 0;
-    for (var b = 0; b < 20000; b++) {
-      cursor += costOf(b);
-      if (cursor > placed) break;
+  int finishedBuildings(int placed, [List<String> chronicle = const []]) {
+    var n = 0;
+    for (final w in walk(chronicle)) {
+      if (w.from + w.cost > placed) break;
       n++;
     }
     return n;
   }
+}
 
-  /// What it costs to build the bth building, whatever it turns out to be.
-  int costOf(int b) =>
-      isLandmarkSlot(b) ? landmarkFor(b).cost : buildingCost[kindFor(b)]!;
+/// Un turno de obra: qué edificio es, qué cuesta y en qué pieza empieza.
+class Works {
+  const Works(this.at, this.id, this.cost, this.from);
+
+  /// Su número de orden en el pueblo.
+  final int at;
+
+  /// Lo que quedó anotado: el `id` de un hito, o el nombre de una clase de
+  /// edificio con una almohadilla delante.
+  final String id;
+  final int cost;
+
+  /// La pieza en la que empieza.
+  final int from;
+
+  Landmark? get landmark => TownPlan.landmarkOf(id);
 }
 
 class TownLayout {
-  TownLayout(this.placed, this.character, {this.cx = 0, this.cz = 0})
-    : plan = TownPlan.of(character),
-      plotPitch = character.plotPitch,
-      solo = false {
+  TownLayout(
+    this.placed,
+    this.character, {
+    this.cx = 0,
+    this.cz = 0,
+    this.chronicle = const [],
+  }) : plan = TownPlan.of(character),
+       plotPitch = character.plotPitch,
+       solo = false {
     _build();
   }
+
+  /// Qué fue cada edificio, escrito el día que se empezó.
+  ///
+  /// Vacía quiere decir «decidilo todo ahora», que es lo que hace el expositor
+  /// y lo que hacía la app entera antes de que esto existiera. Un pueblo de
+  /// verdad la trae llena hasta donde llegó, y por eso lo que ya levantó no lo
+  /// puede mover ningún cambio del catálogo.
+  final List<String> chronicle;
 
   /// One structure on its own, in an empty world.
   ///
@@ -457,6 +528,7 @@ class TownLayout {
        plotPitch = character.plotPitch,
        cx = 0,
        cz = 0,
+       chronicle = const [],
        solo = true {
     final building = TownBuilding(
       index: 0,
@@ -555,23 +627,25 @@ class TownLayout {
   void _build() {
     final want = placed + 1;
 
-    // How many buildings the town needs to hold that many pieces.
-    var count = 0, total = 0;
-    while (total < want) {
-      total += plan.costOf(count);
-      count++;
+    // Qué es cada edificio: leído de la crónica mientras alcance, decidido
+    // después. Un pueblo ya construido lee la suya entera y no decide nada.
+    final works = <Works>[];
+    var total = 0;
+    for (final w in plan.walk(chronicle)) {
+      works.add(w);
+      total += w.cost;
+      if (total >= want) break;
     }
-    count = math.max(count, 1);
+    final count = math.max(works.length, 1);
 
-    final isMark = [for (var b = 0; b < count; b++) TownPlan.isLandmarkSlot(b)];
-    final plots = _plots(count, isMark);
+    final plots = _plots(works);
     var index = 0;
     for (var b = 0; b < count; b++) {
-      final mark = isMark[b] ? plan.landmarkFor(b) : null;
+      final mark = works[b].landmark;
       final seed = hash32(b, 0x9e37, 17);
       final building = TownBuilding(
         index: b,
-        kind: mark == null ? TownPlan.kindFor(b) : null,
+        kind: mark == null ? TownPlan.kindOf(works[b].id) : null,
         landmark: mark,
         firstPiece: index,
         cx: cx + plots[b].$1,
@@ -626,8 +700,8 @@ class TownLayout {
   /// order and a landmark keeps its neighbours at arm's length, so a castle is
   /// never wearing somebody's cottage. Because a plot is chosen looking only at
   /// what is already standing, nothing built earlier ever has to move.
-  List<(double, double)> _plots(int want, List<bool> isMark) {
-    final rings = math.max(3, (math.sqrt(want) / 2).ceil() + 3);
+  List<(double, double)> _plots(List<Works> works) {
+    final rings = math.max(3, (math.sqrt(works.length) / 2).ceil() + 3);
     final all = <(double, double, double)>[];
     for (var bx = -rings; bx <= rings; bx++) {
       for (var bz = -rings; bz <= rings; bz++) {
@@ -654,10 +728,10 @@ class TownLayout {
     final out = <(double, double)>[];
     final reaches = <double>[];
     var from = 0;
-    for (var b = 0; b < want; b++) {
+    for (var b = 0; b < works.length; b++) {
       // Stretched wider on the ground, a building needs more ground. The
       // plot has to know what the mason is going to do to it.
-      final r = (isMark[b] ? plan.landmarkFor(b).room : 1.3) * character.spread;
+      final r = (works[b].landmark?.room ?? 1.3) * character.spread;
       var placedIt = false;
       for (var i = from; i < all.length; i++) {
         if (used[i]) continue;

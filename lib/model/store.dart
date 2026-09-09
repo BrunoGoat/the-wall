@@ -73,6 +73,37 @@ class Store extends ChangeNotifier {
 
   DateTime? get lastPlacedAt => habit.lastPlacedAt;
 
+  // ------------------------------------------------------------- la crónica
+
+  /// Escribe en la crónica de un pueblo todo lo que ya se empezó y todavía no
+  /// estaba escrito.
+  ///
+  /// Se llama al cargar, al importar y cada vez que cae una pieza. Ni antes ni
+  /// después: escribir de más le cerraría la puerta a lo que se añada mañana
+  /// —el edificio siguiente ya estaría decidido— y escribir de menos dejaría
+  /// que un cambio del catálogo le cambie las casas a alguien que ya las tiene
+  /// levantadas.
+  ///
+  /// Sólo crece. Una crónica no se acorta ni se corrige: lo que dice es lo que
+  /// pasó.
+  bool _writeUpWorks(Habit h) {
+    final want = TownPlan.of(h.place).chronicleFor(h.total, h.chronicle);
+    if (want.length <= h.chronicle.length) return false;
+    h.chronicle
+      ..clear()
+      ..addAll(want);
+    return true;
+  }
+
+  /// Y de todos, que es lo que hace falta al abrir la app y al importar.
+  bool _writeUpAll() {
+    var moved = false;
+    for (final h in habits) {
+      if (_writeUpWorks(h)) moved = true;
+    }
+    return moved;
+  }
+
   // -------------------------------------------------------------------- cielo
 
   /// Las constelaciones que alguien se quedó mirando y anotó.
@@ -101,7 +132,9 @@ class Store extends ChangeNotifier {
   /// sería castigar al que tiene varios hábitos.
   bool get hasObservatory {
     for (final h in habits) {
-      if (TownPlan.of(h.place).built('observatorio', h.total)) return true;
+      if (TownPlan.of(h.place).built('observatorio', h.total, h.chronicle)) {
+        return true;
+      }
     }
     return false;
   }
@@ -230,6 +263,9 @@ class Store extends ChangeNotifier {
     }
     if (habits.isEmpty) habits.add(_blankHabit());
     active = active.clamp(0, habits.length - 1);
+    // Una copia guardada por una versión anterior no trae crónica. Se escribe
+    // aquí, con el catálogo de hoy, y de ahí en adelante ya no se recalcula.
+    if (_writeUpWorks(habit) || _writeUpAll()) _save();
     integrityAtLaunch = integrity;
     loaded = true;
     notifyListeners();
@@ -351,6 +387,7 @@ class Store extends ChangeNotifier {
       ..clear()
       ..addAll(((parsed['sky'] as List?) ?? []).map((e) => e.toString()));
     preview = null;
+    _writeUpAll();
     integrityAtLaunch = integrity;
     _save();
     notifyListeners();
@@ -385,6 +422,8 @@ class Store extends ChangeNotifier {
 
     final piece = Piece(index: habit.total, placedAt: now);
     habit.pieces.add(piece);
+    // Y si esta pieza empieza un edificio nuevo, queda escrito qué edificio es.
+    _writeUpWorks(habit);
 
     _save();
     notifyListeners();
@@ -504,7 +543,7 @@ class Store extends ChangeNotifier {
 
   /// What the town is putting up right now.
   String get nextEventLabel {
-    final work = plan.underway(shownTotal);
+    final work = plan.underway(shownTotal, habit.chronicle);
     if (work == null) return 'El pueblo sigue creciendo';
     final left = work.$2;
     return left == 1
@@ -591,6 +630,7 @@ class Store extends ChangeNotifier {
         ),
       );
     }
+    _writeUpWorks(h);
     integrityAtLaunch = integrity;
     notifyListeners();
   }

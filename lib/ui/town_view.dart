@@ -183,7 +183,13 @@ class _TownViewState extends State<TownView>
     // moment its count changes.
     _valley.removeWhere((k, _) => k.startsWith('${h.id}:'));
     final (cx, cz) = Habit.centreOf(h.slot);
-    return _valley[key] = TownLayout(n, h.place, cx: cx, cz: cz);
+    return _valley[key] = TownLayout(
+      n,
+      h.place,
+      cx: cx,
+      cz: cz,
+      chronicle: h.chronicle,
+    );
   }
 
   /// Puts the camera where a town is best first seen: from its own plaza,
