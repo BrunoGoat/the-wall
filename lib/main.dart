@@ -34,13 +34,38 @@ class PuebloApp extends StatefulWidget {
   State<PuebloApp> createState() => _PuebloAppState();
 }
 
-class _PuebloAppState extends State<PuebloApp> {
+class _PuebloAppState extends State<PuebloApp> with WidgetsBindingObserver {
   final Store store = Store();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _boot();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Leave the app and the valley goes quiet; come back and it starts again.
+  ///
+  /// Without this the loops keep playing out of a phone that is showing
+  /// something else entirely, and the only way to stop them is to throw the
+  /// app out of the recents list — which is not something anybody should have
+  /// to work out on their own.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      Sensory.instance.wake();
+    } else {
+      Sensory.instance.sleep();
+      // And anything changed a moment ago goes to disk now, rather than
+      // waiting for a timer that may not get another turn.
+      Appearance.instance.flush();
+    }
   }
 
   Future<void> _boot() async {

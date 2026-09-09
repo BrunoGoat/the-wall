@@ -15,6 +15,7 @@ import 'placed_note.dart';
 import 'journey_sheet.dart';
 import 'notice_board.dart';
 import 'overlays.dart';
+import 'settings_sheet.dart';
 import 'style.dart';
 import '../engine/town.dart';
 import 'town_view.dart';
@@ -175,7 +176,12 @@ class _HomeScreenState extends State<HomeScreen> {
             top: media.padding.top + 12,
             left: 22,
             right: 14,
-            child: _TopBar(theme: t, store: store, onJourney: _openJourney),
+            child: _TopBar(
+              theme: t,
+              store: store,
+              onJourney: _openJourney,
+              onSettings: _openSettings,
+            ),
           ),
 
           // --- right: two ways of looking, and no more than that
@@ -334,6 +340,17 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _openSettings() {
+    Sensory.instance.tick();
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: sheetScrim(_theme.dark),
+      builder: (_) => SettingsSheet(store: widget.store, theme: _theme),
+    );
+  }
+
   void _openJourney() {
     Sensory.instance.tick();
     showModalBottomSheet<void>(
@@ -356,24 +373,29 @@ class _TopBar extends StatelessWidget {
     required this.theme,
     required this.store,
     required this.onJourney,
+    required this.onSettings,
   });
 
   final UiTheme theme;
   final Store store;
   final VoidCallback onJourney;
+  final VoidCallback onSettings;
 
   @override
   Widget build(BuildContext context) {
     final t = theme;
     final decaying = store.isDecaying;
     final days = store.streak;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onJourney,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
+    // Two doors, because there are two different things behind them: the
+    // numbers open what you have done, and the gear opens what you can set.
+    // One chevron meaning both was one of them hiding.
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onJourney,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -428,17 +450,21 @@ class _TopBar extends StatelessWidget {
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.only(top: 6, left: 6),
+        ),
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onSettings,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 2, left: 8, bottom: 8),
             child: Icon(
-              Icons.chevron_right,
-              size: 20,
-              color: t.fg.withValues(alpha: 0.40),
+              Icons.settings_outlined,
+              size: 21,
+              color: t.fg.withValues(alpha: 0.44),
               shadows: t.halo,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
