@@ -1,3 +1,4 @@
+import '../data/constellations.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -16,6 +17,7 @@ import 'journey_sheet.dart';
 import 'notice_board.dart';
 import 'overlays.dart';
 import 'settings_sheet.dart';
+import 'sky_sheet.dart';
 import 'style.dart';
 import '../engine/town.dart';
 import 'town_view.dart';
@@ -109,6 +111,30 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Alguien reconoció la constelación de esta noche y la tocó.
+  ///
+  /// Se anota una sola vez, y sólo entonces se abre el cuaderno: volver a
+  /// tocarla no vuelve a celebrarlo. Lo que sí sigue pasando es que se ve, con
+  /// su nombre debajo — el cielo no se apaga porque ya lo hayas mirado.
+  void _logConstellation(String id) {
+    final c = constellationOf(id);
+    if (c == null) return;
+    if (!widget.store.logConstellation(id)) return;
+    Sensory.instance.milestone();
+    _openSky(justFound: c);
+  }
+
+  void _openSky({Constellation? justFound}) {
+    Sensory.instance.tick();
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) =>
+          SkySheet(store: widget.store, theme: _theme, justFound: justFound),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = _theme;
@@ -137,6 +163,8 @@ class _HomeScreenState extends State<HomeScreen> {
               onNothingTapped: () {
                 if (_selected != null) setState(() => _selected = null);
               },
+              onSkyTapped: _logConstellation,
+              onDomeTapped: _openSky,
               onTownTapped: (i) {
                 store.select(i);
                 _showWhisper(store.habit.name);

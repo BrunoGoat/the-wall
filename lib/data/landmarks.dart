@@ -2947,4 +2947,44 @@ final List<Landmark> landmarks = [
       m.tree(1.2, 2.2, dx: -2.9, dz: 2.6);
     },
   ),
+  Landmark(
+    'observatorio',
+    'Observatorio',
+    38,
+    2,
+    'Una torre con una cúpula que se abre. Desde esta noche el pueblo no sólo '
+        'mira el suelo que pisa: hay alguien arriba anotando lo que pasa en el '
+        'cielo, y lo que anota queda escrito para todo el valle.',
+    (m) {
+      m.plinth(5.2, 5.2, 0.42);
+      m.stair(1.7, 0.42, 1.2, dz: -3.0);
+      m.stair(1.7, 0.30, 0.9, dz: -3.9, at: -0.30);
+      m.door(1.0, 1.6, dz: -1.6);
+      // La columnata de la terraza: ocho postes y el arquitrabe encima. Una
+      // cúpula sobre un tambor pelado es un silo.
+      for (final (dx, dz) in const [
+        (-2.1, -2.1), (0.0, -2.1), (2.1, -2.1), (2.1, 0.0), //
+        (2.1, 2.1), (0.0, 2.1), (-2.1, 2.1), (-2.1, 0.0),
+      ]) {
+        m.post(0.24, 1.7, dx: dx, dz: dz, at: 0.42);
+      }
+      for (final (w, d, dz) in const [(4.6, 0.3, -2.1), (4.6, 0.3, 2.1)]) {
+        m.beam(w, d, 0.24, dz: dz, at: 2.12);
+      }
+      for (final dx in const [-2.1, 2.1]) {
+        m.beam(0.3, 4.6, 0.24, dx: dx, at: 2.12);
+      }
+      // El tambor, que se estrecha al subir: una cúpula pesa, y una torre que
+      // sube recta debajo de una parece un bidón.
+      m.shaft(3.3, 16, 0.42, taper: 0.055);
+      m.parapet(3.0, 3.0, 0.34);
+      m.dome(2.6, 2.6, 1.5);
+      // Y la mira asomando por la abertura, que es lo que dice que esto es un
+      // observatorio y no una cúpula más.
+      m.post(0.22, 1.2, dx: 0.4);
+      m.beam(1.5, 0.28, 0.28, dx: 0.4);
+      m.tree(1.5, 2.2, dx: -3.2, dz: 2.6);
+      m.tree(1.3, 1.9, dx: 3.3, dz: -2.4);
+    },
+  ),
 ];

@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../data/constellations.dart';
 import '../core/math3.dart';
 import '../core/rng.dart';
 import '../engine/camera.dart';
@@ -51,6 +52,8 @@ class TownView extends StatefulWidget {
     required this.onPlaced,
     required this.onStoneTapped,
     required this.onNothingTapped,
+    required this.onSkyTapped,
+    required this.onDomeTapped,
     required this.onTownTapped,
     required this.onBoardTapped,
     required this.onWhisper,
@@ -66,6 +69,12 @@ class TownView extends StatefulWidget {
   /// A piece has just been laid, and which one it is.
   final void Function(Piece piece) onPlaced;
   final void Function(Piece piece) onStoneTapped;
+
+  /// Alguien se quedó mirando la constelación de esta noche y la tocó.
+  final void Function(String id) onSkyTapped;
+
+  /// Alguien tocó la cúpula de un observatorio.
+  final VoidCallback onDomeTapped;
 
   /// Un toque en el aire. Cerrar la leyenda que estuviera abierta es lo mismo
   /// que dejar de mirar la pieza, así que lo hace el mismo gesto y no un aspa.
@@ -90,6 +99,8 @@ class _TownViewState extends State<TownView>
   final OrbitCamera _cam = OrbitCamera();
   final EffectSystem _fx = EffectSystem();
   final List<PickTarget> _picks = [];
+  final List<SkyHit> _skies = [];
+  final List<DomeHit> _domes = [];
   final List<SignHit> _signs = [];
   final List<BoardHit> _boards = [];
 
@@ -592,6 +603,23 @@ class _TownViewState extends State<TownView>
   void _onTapUp(TapUpDetails d) {
     final pos = d.localPosition;
 
+    // El cielo primero. Es lo que menos veces está ahí y lo que más
+    // deliberadamente se toca: nadie apunta a una constelación por accidente,
+    // y si hay una figura encima de un tejado, se quiso la figura.
+    for (final k in _skies) {
+      if (!k.rect.contains(pos)) continue;
+      widget.onSkyTapped(k.id);
+      return;
+    }
+
+    // Después las cúpulas: son lo que abre el cuaderno del cielo.
+    for (final d in _domes) {
+      if (!d.rect.contains(pos)) continue;
+      Sensory.instance.tick();
+      widget.onDomeTapped();
+      return;
+    }
+
     // The board comes first: it is a small thing standing in the middle of a
     // town full of houses, and anybody aiming at it meant it.
     for (final b in _boards) {
@@ -661,6 +689,12 @@ class _TownViewState extends State<TownView>
   @override
   Widget build(BuildContext context) {
     final store = widget.store;
+    // Sólo hay cielo que mirar si es de noche y si en el valle hay una cúpula
+    // en pie. Las fugaces no: ésas van desde el primer día.
+    final night = nightOf(DateTime.now());
+    final show = _palette.starAlpha > 0.35 && widget.store.hasObservatory;
+    final tonightIs = show ? tonight(night) : null;
+
     final scene = TownScene(
       placed: store.shownTotal,
       palette: _palette,
@@ -680,6 +714,9 @@ class _TownViewState extends State<TownView>
       finishedAge: _finishedAge,
       selectedBrick: _selectedPiece,
       charge: _charge,
+      skyNight: night,
+      tonight: tonightIs,
+      tonightKnown: tonightIs != null && widget.store.sawIt(tonightIs.id),
     );
 
     return Listener(
@@ -698,7 +735,7 @@ class _TownViewState extends State<TownView>
           Sensory.instance.tick();
         },
         child: CustomPaint(
-          painter: TownPainter(scene, _picks, _signs, _boards),
+          painter: TownPainter(scene, _picks, _signs, _boards, _skies, _domes),
           size: Size.infinite,
           isComplex: true,
           willChange: true,

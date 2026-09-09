@@ -263,7 +263,7 @@ class _GalleryScreenState extends State<GalleryScreen>
                 Sensory.instance.tick();
               },
               child: CustomPaint(
-                painter: TownPainter(scene, _picks, _signs, _boards),
+                painter: TownPainter(scene, _picks, _signs, _boards, [], []),
                 size: Size.infinite,
                 isComplex: true,
                 willChange: true,

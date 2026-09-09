@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:la_muralla/data/character.dart';
 import 'package:la_muralla/model/habit.dart';
 import 'package:la_muralla/model/piece.dart';
+import 'package:la_muralla/engine/town.dart';
 import 'package:la_muralla/model/store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -188,6 +189,77 @@ void main() {
       s.removeHabit(7);
       s.removeHabit(-1);
       expect(s.habits.length, 2);
+    });
+  });
+
+  group('el cielo del valle', () {
+    test('el observatorio llega, y hasta entonces no hay cielo', () async {
+      final s = await freshStore();
+      expect(s.hasObservatory, isFalse);
+      // Buscamos a qué altura lo levanta este pueblo, y comprobamos que
+      // efectivamente antes no y después sí. El número exacto depende del
+      // carácter del pueblo, así que se busca en vez de escribirse a mano.
+      final plan = TownPlan.of(s.character);
+      var at = -1;
+      for (var n = 0; n <= 6000; n += 1) {
+        if (plan.built('observatorio', n)) {
+          at = n;
+          break;
+        }
+      }
+      expect(at, greaterThan(0), reason: 'este pueblo no lo construye nunca');
+      expect(plan.built('observatorio', at - 1), isFalse);
+      expect(plan.built('observatorio', at + 500), isTrue);
+      // ignore: avoid_print
+      print('observatorio a las $at piezas');
+    });
+
+    test('todos los pueblos lo construyen tarde o temprano', () async {
+      // Un hito que en un carácter no sale nunca dejaría a ese hábito sin
+      // cielo para siempre, y eso no se vería hasta que alguien llegase.
+      for (final c in TownCharacter.all) {
+        expect(
+          TownPlan.of(c).built('observatorio', 4000),
+          isTrue,
+          reason:
+              '${c.region} no levanta observatorio ni con cuatro mil piezas, '
+              'así que ese hábito se queda sin cielo para siempre',
+        );
+      }
+    });
+
+    test('anotar una constelación es una sola vez', () async {
+      final s = await freshStore();
+      expect(s.sawIt('orion'), isFalse);
+      expect(s.logConstellation('orion'), isTrue);
+      expect(s.sawIt('orion'), isTrue);
+      expect(
+        s.logConstellation('orion'),
+        isFalse,
+        reason: 'la anotó dos veces',
+      );
+      expect(s.sky.length, 1);
+    });
+
+    test('y el cuaderno sobrevive a cerrar la app', () async {
+      final s = await freshStore();
+      s.logConstellation('orion');
+      s.logConstellation('cruz');
+      s.placePiece();
+      final again = Store();
+      await again.load();
+      expect(again.sky, {'cruz', 'orion'});
+      expect(again.sawIt('lira'), isFalse);
+    });
+
+    test('y sale y entra con el resto del valle', () async {
+      final s = await freshStore();
+      s.logConstellation('casiopea');
+      final saved = s.exportSave();
+      final other = await freshStore();
+      expect(other.sawIt('casiopea'), isFalse);
+      expect(other.importSave(saved), isNull, reason: 'no lo pudo leer');
+      expect(other.sawIt('casiopea'), isTrue);
     });
   });
 

@@ -263,6 +263,21 @@ class TownPlan {
       }
     }
 
+    // El observatorio no se sortea, y va en el mismo sitio en los seis.
+    //
+    // Es la puerta de una cosa entera —el cielo, y las ocho constelaciones que
+    // hay que salir a reconocer— y dejarlo al azar del catálogo significaba
+    // que a un pueblo le tocase el séptimo y a otro no le tocase en veinte mil
+    // piezas. Una función que se abre por suerte no es una función. Va después
+    // de las primeras obras: cuando el pueblo ya es un pueblo, alguien levanta
+    // la vista.
+    const looksUp = 3;
+    for (final l in landmarks) {
+      if (l.id == 'observatorio' && taken.add(l.id)) {
+        out.insert(math.min(looksUp, out.length), l);
+      }
+    }
+
     // Everything else, in the widening cadence: mostly small works while the
     // town is small, mostly grand ones once it is not.
     final pools = [
@@ -381,6 +396,25 @@ class TownPlan {
     return out;
   }
 
+  /// Si el pueblo ya terminó este hito.
+  ///
+  /// Un paseo por el plan, sin construir nada: qué hitos tiene un pueblo es
+  /// una pregunta que se contesta con el plan y el número de piezas, y armar
+  /// seis pueblos enteros en memoria para saber si alguno tiene una cúpula
+  /// sería pagar un mundo por un sí o un no.
+  bool built(String landmarkId, int placed) {
+    var cursor = 0;
+    for (var b = 0; b < 20000; b++) {
+      final mark = isLandmarkSlot(b) ? landmarkFor(b) : null;
+      final cost = mark?.cost ?? buildingCost[kindFor(b)]!;
+      // En cuanto uno no está terminado, no lo está ninguno de los de después.
+      if (cursor + cost > placed) return false;
+      if (mark?.id == landmarkId) return true;
+      cursor += cost;
+    }
+    return false;
+  }
+
   /// How many buildings the town has finished.
   int finishedBuildings(int placed) {
     var cursor = 0, n = 0;
@@ -480,6 +514,15 @@ class TownLayout {
 
   final List<TownPiece> pieces = [];
   final List<TownBuilding> buildings = [];
+
+  /// El edificio de este hito, si está en pie. Para las cosas que un pueblo
+  /// desbloquea al terminar algo, y para poder señalarlas en pantalla.
+  TownBuilding? standing(String landmarkId) {
+    for (final b in buildings) {
+      if (b.landmark?.id == landmarkId && b.finished) return b;
+    }
+    return null;
+  }
 
   /// How far the town reaches from its centre, for framing the camera.
   double radius = 4;

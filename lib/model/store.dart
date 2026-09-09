@@ -73,6 +73,39 @@ class Store extends ChangeNotifier {
 
   DateTime? get lastPlacedAt => habit.lastPlacedAt;
 
+  // -------------------------------------------------------------------- cielo
+
+  /// Las constelaciones que alguien se quedó mirando y anotó.
+  ///
+  /// Del valle y no de un hábito: lo que se ve desde el observatorio de un
+  /// pueblo se ve desde el de cualquier otro, porque es el mismo cielo. Un
+  /// cuaderno de estrellas por hábito sería tener que redescubrir Orión cada
+  /// vez que fundás un pueblo, y eso no es cómo funciona el cielo.
+  final Set<String> sky = <String>{};
+
+  bool sawIt(String id) => sky.contains(id);
+
+  /// Anota una. Devuelve si era nueva, que es lo que decide si hay algo que
+  /// celebrar.
+  bool logConstellation(String id) {
+    if (!sky.add(id)) return false;
+    _save();
+    notifyListeners();
+    return true;
+  }
+
+  /// Si en el valle hay un observatorio en pie, en cualquier pueblo.
+  ///
+  /// Basta con uno: el primero que levanta la cúpula se la levanta al valle
+  /// entero. Cinco pueblos y cinco observatorios antes de ver una estrella
+  /// sería castigar al que tiene varios hábitos.
+  bool get hasObservatory {
+    for (final h in habits) {
+      if (TownPlan.of(h.place).built('observatorio', h.total)) return true;
+    }
+    return false;
+  }
+
   // ------------------------------------------------------------------ habits
 
   bool get canAddHabit => habits.length < Habit.maxSlots;
@@ -247,12 +280,16 @@ class Store extends ChangeNotifier {
         ),
       );
     active = (j['a'] as num?)?.toInt() ?? 0;
+    sky
+      ..clear()
+      ..addAll(((j['sky'] as List?) ?? []).map((e) => e.toString()));
   }
 
   Map<String, dynamic> _encode() => {
     'v': 1,
     'a': active,
     'h': habits.map((h) => h.toJson()).toList(),
+    'sky': sky.toList()..sort(),
   };
 
   // ------------------------------------------------------- taking it with you
@@ -309,6 +346,10 @@ class Store extends ChangeNotifier {
       ..clear()
       ..addAll(read);
     active = ((parsed['a'] as num?)?.toInt() ?? 0).clamp(0, habits.length - 1);
+    // Y el cuaderno del cielo, que viaja con el valle: es del valle.
+    sky
+      ..clear()
+      ..addAll(((parsed['sky'] as List?) ?? []).map((e) => e.toString()));
     preview = null;
     integrityAtLaunch = integrity;
     _save();

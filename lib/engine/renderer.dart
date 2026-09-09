@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../data/constellations.dart';
 import '../core/math3.dart';
 import '../core/rng.dart';
 import '../fx/effects.dart';
@@ -72,6 +73,24 @@ class SignHit {
 ///
 /// The board is a thing standing in the plaza and not a button floating over
 /// the town, so this is worked out from the plank's own four corners.
+/// La cúpula de un observatorio en pantalla, para que un dedo la encuentre.
+///
+/// Lo que se guarda es del valle y no de un pueblo, así que da igual cuál se
+/// toque: todos abren el mismo cuaderno. Pero se toca el de un pueblo, que es
+/// lo que hace que sea un sitio y no una pantalla de ajustes.
+class DomeHit {
+  const DomeHit(this.town, this.rect);
+  final int town;
+  final Rect rect;
+}
+
+/// Dónde quedó la constelación de esta noche, para que un dedo la encuentre.
+class SkyHit {
+  const SkyHit(this.id, this.rect);
+  final String id;
+  final Rect rect;
+}
+
 class BoardHit {
   const BoardHit(this.town, this.rect);
   final int town;
@@ -96,6 +115,9 @@ class TownScene {
     this.selectedBrick,
     this.charge = 0,
     this.labels = true,
+    this.tonight,
+    this.tonightKnown = false,
+    this.skyNight = 0,
   });
 
   /// How many achievements have been laid.
@@ -138,6 +160,18 @@ class TownScene {
   /// 0..1 while the place button is held down.
   final double charge;
 
+  /// Qué noche es ésta. Decide dónde se cuelga la constelación, y se queda
+  /// quieta hasta el mediodía siguiente.
+  final int skyNight;
+
+  /// La constelación que se puede ver esta noche, si hay noche y si en el
+  /// valle hay un observatorio en pie. Nula el resto del tiempo.
+  final Constellation? tonight;
+
+  /// Si esa constelación ya está anotada. Una anotada se sigue viendo —el
+  /// cielo no se apaga porque la hayas mirado— pero más floja y con su nombre.
+  final bool tonightKnown;
+
   /// Whether the landmark names are hung over the buildings. The exhibition
   /// hall says the name in its own header, and a second one floating in the
   /// sky over an empty world is only clutter.
@@ -159,7 +193,14 @@ class _Tone {
 /// Draws the whole world: sky, ground, the wall in full detail nearby, and its
 /// own silhouette receding into the haze when it gets long.
 class TownPainter extends CustomPainter {
-  TownPainter(this.scene, this.picks, this.signs, this.boards);
+  TownPainter(
+    this.scene,
+    this.picks,
+    this.signs,
+    this.boards,
+    this.skies,
+    this.domes,
+  );
 
   final TownScene scene;
   final List<PickTarget> picks;
@@ -169,6 +210,12 @@ class TownPainter extends CustomPainter {
 
   /// And where each town's notice board is.
   final List<BoardHit> boards;
+
+  /// Se rellena al pintar: dónde cayó la constelación de esta noche.
+  final List<SkyHit> skies;
+
+  /// Y dónde cayó cada cúpula.
+  final List<DomeHit> domes;
 
   /// Room for everything the budget can ask for, with slack. A face that does
   /// not fit here is silently not drawn, which is a hole in a house — so the
@@ -218,6 +265,8 @@ class TownPainter extends CustomPainter {
     picks.clear();
     signs.clear();
     boards.clear();
+    skies.clear();
+    domes.clear();
     _faceCount = 0;
     _lamps.clear();
 
@@ -241,6 +290,7 @@ class TownPainter extends CustomPainter {
     _drawTownLabels(canvas, p, size, town);
     _drawTownSigns(canvas, p, size);
     _findBoards(p, size);
+    _findDomes(p, size);
     _drawParticles(canvas, p);
     _drawAtmosphere(canvas, size, horizonY);
   }
@@ -306,6 +356,7 @@ class TownPainter extends CustomPainter {
 
     if (pal.starAlpha > 0.02) {
       _drawStars(canvas, size, p, horizonY);
+      _drawConstellation(canvas, size, p, horizonY);
       _drawShootingStar(canvas, size, p, horizonY);
     }
     _drawSun(canvas, size, p);
@@ -341,6 +392,102 @@ class TownPainter extends CustomPainter {
         alpha: (0.25 + 0.55 * hash01(i, 9)) * tw * scene.palette.starAlpha,
       );
       canvas.drawCircle(Offset(sx, sy), 0.6 + hash01(i, 11) * 1.1, paint);
+    }
+  }
+
+  /// La constelación de esta noche.
+  ///
+  /// Colgada del cielo por su forma real: las coordenadas de sus estrellas son
+  /// las del catálogo, y `hang` rehace el plano tangente donde se la ponga, así
+  /// que los ángulos entre ellas son los de verdad. Lo que se ve es la figura
+  /// que se ve levantando la cabeza, no una parecida.
+  ///
+  /// Dónde se cuelga lo decide la noche y no el reloj: pasa la noche entera en
+  /// el mismo sitio del cielo, que es lo que permite salir a buscarla. Girar
+  /// la cámara la encuentra; esperar, no.
+  void _drawConstellation(
+    Canvas canvas,
+    Size size,
+    Projector p,
+    double horizonY,
+  ) {
+    final c = scene.tonight;
+    if (c == null) return;
+    final night = scene.skyNight;
+    final az = hash01(night, 77) * math.pi * 2;
+    // Colgada por su borde de abajo y no por su centro. Lo que hay que
+    // garantizar es que el pie de la figura quede unos grados por encima del
+    // horizonte —si no, se la come una cordillera— y eso depende de lo ancha
+    // que sea: Escorpio ocupa veinticinco grados de cielo y la Cruz del Sur
+    // seis. Puesta por el centro, la grande quedaba fuera de la pantalla.
+    final el = c.spread * 0.5 + 0.09 + hash01(night, 79) * 0.11;
+
+    final known = scene.tonightKnown;
+    // Una sin anotar respira, para que se note que hay algo que hacer con
+    // ella. Una anotada se queda quieta: ya cumplió.
+    final beat = known ? 1.0 : 0.78 + 0.22 * math.sin(scene.time * 1.15);
+    final ink = scene.palette.starAlpha * (known ? 0.42 : 0.95) * beat;
+    if (ink < 0.03) return;
+
+    final at = <Offset?>[];
+    var x0 = double.infinity, y0 = double.infinity;
+    var x1 = -double.infinity, y1 = -double.infinity;
+    var seen = 0;
+    for (final (sa, se) in hang(c, az, el)) {
+      final o = skyPoint(p, sa, se, minDen: 0.10);
+      at.add(o);
+      if (o == null) continue;
+      seen++;
+      if (o.dx < x0) x0 = o.dx;
+      if (o.dx > x1) x1 = o.dx;
+      if (o.dy < y0) y0 = o.dy;
+      if (o.dy > y1) y1 = o.dy;
+    }
+    // Media figura no es una figura: o se ve entera o no se ofrece.
+    if (seen < c.stars.length) return;
+    if (x1 < 0 || x0 > size.width || y1 < 0 || y0 > horizonY) return;
+
+    final line = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 1.0
+      ..color = Colors.white.withValues(alpha: ink * 0.34);
+    for (var k = 0; k + 1 < c.lines.length; k += 2) {
+      final a = at[c.lines[k]], b = at[c.lines[k + 1]];
+      if (a == null || b == null) continue;
+      canvas.drawLine(a, b, line);
+    }
+    final dot = Paint()..color = Colors.white;
+    for (var i = 0; i < at.length; i++) {
+      final o = at[i];
+      if (o == null) continue;
+      // Por magnitud, y al revés de lo que parece: cuanto más chica, más
+      // brilla. Sirio en menos uno y media tiene que verse como Sirio.
+      final mag = c.stars[i].mag;
+      final size01 = clampD((3.2 - mag) / 4.6, 0.22, 1.0);
+      dot.color = Colors.white.withValues(alpha: ink * (0.55 + 0.45 * size01));
+      canvas.drawCircle(o, 1.0 + 1.9 * size01, dot);
+    }
+
+    final box = Rect.fromLTRB(x0, y0, x1, y1).inflate(16);
+    if (!known) skies.add(SkyHit(c.id, box));
+
+    // El nombre sólo cuando ya está anotada. Antes de anotarla, decirlo sería
+    // contestar la pregunta: la gracia es reconocerla.
+    if (known) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: c.name.toUpperCase(),
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: ink * 0.9),
+            fontSize: 9.5,
+            letterSpacing: 2.0,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp.paint(canvas, Offset(box.center.dx - tp.width / 2, box.bottom + 2));
     }
   }
 
@@ -1166,6 +1313,45 @@ class TownPainter extends CustomPainter {
       if (x1 - x0 < 12 && y1 - y0 < 12) continue;
       if (x1 < 0 || x0 > size.width || y1 < 0 || y0 > size.height) continue;
       boards.add(BoardHit(i, Rect.fromLTRB(x0, y0, x1, y1).inflate(9)));
+    }
+  }
+
+  /// Dónde está cada cúpula, para poder tocarla.
+  ///
+  /// Se mide del propio edificio y no de un punto colgado encima: lo que se
+  /// toca es lo que se ve, y desde lejos, cuando la cúpula es una mancha de
+  /// cuatro píxeles, no hay nada que tocar — que es lo correcto.
+  void _findDomes(Projector p, Size size) {
+    for (var i = 0; i < scene.towns.length; i++) {
+      final b = scene.towns[i].layout.standing('observatorio');
+      if (b == null) continue;
+      var x0 = double.infinity, y0 = double.infinity;
+      var x1 = -double.infinity, y1 = -double.infinity;
+      var whole = true;
+      // Las cuatro esquinas de la cúpula y su cima: con el centro solo, una
+      // cúpula cerca ocuparía media pantalla y su blanco sería un punto.
+      const r = 1.5;
+      for (final v in [
+        V3(b.cx - r, b.peakY - 1.6, b.cz - r),
+        V3(b.cx + r, b.peakY - 1.6, b.cz - r),
+        V3(b.cx - r, b.peakY - 1.6, b.cz + r),
+        V3(b.cx + r, b.peakY - 1.6, b.cz + r),
+        V3(b.cx, b.peakY, b.cz),
+      ]) {
+        final at = p.project(v);
+        if (at == null) {
+          whole = false;
+          break;
+        }
+        if (at.x < x0) x0 = at.x;
+        if (at.x > x1) x1 = at.x;
+        if (at.y < y0) y0 = at.y;
+        if (at.y > y1) y1 = at.y;
+      }
+      if (!whole) continue;
+      if (x1 - x0 < 14 && y1 - y0 < 14) continue;
+      if (x1 < 0 || x0 > size.width || y1 < 0 || y0 > size.height) continue;
+      domes.add(DomeHit(i, Rect.fromLTRB(x0, y0, x1, y1).inflate(8)));
     }
   }
 
