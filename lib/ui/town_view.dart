@@ -50,6 +50,7 @@ class TownView extends StatefulWidget {
     required this.onTownLandmark,
     required this.onPlaced,
     required this.onStoneTapped,
+    required this.onNothingTapped,
     required this.onTownTapped,
     required this.onBoardTapped,
     required this.onWhisper,
@@ -65,6 +66,10 @@ class TownView extends StatefulWidget {
   /// A piece has just been laid, and which one it is.
   final void Function(Piece piece) onPlaced;
   final void Function(Piece piece) onStoneTapped;
+
+  /// Un toque en el aire. Cerrar la leyenda que estuviera abierta es lo mismo
+  /// que dejar de mirar la pieza, así que lo hace el mismo gesto y no un aspa.
+  final VoidCallback onNothingTapped;
 
   /// The sign over another town was tapped: go and live there.
   final void Function(int index) onTownTapped;
@@ -626,6 +631,7 @@ class _TownViewState extends State<TownView>
     }
     if (best == null) {
       if (_selectedPiece != null) setState(() => _selectedPiece = null);
+      widget.onNothingTapped();
       return;
     }
 

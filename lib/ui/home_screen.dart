@@ -134,6 +134,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 setState(() => _justPlaced = piece);
               },
               onStoneTapped: (brick) => setState(() => _selected = brick),
+              onNothingTapped: () {
+                if (_selected != null) setState(() => _selected = null);
+              },
               onTownTapped: (i) {
                 store.select(i);
                 _showWhisper(store.habit.name);
@@ -237,10 +240,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   number: _selected!.index + 1,
                   label: _selected!.label,
                   onEdit: () => _editLabel(_selected!),
-                  onClose: () {
-                    _wall.clearSelection();
-                    setState(() => _selected = null);
-                  },
                 ),
               ),
             ),
@@ -469,20 +468,6 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-/// What this piece finishes, said above the button.
-///
-/// The pull to put one more down is strongest when you can see exactly what it
-/// completes. "faltan 2 para el Granero" is a different feeling from a button
-/// that only says "mantener".
-String? buttonHint(int placed, TownPlan plan) {
-  final work = plan.underway(placed);
-  if (work == null) return null;
-  final left = work.$2;
-  if (left == 1) return 'esta termina ${work.$1}';
-  if (left <= 4) return 'faltan $left para ${work.$1}';
-  return null;
-}
-
 class _BottomDeck extends StatelessWidget {
   const _BottomDeck({
     required this.theme,
@@ -539,7 +524,6 @@ class _BottomDeck extends StatelessWidget {
             onPlace: onPlace,
             onCharge: wall.setCharge,
             rapid: Appearance.instance.rapid,
-            hint: buttonHint(placed, plan),
           ),
         ],
       ),

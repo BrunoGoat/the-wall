@@ -260,6 +260,36 @@ class TownPainter extends CustomPainter {
     return p.cy - p.focal * (d.dot(p.up) / den);
   }
 
+  /// Dónde cae en pantalla algo que está infinitamente lejos, dado su azimut y
+  /// su elevación.
+  ///
+  /// Las estrellas, las fugaces y las tres cordilleras usan esto mismo, y ése
+  /// es el asunto: son las tres cosas de esta escena que están tan lejos que
+  /// sólo giran con la cámara y no se mueven con ella. La cuenta no tiene un
+  /// solo término con `eye` dentro, y por eso trasladar el ojo —caminar por el
+  /// valle, alejarse, subir— no las mueve ni un píxel.
+  ///
+  /// De ahí sale además, gratis, la propiedad que hacía falta: la elevación
+  /// cero cae exactamente en la línea del horizonte, que es donde el suelo
+  /// empieza a dibujarse. Un pie de montaña no puede quedar por debajo del
+  /// prado.
+  @visibleForTesting
+  static Offset? skyPoint(
+    Projector p,
+    double az,
+    double el, {
+    double minDen = 0.03,
+  }) {
+    final ce = math.cos(el);
+    final d = V3(math.sin(az) * ce, math.sin(el), math.cos(az) * ce);
+    final den = d.dot(p.forward);
+    if (den <= minDen) return null;
+    return Offset(
+      p.cx + p.focal * d.dot(p.right) / den,
+      p.cy - p.focal * d.dot(p.up) / den,
+    );
+  }
+
   void _drawSky(Canvas canvas, Size size, Projector p, double horizonY) {
     final pal = scene.palette;
     final h = size.height;
@@ -274,7 +304,10 @@ class TownPainter extends CustomPainter {
       ]);
     canvas.drawRect(rect, paint);
 
-    if (pal.starAlpha > 0.02) _drawStars(canvas, size, p, horizonY);
+    if (pal.starAlpha > 0.02) {
+      _drawStars(canvas, size, p, horizonY);
+      _drawShootingStar(canvas, size, p, horizonY);
+    }
     _drawSun(canvas, size, p);
 
     // A soft band of haze sitting on the horizon.
@@ -299,21 +332,87 @@ class TownPainter extends CustomPainter {
     for (var i = 0; i < 130; i++) {
       final az = hash01(i, 3) * math.pi * 2;
       final el = 0.06 + hash01(i, 5) * 1.4;
-      final d = V3(
-        math.sin(az) * math.cos(el),
-        math.sin(el),
-        math.cos(az) * math.cos(el),
-      );
-      final den = d.dot(p.forward);
-      if (den <= 0.05) continue;
-      final sx = p.cx + p.focal * d.dot(p.right) / den;
-      final sy = p.cy - p.focal * d.dot(p.up) / den;
+      final at = skyPoint(p, az, el, minDen: 0.05);
+      if (at == null) continue;
+      final sx = at.dx, sy = at.dy;
       if (sx < 0 || sx > size.width || sy < 0 || sy > horizonY) continue;
       final tw = 0.55 + 0.45 * math.sin(scene.time * 1.7 + i * 2.1);
       paint.color = Colors.white.withValues(
         alpha: (0.25 + 0.55 * hash01(i, 9)) * tw * scene.palette.starAlpha,
       );
       canvas.drawCircle(Offset(sx, sy), 0.6 + hash01(i, 11) * 1.1, paint);
+    }
+  }
+
+  /// Una estrella fugaz, cada tanto, cuando hay noche.
+  ///
+  /// Sin nada que guardar: el tiempo se parte en ventanas, y de qué ventana es
+  /// éste decide —siempre igual— si hay una, cuándo dentro de la ventana y por
+  /// dónde. Un estado más en la escena para algo que dura segundo y pico sería
+  /// un estado más que mantener sincronizado con la pausa, con el rebobinado
+  /// del expositor y con la hora fingida de los ajustes.
+  ///
+  /// Y no en todas las ventanas. Una que se puede esperar deja de ser un
+  /// hallazgo: la gracia de mirar al cielo es que casi nunca pasa nada.
+  void _drawShootingStar(
+    Canvas canvas,
+    Size size,
+    Projector p,
+    double horizonY,
+  ) {
+    const window = 24.0;
+    const flight = 1.15;
+    final epoch = (scene.time / window).floor();
+    if (hash01(epoch, 401) > 0.30) return;
+    final began = epoch * window + hash01(epoch, 403) * (window - flight);
+    final u = (scene.time - began) / flight;
+    if (u < 0 || u > 1) return;
+
+    // De donde sale y hacia dónde va. Bajas y en diagonal, que es como se ven:
+    // una raya en mitad del cielo parece un avión.
+    final az0 = hash01(epoch, 405) * math.pi * 2;
+    final el0 = 0.22 + hash01(epoch, 407) * 0.55;
+    final sweep =
+        (hash01(epoch, 409) < 0.5 ? -1 : 1) *
+        (0.20 + hash01(epoch, 411) * 0.22);
+    final drop = 0.10 + hash01(epoch, 413) * 0.16;
+
+    Offset? at(double k) {
+      final el = el0 - drop * k;
+      if (el <= 0.01) return null;
+      return skyPoint(p, az0 + sweep * k, el, minDen: 0.08);
+    }
+
+    // Entra y se apaga: nunca aparece ni desaparece de golpe.
+    final glow =
+        math.pow(math.sin(math.pi * u), 0.65).toDouble() *
+        scene.palette.starAlpha;
+    if (glow < 0.02) return;
+
+    const tail = 0.13;
+    const bits = 7;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    for (var i = 0; i < bits; i++) {
+      final a = at(u - tail * (i + 1) / bits);
+      final b = at(u - tail * i / bits);
+      if (a == null || b == null) continue;
+      if (b.dy > horizonY || a.dy > horizonY) continue;
+      // La cola se afina y se apaga hacia atrás, que es lo que la hace cola.
+      final k = 1 - i / bits;
+      paint
+        ..color = Colors.white.withValues(alpha: glow * k * k * 0.85)
+        ..strokeWidth = 0.5 + 1.3 * k;
+      canvas.drawLine(a, b, paint);
+    }
+    final head = at(u);
+    if (head != null && head.dy <= horizonY) {
+      canvas.drawCircle(
+        head,
+        1.7,
+        Paint()..color = Colors.white.withValues(alpha: glow),
+      );
     }
   }
 
@@ -504,6 +603,22 @@ class TownPainter extends CustomPainter {
       // gradient of a strip could only start at that strip's own highest
       // point, so two strips of the same range began their fade at different
       // heights and met along a visible step. One range, one paint.
+      // Proyectadas como direcciones y no como puntos: una cordillera está
+      // infinitamente lejos, y lo que eso quiere decir es que gira con la
+      // cámara y no se mueve con ella.
+      //
+      // Antes se muestreaba en `ojo + dirección × radio` con la altura en
+      // coordenadas del mundo: la posición horizontal seguía a la cámara pero
+      // la vertical no, así que al subir el ojo —que es lo que hace alejarse—
+      // las montañas se hundían proporcionalmente a la altura partido el
+      // radio. Con el radio de la primera en ciento cincuenta y el ojo subiendo
+      // decenas de unidades, eso es media cordillera de salto: se movían como
+      // si estuvieran a diez metros, y en el peor caso su pie se metía por
+      // debajo del horizonte y el prado se las comía.
+      //
+      // Así, en cambio, la elevación cero cae exactamente en el horizonte por
+      // construcción, que es el sitio donde el suelo empieza. No hay forma de
+      // que el pasto tape una montaña.
       final xs = <double>[], ys = <double>[];
       var crest = size.height;
       for (var i = 0; i <= steps; i++) {
@@ -514,21 +629,23 @@ class TownPainter extends CustomPainter {
           look + dx * layer.radius,
           dz * layer.radius,
         );
-        final top = p.project(
-          V3(
-            p.eye.x + dx * layer.radius,
-            math.max(h, layer.base),
-            p.eye.z + dz * layer.radius,
-          ),
+        // El perfil sigue cambiando con el viaje, así que caminar por el valle
+        // descubre otra sierra: eso es paralaje de verdad, y es la única que
+        // una cosa tan lejos tiene derecho a tener.
+        final at = skyPoint(
+          p,
+          th,
+          math.atan2(math.max(h, layer.base), layer.radius),
+          minDen: 0.02,
         );
-        if (top == null) {
+        if (at == null) {
           xs.add(double.nan);
           ys.add(double.nan);
           continue;
         }
-        xs.add(top.x);
-        ys.add(top.y);
-        if (top.y < crest) crest = top.y;
+        xs.add(at.dx);
+        ys.add(at.dy);
+        if (at.dy < crest) crest = at.dy;
       }
 
       // Each range fades into the haze where it meets the horizon, the way
@@ -587,7 +704,11 @@ class TownPainter extends CustomPainter {
       final near01 =
           (Landscape.ridges.length - 1 - li) /
           math.max(1, Landscape.ridges.length - 1);
-      final strength = 0.20 + 0.16 * near01;
+      // Por cuánto de día es, y no siempre. El barrido usaba el color del sol
+      // a plena fuerza a cualquier hora: a las tres de la mañana pintaba una
+      // mancha clara en la ladera, del lado donde estaría el sol si lo
+      // hubiera. De noche no le da el sol a nada.
+      final strength = (0.20 + 0.16 * near01) * pal.daylight;
       if (strength > 0.02 && sunX > -size.width && sunX < size.width * 2) {
         final reach = size.width * 0.85;
         final glow = Paint()
@@ -1085,7 +1206,6 @@ class TownPainter extends CustomPainter {
       final d = at.depth;
       final near = clampD((d - 26) / 30, 0, 1);
       if (near <= 0.02) continue;
-      final alive = e.integrity;
       final on = i == scene.active;
 
       final ink = on ? pal.accent : (dark ? Colors.white : pal.ink);
@@ -1119,7 +1239,12 @@ class TownPainter extends CustomPainter {
       const crown = 12.0;
       final wears = e.crowned;
       final content = glyph + 8 + tp.width + (wears ? crown + 5 : 0);
-      final cx = clampD(at.x, content / 2 + 14, size.width - content / 2 - 14);
+      // Donde cae, y no donde quepa. Estaba recortado contra los dos bordes de
+      // la pantalla, así que un pueblo que se iba de cuadro dejaba su nombre
+      // pegado al canto: girar la cámara se sentía como que el cartel te
+      // seguía. Un cartel está clavado en su pueblo; si el pueblo se sale, el
+      // cartel se sale con él y se corta como se cortaría un cartel de verdad.
+      final cx = at.x;
       final box = Rect.fromLTWH(cx - content / 2 - 8, y - 10, content + 16, 32);
       if (taken.any(box.overlaps)) continue;
       taken.add(box);
@@ -1149,25 +1274,10 @@ class TownPainter extends CustomPainter {
         );
       }
 
-      // A rule under the name, as long as the name, filled as far as the town
-      // has come. It was a bar of its own under a plate; now it is the
-      // underline the name already wanted — the same comparison between two
-      // towns, at a tenth of the ink.
-      final rule = Rect.fromLTWH(after, y + tp.height + 1, tp.width, 1.5);
-      canvas.drawRect(
-        rule,
-        Paint()..color = ink.withValues(alpha: 0.14 * near),
-      );
-      final size01 = clampD(math.sqrt(e.placed / 900.0), 0.06, 1.0);
-      canvas.drawRect(
-        Rect.fromLTWH(rule.left, rule.top, rule.width * size01, rule.height),
-        Paint()
-          ..color = Color.lerp(
-            const Color(0xFF8E7A63),
-            const Color(0xFFF2C25B),
-            alive,
-          )!.withValues(alpha: (0.40 + 0.55 * alive) * near),
-      );
+      // Y nada debajo del nombre. Había una regla que se llenaba según lo que
+      // el pueblo llevara puesto, y es la clase de cosa que parece informativa
+      // y miente: una barra de progreso dibuja un final, y un hábito no tiene
+      // final. Lo que hay es cuánto pueblo hay, que se ve mirando el pueblo.
     }
   }
 

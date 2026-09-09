@@ -155,7 +155,6 @@ class StoneCard extends StatelessWidget {
     required this.number,
     required this.label,
     required this.onEdit,
-    required this.onClose,
   });
 
   final UiTheme theme;
@@ -163,7 +162,6 @@ class StoneCard extends StatelessWidget {
   final int number;
   final String? label;
   final VoidCallback onEdit;
-  final VoidCallback onClose;
 
   static const _months = [
     'ene',
@@ -188,71 +186,42 @@ class StoneCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = theme;
     final has = label != null && label!.trim().isNotEmpty;
-    return Frosted(
-      theme: t,
-      radius: 22,
-      padding: const EdgeInsets.fromLTRB(18, 14, 10, 14),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Flexible(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'PIEZA $number · ${formatDate(when)}',
-                  style: t.label.copyWith(fontSize: 9.5, letterSpacing: 1.4),
+    // Sin lápiz y sin aspa. El lápiz decía lo que tocar el texto ya hace, y el
+    // aspa lo que tocar cualquier otro sitio de la pantalla ya hace: dos
+    // botones para dos cosas que iban a pasar igual. Sin ellos la tarjeta es
+    // una fecha y una frase, que es todo lo que tenía que ser.
+    return ConstrainedBox(
+      // Y no más ancha que esto. Estirada de canto a canto tapaba el pueblo
+      // del que estaba hablando.
+      constraints: const BoxConstraints(maxWidth: 300),
+      child: GestureDetector(
+        onTap: onEdit,
+        behavior: HitTestBehavior.opaque,
+        child: Frosted(
+          theme: t,
+          radius: 16,
+          padding: const EdgeInsets.fromLTRB(14, 9, 14, 11),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'PIEZA $number · ${formatDate(when)}',
+                style: t.label.copyWith(fontSize: 8.5, letterSpacing: 1.2),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                has ? label! : 'escribir una leyenda',
+                style: t.body.copyWith(
+                  fontSize: 13.5,
+                  height: 1.25,
+                  fontWeight: has ? FontWeight.w500 : FontWeight.w400,
+                  color: has ? t.fg : t.accent,
                 ),
-                const SizedBox(height: 7),
-                GestureDetector(
-                  onTap: onEdit,
-                  behavior: HitTestBehavior.opaque,
-                  child: has
-                      ? Text(
-                          label!,
-                          style: t.body.copyWith(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        )
-                      : Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.edit_outlined,
-                              size: 15,
-                              color: t.accent,
-                            ),
-                            const SizedBox(width: 7),
-                            Text(
-                              'escribir una leyenda',
-                              style: TextStyle(
-                                color: t.accent,
-                                fontSize: 14,
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                          ],
-                        ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(width: 6),
-          if (has)
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              icon: Icon(Icons.edit_outlined, size: 17, color: t.fgSoft),
-              onPressed: onEdit,
-            ),
-          IconButton(
-            visualDensity: VisualDensity.compact,
-            icon: Icon(Icons.close, size: 17, color: t.fgSoft),
-            onPressed: onClose,
-          ),
-        ],
+        ),
       ),
     );
   }
