@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -44,9 +43,6 @@ class PlacedNote extends StatefulWidget {
   @override
   State<PlacedNote> createState() => _PlacedNoteState();
 }
-
-const Color _paper = Color(0xFFF4EEDD);
-const Color _ink = Color(0xFF3B3730);
 
 class _PlacedNoteState extends State<PlacedNote> {
   final TextEditingController _text = TextEditingController();
@@ -209,60 +205,58 @@ class _Slip extends StatelessWidget {
   final VoidCallback onDone;
 
   @override
-  Widget build(BuildContext context) => Transform.rotate(
-    angle: -0.9 * math.pi / 180,
-    child: Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      decoration: BoxDecoration(
-        color: _paper,
-        borderRadius: BorderRadius.circular(3),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.32),
-            blurRadius: 10,
-            offset: const Offset(1, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '${habit.name.toUpperCase()} · PIEZA $ordinal',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: _ink.withValues(alpha: 0.45),
-              fontSize: 9.5,
-              letterSpacing: 1.8,
-              fontWeight: FontWeight.w700,
+  Widget build(BuildContext context) {
+    final t = theme;
+    // La misma tarjeta que sale al leer una leyenda ya escrita.
+    //
+    // Era un papelito blanco torcido, del tablón de anuncios, y quedaba como
+    // un cuerpo extraño: escribir la leyenda y leerla son la misma cosa vista
+    // dos veces, y se veían distintas. Ahora las dos son la tarjeta esmerilada
+    // que ya se había afinado, con el mismo ancho, la misma cabecera chica y
+    // el mismo tamaño de texto.
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 300),
+      child: Frosted(
+        theme: t,
+        radius: 16,
+        padding: const EdgeInsets.fromLTRB(14, 9, 14, 11),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${habit.name.toUpperCase()} · PIEZA $ordinal',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: t.label.copyWith(fontSize: 8.5, letterSpacing: 1.2),
             ),
-          ),
-          TextField(
-            controller: text,
-            focusNode: focus,
-            maxLength: 60,
-            textInputAction: TextInputAction.done,
-            onSubmitted: (_) => onDone(),
-            onTapOutside: (_) => onDone(),
-            textCapitalization: TextCapitalization.sentences,
-            cursorColor: _ink,
-            style: const TextStyle(color: _ink, fontSize: 16, height: 1.3),
-            decoration: InputDecoration(
-              isDense: true,
-              counterText: '',
-              contentPadding: const EdgeInsets.only(top: 8, bottom: 4),
-              hintText: 'qué fue',
-              hintStyle: TextStyle(
-                color: _ink.withValues(alpha: 0.3),
-                fontSize: 16,
+            const SizedBox(height: 4),
+            TextField(
+              controller: text,
+              focusNode: focus,
+              maxLength: 60,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => onDone(),
+              onTapOutside: (_) => onDone(),
+              textCapitalization: TextCapitalization.sentences,
+              cursorColor: t.accent,
+              style: t.body.copyWith(
+                fontSize: 13.5,
+                height: 1.25,
+                fontWeight: FontWeight.w500,
               ),
-              border: InputBorder.none,
+              decoration: InputDecoration(
+                isDense: true,
+                counterText: '',
+                contentPadding: EdgeInsets.zero,
+                hintText: 'qué fue',
+                hintStyle: t.bodySoft.copyWith(fontSize: 13.5, height: 1.25),
+                border: InputBorder.none,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
 }

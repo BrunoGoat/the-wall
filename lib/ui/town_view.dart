@@ -651,17 +651,20 @@ class _TownViewState extends State<TownView>
       return;
     }
 
+    // La de adelante, no la más cercana al dedo.
+    //
+    // Antes se buscaba el centro más próximo al toque, y eso hacía las dos
+    // cosas mal: el blanco era un círculo dentro de la pieza —más chico que
+    // ella— y, mirando desde arriba, el centro de la de abajo podía caer más
+    // cerca del dedo que el de la de encima. Ahora se mira quién ocupa ese
+    // punto de la pantalla y, de ésos, cuál está más cerca del ojo. Una pieza
+    // no se toca a través de otra.
     PickTarget? best;
-    var bestD = double.infinity;
     for (final t in _picks) {
-      final dx = t.cx - pos.dx, dy = t.cy - pos.dy;
-      final dist = math.sqrt(dx * dx + dy * dy);
-      // A stone that already carries a note is a slightly easier target.
-      final reach = t.labelled ? t.radius * 1.4 + 8 : t.radius;
-      if (dist < reach && dist < bestD) {
-        bestD = dist;
-        best = t;
-      }
+      // Un pelo de holgura, y algo más si lleva leyenda: lo que ya tiene algo
+      // escrito es lo que alguien vuelve a buscar.
+      if (!t.holds(pos.dx, pos.dy, t.labelled ? 6 : 2)) continue;
+      if (best == null || t.near < best.near) best = t;
     }
     if (best == null) {
       if (_selectedPiece != null) setState(() => _selectedPiece = null);

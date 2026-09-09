@@ -209,6 +209,26 @@ class Store extends ChangeNotifier {
     createdAt: DateTime.now(),
   );
 
+  /// Quita la última pieza puesta.
+  ///
+  /// Es lo único en toda la app que le quita algo a un pueblo, y existe por un
+  /// motivo concreto y aburrido: un dedo que se apoya solo, un bolsillo, un
+  /// toque de más. Un logro que no pasó no tiene por qué quedar en piedra.
+  ///
+  /// La crónica de obra no se toca. Si esa pieza era la primera de un edificio,
+  /// ese edificio sigue escrito y sigue siendo el que se va a construir — que
+  /// es lo correcto: lo que se decidió, se decidió, y deshacer un dedo no es
+  /// motivo para volver a sortear qué se está levantando.
+  Piece? removeLastPiece() {
+    if (habit.pieces.isEmpty) return null;
+    final gone = habit.pieces.removeLast();
+    integrityAtLaunch = integrity;
+    preview = null;
+    _save();
+    notifyListeners();
+    return gone;
+  }
+
   void select(int index) {
     if (index < 0 || index >= habits.length || index == active) return;
     active = index;

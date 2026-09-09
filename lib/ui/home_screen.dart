@@ -159,7 +159,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (Appearance.instance.rapid) return;
                 setState(() => _justPlaced = piece);
               },
-              onStoneTapped: (brick) => setState(() => _selected = brick),
+              onStoneTapped: (brick) => setState(() {
+                _selected = brick;
+                // Y fuera la tarjeta de la pieza recién puesta: quien se puso
+                // a mirar otra ya pasó de página, y las dos juntas se pisan.
+                _justPlaced = null;
+              }),
               onNothingTapped: () {
                 if (_selected != null) setState(() => _selected = null);
               },

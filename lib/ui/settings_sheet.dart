@@ -5,11 +5,13 @@ import '../engine/town.dart';
 import '../data/tunes.dart';
 import '../fx/sensory.dart';
 import '../model/appearance.dart';
+import '../model/piece.dart';
 import '../model/store.dart';
 import 'backup_sheet.dart';
 import 'debug_sheet.dart';
 import 'gallery_screen.dart';
 import 'notice_board.dart';
+import 'overlays.dart';
 import 'style.dart';
 
 /// Everything about the app that is a setting rather than a town.
@@ -190,6 +192,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
           on: wants.rapid,
           onChanged: wants.setRapid,
         ),
+        _Undo(theme: t, store: store),
         _Row(
           theme: t,
           icon: Icons.save_alt,
@@ -222,6 +225,98 @@ class _SettingsSheetState extends State<SettingsSheet> {
           page: () => GalleryScreen(theme: t),
         ),
       ],
+    );
+  }
+}
+
+/// Deshacer la última pieza.
+///
+/// Vive aquí abajo, entre lo demás, y no al lado del botón de poner. Poner una
+/// pieza es el gesto de la app y quitarla no puede estar a un dedo de él: lo
+/// que se busca es que quien se equivocó pueda arreglarlo, no que quitar sea
+/// tan fácil como poner.
+class _Undo extends StatelessWidget {
+  const _Undo({required this.theme, required this.store});
+
+  final UiTheme theme;
+  final Store store;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = theme;
+    final last = store.habit.pieces.isEmpty ? null : store.habit.pieces.last;
+    return Opacity(
+      opacity: last == null ? 0.42 : 1,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: last == null ? null : () => _ask(context, last),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            children: [
+              Icon(Icons.undo, size: 20, color: t.fgSoft),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Quitar la última pieza', style: t.body),
+                    const SizedBox(height: 2),
+                    Text(
+                      last == null
+                          ? 'Este pueblo todavía no tiene ninguna.'
+                          : 'La ${store.habit.total} de '
+                                '${store.habit.name}, puesta el '
+                                '${StoneCard.formatDate(last.placedAt)}.',
+                      style: t.bodySoft.copyWith(fontSize: 11.5, height: 1.35),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _ask(BuildContext context, Piece last) {
+    final t = theme;
+    Sensory.instance.tick();
+    showDialog<void>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        backgroundColor: t.panelStrong,
+        elevation: 0,
+        title: Text('¿Quitar la pieza ${store.habit.total}?', style: t.body),
+        content: Text(
+          last.hasLabel
+              ? 'Dice «${last.label}». Se va con ella.'
+              : 'Vuelve a quedar en ${store.habit.total - 1}.',
+          style: t.bodySoft,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialog).pop(),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () {
+              store.removeLastPiece();
+              Navigator.of(dialog).pop();
+            },
+            child: Text(
+              'Quitarla',
+              style: TextStyle(
+                color: t.dark
+                    ? const Color(0xFFCC5B48)
+                    : const Color(0xFF9E3124),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

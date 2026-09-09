@@ -263,6 +263,65 @@ void main() {
     });
   });
 
+  group('quitar la última pieza', () {
+    test('la quita, y sólo la última', () async {
+      final s = await freshStore();
+      s.placePiece();
+      s.placePiece();
+      s.placePiece();
+      final gone = s.removeLastPiece();
+      expect(gone, isNotNull);
+      expect(gone!.index, 2);
+      expect(s.total, 2);
+      expect(s.pieceAt(0), isNotNull);
+      expect(s.pieceAt(1), isNotNull);
+      expect(s.pieceAt(2), isNull);
+    });
+
+    test('con el pueblo vacío no hace nada', () async {
+      final s = await freshStore();
+      expect(s.removeLastPiece(), isNull);
+      expect(s.total, 0);
+    });
+
+    test('se lleva su leyenda', () async {
+      final s = await freshStore();
+      s.placePiece();
+      s.setLabel(0, 'lo que fuera');
+      expect(s.pieceAt(0)!.label, 'lo que fuera');
+      s.removeLastPiece();
+      s.placePiece();
+      expect(
+        s.pieceAt(0)!.hasLabel,
+        isFalse,
+        reason: 'volvió la leyenda vieja',
+      );
+    });
+
+    test('y queda quitada al volver a abrir', () async {
+      final s = await freshStore();
+      s.placePiece();
+      s.placePiece();
+      s.removeLastPiece();
+      final again = Store();
+      await again.load();
+      expect(again.total, 1);
+    });
+
+    test('la crónica de obra no se deshace con ella', () async {
+      // Lo que se decidió, se decidió. Deshacer un dedo no es motivo para
+      // volver a sortear qué edificio se está levantando: el que estaba
+      // escrito sigue siendo el que se va a construir.
+      final s = await freshStore();
+      for (var i = 0; i < 40; i++) {
+        s.placePiece();
+      }
+      final was = [...s.habit.chronicle];
+      s.removeLastPiece();
+      expect(s.habit.chronicle, was);
+    });
+  });
+
   group('persistence', () {
     test('the wall survives a restart exactly as it was', () async {
       SharedPreferences.setMockInitialValues({});

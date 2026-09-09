@@ -49,13 +49,46 @@ class TownEntry {
 
 /// One stone as it appears on screen this frame, kept so taps can be resolved
 /// back to the brick that was drawn there.
+/// El sitio que una pieza ocupa en la pantalla, para poder tocarla.
+///
+/// Antes era un círculo alrededor del centro de **una** cara: la primera que se
+/// pintaba de esa pieza, que casi nunca es la que se está mirando. De ahí las
+/// dos quejas — que el blanco es más chico que la pieza, y que a veces sale la
+/// de debajo. Ahora es la caja de **todas** sus caras juntas, y lleva la
+/// distancia de la más cercana, que es lo que decide quién gana cuando dos se
+/// pisan: la de adelante. Una pieza no se toca a través de otra.
 class PickTarget {
-  PickTarget(this.brickIndex, this.cx, this.cy, this.radius, this.labelled);
+  PickTarget(
+    this.brickIndex,
+    this.x0,
+    this.y0,
+    this.x1,
+    this.y1,
+    this.near,
+    this.labelled,
+  );
+
   final int brickIndex;
-  final double cx, cy, radius;
+
+  /// Lo que abarca en pantalla, creciendo con cada cara suya que se pinta.
+  double x0, y0, x1, y1;
+
+  /// A qué distancia del ojo está lo más cercano suyo.
+  double near;
 
   /// True when this stone carries a note, so it can be marked on the wall.
   final bool labelled;
+
+  bool holds(double x, double y, double slack) =>
+      x >= x0 - slack && x <= x1 + slack && y >= y0 - slack && y <= y1 + slack;
+
+  void grow(double ax, double ay, double bx, double by, double z) {
+    if (ax < x0) x0 = ax;
+    if (ay < y0) y0 = ay;
+    if (bx > x1) x1 = bx;
+    if (by > y1) y1 = by;
+    if (z < near) near = z;
+  }
 }
 
 /// Where a town's sign landed on screen, so it can be tapped.
@@ -239,7 +272,6 @@ class TownPainter extends CustomPainter {
   final Map<int, _Tone> _tone = {};
 
   /// Pieces already given a tap target this frame.
-  final Set<int> _picked = {};
 
   /// How high the finishing wave has climbed, and how bright it still is.
   double _sweep = -1;
@@ -263,6 +295,7 @@ class TownPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     picks.clear();
+    _pickAt.clear();
     signs.clear();
     boards.clear();
     skies.clear();
@@ -928,7 +961,10 @@ class TownPainter extends CustomPainter {
 
   // --------------------------------------------------------------- stones
 
-  void _registerPick(_Face f, int brickIndex, Size size) {
+  /// Dónde en qué índice de `picks` está cada pieza de este fotograma.
+  final Map<int, int> _pickAt = {};
+
+  void _registerPick(_Face f, int brickIndex, Size size, double near) {
     var minX = double.infinity, minY = double.infinity;
     var maxX = -double.infinity, maxY = -double.infinity;
     for (var i = 0; i < f.n; i++) {
@@ -939,12 +975,20 @@ class TownPainter extends CustomPainter {
       if (y > maxY) maxY = y;
     }
     if (maxX < 0 || minX > size.width || maxY < 0 || minY > size.height) return;
+    final had = _pickAt[brickIndex];
+    if (had != null) {
+      picks[had].grow(minX, minY, maxX, maxY, near);
+      return;
+    }
+    _pickAt[brickIndex] = picks.length;
     picks.add(
       PickTarget(
         brickIndex,
-        (minX + maxX) / 2,
-        (minY + maxY) / 2,
-        math.max(6.0, math.max(maxX - minX, maxY - minY) * 0.55),
+        minX,
+        minY,
+        maxX,
+        maxY,
+        near,
         scene.labelledBricks.contains(brickIndex),
       ),
     );
@@ -1535,7 +1579,6 @@ class TownPainter extends CustomPainter {
     final light = pal.lightDir;
     final fx = scene.fx;
     final night = !pal.isDaylight;
-    _picked.clear();
 
     // How high the finishing wave has climbed, and how bright it still is.
     _sweep = -1.0;
@@ -1820,8 +1863,20 @@ class TownPainter extends CustomPainter {
     final before = _faceCount;
     _emit(p, _clipA, m, colour);
     if (piece == null || size == null) return;
-    if (_picking && _faceCount > before && _picked.add(piece.index)) {
-      _registerPick(_facePool[before], piece.index, size);
+    // Todas sus caras, no la primera: la caja de una pieza es la de todo lo
+    // que se ve de ella.
+    if (_picking && _faceCount > before) {
+      var near = double.infinity;
+      for (var i = 0; i < m; i++) {
+        final z = _clipA[i * 3 + 2];
+        if (z < near) near = z;
+      }
+      _registerPick(
+        _facePool[before],
+        piece.index,
+        size,
+        math.max(near, p.near),
+      );
     }
   }
 
