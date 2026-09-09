@@ -270,8 +270,6 @@ class _Board extends StatelessWidget {
                               lean: (i.isEven ? 1 : -1) * (0.6 + i % 3 * 0.35),
                               onTap: () => onTake(i),
                             ),
-                          const SizedBox(height: 8),
-                          const _Foot(),
                         ],
                       ),
               ),
@@ -743,20 +741,4 @@ class _Empty extends StatelessWidget {
       ),
     );
   }
-}
-
-class _Foot extends StatelessWidget {
-  const _Foot();
-
-  @override
-  Widget build(BuildContext context) => Text(
-    'Todo esto sale de cuándo pusiste cada pieza. Nada más se guarda, y nada '
-    'de esto sale de tu teléfono.',
-    style: TextStyle(
-      color: const Color(0xFFF0E4CE).withValues(alpha: 0.62),
-      fontSize: 11,
-      height: 1.5,
-      fontStyle: FontStyle.italic,
-    ),
-  );
 }

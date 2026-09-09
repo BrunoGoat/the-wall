@@ -12,6 +12,14 @@ import 'style.dart';
 /// you there. It sits where the thumb already is, because switching between
 /// habits is the second most common thing anybody does here — the first being
 /// laying a piece.
+///
+/// It used to be a row of bordered pills with a count in each, and it ate a
+/// whole band across the bottom of a screen whose entire job is to show you a
+/// town. Now it is what it always was underneath: a line of marks, one lit.
+/// No frames, no plates, no numbers competing with the one already at the top
+/// of the screen — the current town is the one in the accent colour with a dot
+/// under it, and that is the whole of what this has to say. Each mark is small
+/// and the thing you tap is not: the hit area stays a full thumb wide.
 class HabitBar extends StatelessWidget {
   const HabitBar({
     super.key,
@@ -32,6 +40,9 @@ class HabitBar extends StatelessWidget {
   /// Tapping the plus: found a new one. Not the same thing at all.
   final VoidCallback onAdd;
 
+  /// What the whole row costs in height. A quarter of what the pills did.
+  static const double height = 38;
+
   @override
   Widget build(BuildContext context) {
     final t = theme;
@@ -42,13 +53,13 @@ class HabitBar extends StatelessWidget {
     final crown = store.leader;
 
     return SizedBox(
-      height: 52,
+      height: height,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
         children: [
           for (var i = 0; i < store.habits.length; i++)
-            _Chip(
+            _Mark(
               habit: store.habits[i],
               lit: Store.integrityOf(store.habits[i]),
               on: i == store.active,
@@ -63,15 +74,15 @@ class HabitBar extends StatelessWidget {
                 }
               },
             ),
-          _AddChip(theme: t, onTap: onAdd, enabled: store.canAddHabit),
+          _AddMark(theme: t, onTap: onAdd, enabled: store.canAddHabit),
         ],
       ),
     );
   }
 }
 
-class _Chip extends StatelessWidget {
-  const _Chip({
+class _Mark extends StatelessWidget {
+  const _Mark({
     required this.habit,
     required this.lit,
     required this.on,
@@ -92,61 +103,71 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = theme;
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(22),
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-            color: t.fg.withValues(alpha: on ? 0.12 : 0.05),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: on ? t.accent.withValues(alpha: 0.75) : t.stroke,
-              width: on ? 1.4 : 1,
+    // Dimmed when the habit has been left: the row of symbols is itself a
+    // small readout of how every habit is going.
+    final ink = (on ? t.accent : t.fg).withValues(
+      alpha: on ? 1.0 : 0.30 + 0.34 * lit,
+    );
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: SizedBox(
+        width: 46,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              height: 22,
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  AnimatedScale(
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    scale: on ? 1.0 : 0.88,
+                    child: HabitSigil(
+                      symbol: habit.symbol,
+                      color: ink,
+                      size: 21,
+                    ),
+                  ),
+                  if (crowned)
+                    Positioned(
+                      top: -6,
+                      right: -1,
+                      child: CustomPaint(
+                        size: const Size(11, 9),
+                        painter: _CrownMark(
+                          const Color(0xFFE8B84B).withValues(alpha: 0.92),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Dimmed when the habit has been left: the row of symbols is
-              // itself a small readout of how every habit is going.
-              HabitSigil(
-                symbol: habit.symbol,
-                color: (on ? t.accent : t.fg).withValues(
-                  alpha: 0.42 + 0.58 * lit,
-                ),
-                size: 19,
+            const SizedBox(height: 6),
+            // The one dot that says which town you are standing in.
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              width: on ? 14 : 3,
+              height: 3,
+              decoration: BoxDecoration(
+                color: on
+                    ? t.accent.withValues(alpha: 0.9)
+                    : t.fg.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(2),
               ),
-              const SizedBox(width: 8),
-              Text(
-                '${habit.total}',
-                style: TextStyle(
-                  color: t.fg.withValues(alpha: on ? 0.92 : 0.55),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  shadows: t.halo,
-                ),
-              ),
-              if (crowned) ...[
-                const SizedBox(width: 6),
-                CustomPaint(
-                  size: const Size(12, 10),
-                  painter: _CrownMark(const Color(0xFFE8B84B)),
-                ),
-              ],
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _AddChip extends StatelessWidget {
-  const _AddChip({
+class _AddMark extends StatelessWidget {
+  const _AddMark({
     required this.theme,
     required this.onTap,
     required this.enabled,
@@ -158,25 +179,25 @@ class _AddChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = theme;
-    return Opacity(
-      opacity: enabled ? 1 : 0.4,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(22),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: t.stroke),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: enabled ? onTap : null,
+      child: SizedBox(
+        width: 46,
+        child: Center(
+          child: Icon(
+            Icons.add,
+            size: 18,
+            color: t.fg.withValues(alpha: enabled ? 0.42 : 0.16),
+            shadows: t.halo,
           ),
-          child: Icon(Icons.add, size: 17, color: t.fgSoft),
         ),
       ),
     );
   }
 }
 
-/// The valley's crown, small enough to sit beside a number.
+/// The valley's crown, small enough to sit over a mark.
 class _CrownMark extends CustomPainter {
   const _CrownMark(this.color);
   final Color color;

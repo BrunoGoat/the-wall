@@ -49,6 +49,25 @@ class OrbitCamera {
 
   double wallLength = 1;
 
+  /// How far along the world axis the camera is allowed to look.
+  ///
+  /// This used to be `[-2, wallLength + 2]`, which was right when the app was
+  /// one straight wall that started at the origin and only ran one way. A
+  /// valley does not: its towns sit on a ring seventy-eight units across, so
+  /// three of the six have a centre the old range could not even reach, and
+  /// asking the camera to look at one of them left it pointing at the empty
+  /// field between them. Which is exactly what it did on every piece laid in
+  /// those towns.
+  double travelMin = -2.0;
+  double travelMax = 2.0;
+
+  /// Says how wide the world is. Everything that can be looked at has to be
+  /// inside it, or the camera will refuse to look there and give no sign why.
+  void reaches(double from, double to) {
+    travelMin = math.min(from, to);
+    travelMax = math.max(from, to);
+  }
+
   void snap() {
     travel = travelTarget;
     focusY = focusYTarget;
@@ -66,8 +85,12 @@ class OrbitCamera {
   /// How far back it is worth going. Beyond about the wall's own length the
   /// wall is a thread in the middle of an empty field, so pulling further out
   /// only loses it: past that the zoom simply stops.
+  ///
+  /// Two lengths back rather than one: from a single length away a town fills
+  /// the frame edge to edge, and standing far enough off to see it sit in its
+  /// own fields is half of what there is to look at.
   double get usefulDistance =>
-      clampD(math.max(wallLength * 0.95, 14.0), minDistance, maxDistance);
+      clampD(math.max(wallLength * 2.0, 45.0), minDistance, maxDistance);
 
   void zoomBy(double factor) {
     distanceTarget = clampD(
@@ -78,16 +101,12 @@ class OrbitCamera {
   }
 
   void travelBy(double d) {
-    travelTarget = clampD(
-      travelTarget + d,
-      -2.0,
-      math.max(2.0, wallLength + 2),
-    );
+    travelTarget = clampD(travelTarget + d, travelMin, travelMax);
     follow = false;
   }
 
   void travelTo(double x, {bool animate = true}) {
-    travelTarget = clampD(x, -2.0, math.max(2.0, wallLength + 2));
+    travelTarget = clampD(x, travelMin, travelMax);
     if (!animate) travel = travelTarget;
   }
 

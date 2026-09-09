@@ -484,6 +484,18 @@ class TownLayout {
   /// How far the town reaches from its centre, for framing the camera.
   double radius = 4;
 
+  /// How high this town reaches, counting only what is actually standing.
+  ///
+  /// A sign hung over a town has to clear it, and «a bit above the middle» is
+  /// not the same height for a hamlet as for a place with a cathedral in it.
+  double get tallest {
+    var top = 0.0;
+    for (final b in buildings) {
+      if (b.placedPieces > 0 && b.peakY > top) top = b.peakY;
+    }
+    return top;
+  }
+
   TownPiece? pieceFor(int index) =>
       index >= 0 && index < pieces.length ? pieces[index] : null;
 

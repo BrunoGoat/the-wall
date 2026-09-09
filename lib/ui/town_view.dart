@@ -172,6 +172,25 @@ class _TownViewState extends State<TownView>
 
   /// Puts the camera where a town is best first seen: from its own plaza,
   /// far enough back to take it in.
+  /// Tells the camera how wide the valley it is standing in actually is.
+  ///
+  /// Every town, not only the one in front: a piece laid in the town on the
+  /// far side still has to be somewhere the camera is allowed to look, and
+  /// panning across the valley has to reach the far edge of it.
+  void _tellCameraTheWorld() {
+    var lo = double.infinity, hi = double.negativeInfinity;
+    for (final e in _entries) {
+      final reach = e.layout.radius + 4;
+      if (e.layout.cx - reach < lo) lo = e.layout.cx - reach;
+      if (e.layout.cx + reach > hi) hi = e.layout.cx + reach;
+    }
+    if (lo > hi) {
+      lo = -2;
+      hi = 2;
+    }
+    _cam.reaches(lo, hi);
+  }
+
   void _frameTown() {
     _cam.travelTarget = _town.cx;
     _cam.focusZTarget = _town.cz;
@@ -180,6 +199,7 @@ class _TownViewState extends State<TownView>
     _cam.yawTarget = 0.62;
     _cam.pitchTarget = 0.46;
     _cam.wallLength = _town.radius * 2;
+    _tellCameraTheWorld();
   }
 
   @override
@@ -212,6 +232,7 @@ class _TownViewState extends State<TownView>
     _layoutFor = store.shownTotal;
     _slotFor = store.habit.slot;
     _cam.wallLength = _town.radius * 2;
+    _tellCameraTheWorld();
 
     // Moving to another habit is moving to another town: take the camera
     // there rather than leaving it hanging over an empty valley.
@@ -498,6 +519,7 @@ class _TownViewState extends State<TownView>
     _cam.focusZTarget = 0;
     _cam.focusYTarget = 2.0;
     _cam.wallLength = far * 2;
+    _tellCameraTheWorld();
     // Three times the reach: the towns sit on a wide ring, and the lens is
     // narrow enough that fitting them all needs real distance.
     _cam.distanceTarget = clampD(far * 2.4, 20, OrbitCamera.maxDistance);

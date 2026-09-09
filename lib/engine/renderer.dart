@@ -203,6 +203,11 @@ class TownPainter extends CustomPainter {
   BspTree? _falling;
   int _fallingPiece = -1;
 
+  /// Whether the piece in the air has gone down yet this frame, so it goes
+  /// down exactly once — with its own building if that building was drawn, and
+  /// at the end if it never was.
+  bool _fallingPainted = false;
+
   _Face? _nextFace() {
     if (_faceCount >= _facePool.length) return null;
     return _facePool[_faceCount++];
@@ -975,11 +980,20 @@ class TownPainter extends CustomPainter {
     for (final (_, i) in rows) {
       final e = scene.towns[i];
       final l = e.layout;
-      // High enough to clear the roofs, wherever the camera is.
-      final at = p.project(V3(l.cx, math.max(6.0, l.radius * 0.55), l.cz));
+      // Over the top of the town, not over the middle of it.
+      //
+      // It used to hang at a height guessed from how wide the town is, which
+      // for a small one is barely off the ground — so a plate wider than the
+      // hamlet under it covered the hamlet completely. Now it clears whatever
+      // the tallest thing standing is, and then lifts a fixed distance further
+      // up the screen, which holds at any angle and any distance: the valley
+      // view is for looking at the towns, so nothing in it may sit on one.
+      final top = math.max(l.tallest, 2.0) + 0.8;
+      final at = p.project(V3(l.cx, top, l.cz));
       if (at == null) continue;
+      final y = at.y - 30;
       if (at.x < -140 || at.x > size.width + 140) continue;
-      if (at.y < -80 || at.y > size.height + 80) continue;
+      if (y < -60 || y > size.height + 60) continue;
 
       // Signs matter most from far away; up close the town speaks for itself.
       final d = at.depth;
@@ -988,8 +1002,17 @@ class TownPainter extends CustomPainter {
       final alive = e.integrity;
       final on = i == scene.active;
 
-      final ink = dark ? Colors.white : pal.ink;
-      final fade = (on ? 0.95 : 0.66) * near;
+      final ink = on ? pal.accent : (dark ? Colors.white : pal.ink);
+      final fade = (on ? 0.95 : 0.62) * near;
+      // No plate and no frame any more: a soft halo, the same one every other
+      // piece of type in this app sits on when it stands straight on the
+      // scene. A card behind a name is a card in front of a town.
+      final shadow = Shadow(
+        color: (dark ? Colors.black : const Color(0xFF3A3426)).withValues(
+          alpha: (dark ? 0.62 : 0.34) * near,
+        ),
+        blurRadius: 10,
+      );
       final tp = TextPainter(
         text: TextSpan(
           text: e.name.toUpperCase(),
@@ -998,6 +1021,7 @@ class TownPainter extends CustomPainter {
             fontSize: 11,
             letterSpacing: 2.2,
             fontWeight: FontWeight.w700,
+            shadows: [shadow],
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -1005,51 +1029,33 @@ class TownPainter extends CustomPainter {
 
       // The habit's own drawn mark, painted rather than typed: it is the same
       // hand that drew the landmarks, and it looks the same on every phone.
-      const glyph = 16.0;
-      const crown = 13.0;
+      const glyph = 15.0;
+      const crown = 12.0;
       final wears = e.crowned;
-      final content = glyph + 9 + tp.width + (wears ? crown + 6 : 0);
-      final w = math.max(content, 76.0);
-      final cx = clampD(at.x, w / 2 + 14, size.width - w / 2 - 14);
-      final box = Rect.fromLTWH(cx - w / 2 - 10, at.y - 14, w + 20, 46);
+      final content = glyph + 8 + tp.width + (wears ? crown + 5 : 0);
+      final cx = clampD(at.x, content / 2 + 14, size.width - content / 2 - 14);
+      final box = Rect.fromLTWH(cx - content / 2 - 8, y - 10, content + 16, 32);
       if (taken.any(box.overlaps)) continue;
       taken.add(box);
       // Generous: a sign is small and a thumb is not.
-      signs.add(SignHit(i, box.inflate(8)));
+      signs.add(SignHit(i, box.inflate(10)));
 
-      // A plate behind it, so a name is legible over a roof of any colour.
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(box, const Radius.circular(13)),
-        Paint()
-          ..color = (dark ? Colors.black : Colors.white).withValues(
-            alpha: (on ? 0.30 : 0.20) * near,
-          ),
-      );
-      if (on) {
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(box, const Radius.circular(13)),
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.2
-            ..color = pal.accent.withValues(alpha: 0.75 * near),
-        );
-      }
       final left = cx - content / 2;
       HabitSigils.draw(
         canvas,
-        Rect.fromLTWH(left, at.y - 9 + (tp.height - glyph) / 2, glyph, glyph),
+        Rect.fromLTWH(left, y - 4 + (tp.height - glyph) / 2, glyph, glyph),
         e.symbol,
         ink.withValues(alpha: fade),
       );
-      final after = left + glyph + 9;
-      tp.paint(canvas, Offset(after, at.y - 9));
+      final after = left + glyph + 8;
+      tp.paint(canvas, Offset(after, y - 4));
       // The valley's crown, on whichever town has laid the most.
       if (wears) {
         HabitSigils.crown(
           canvas,
           Rect.fromLTWH(
-            after + tp.width + 6,
-            at.y - 9 + (tp.height - crown) / 2 + 1,
+            after + tp.width + 5,
+            y - 4 + (tp.height - crown) / 2 + 1,
             crown,
             crown * 0.82,
           ),
@@ -1057,29 +1063,24 @@ class TownPainter extends CustomPainter {
         );
       }
 
-      // Under the name: how much town there is, and how much of it is lit.
-      // Two towns side by side become two bars of different length, which is
-      // the comparison without a single number being read.
-      const bw = 62.0;
-      final bar = Rect.fromLTWH(cx - bw / 2, at.y + 16, bw, 4);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(bar, const Radius.circular(2)),
-        Paint()..color = ink.withValues(alpha: 0.16 * near),
+      // A rule under the name, as long as the name, filled as far as the town
+      // has come. It was a bar of its own under a plate; now it is the
+      // underline the name already wanted — the same comparison between two
+      // towns, at a tenth of the ink.
+      final rule = Rect.fromLTWH(after, y + tp.height + 1, tp.width, 1.5);
+      canvas.drawRect(
+        rule,
+        Paint()..color = ink.withValues(alpha: 0.14 * near),
       );
-      // Length is the size of the town, on a curve that keeps a young town
-      // visible and stops an old one running off the end.
       final size01 = clampD(math.sqrt(e.placed / 900.0), 0.06, 1.0);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(bar.left, bar.top, bw * size01, 4),
-          const Radius.circular(2),
-        ),
+      canvas.drawRect(
+        Rect.fromLTWH(rule.left, rule.top, rule.width * size01, rule.height),
         Paint()
           ..color = Color.lerp(
             const Color(0xFF8E7A63),
             const Color(0xFFF2C25B),
             alive,
-          )!.withValues(alpha: (0.35 + 0.6 * alive) * near),
+          )!.withValues(alpha: (0.40 + 0.55 * alive) * near),
       );
     }
   }
@@ -1170,10 +1171,19 @@ class TownPainter extends CustomPainter {
     }
 
     // The piece in the air. It is the one thing in the town that moves, so it
-    // is the one thing built fresh every frame, and it is painted last because
-    // it is over the top of everything it is coming down into.
+    // is the one thing built fresh every frame.
+    //
+    // It used to be painted last, over the whole valley, on the grounds that
+    // it is above the building it is coming down into. It is — but it is not
+    // above the houses standing between it and the eye, and painting it last
+    // put a chimney straight through the roof in front of it every time one
+    // was laid. So it goes in at the place its own building goes in: the
+    // clusters are already in a correct far-to-near order, so anything nearer
+    // than its building is painted after it and covers it, which is what
+    // being behind something means.
     _falling = null;
     _fallingPiece = -1;
+    _fallingPainted = false;
     if (fx != null &&
         fx.brickIndex >= 0 &&
         fx.brickIndex < active.pieces.length &&
@@ -1254,6 +1264,7 @@ class TownPainter extends CustomPainter {
           return;
         }
         if (_away(p, box) > cut) return;
+        final mine = w == scene.active && c.members.contains(_fallingPiece);
         c.tree.paint(p.eye, (f) {
           // `f.piece >= 0` matters: the town's own furniture is filed under
           // no achievement at all, and "no achievement" must not collide with
@@ -1263,19 +1274,38 @@ class TownPainter extends CustomPainter {
           }
           _paint(p, e, f, pal, light, night, decay, size);
         });
+        // Straight after the building it belongs to, and before any building
+        // nearer than that one.
+        if (mine) _paintFalling(p, e, pal, light, night, size);
       });
     }
 
-    final falling = _falling;
-    if (falling != null) {
+    // If its own building never came up — filed away by the budget, or off
+    // the side of the screen — the piece still has to be seen: it is the one
+    // thing the person is looking at right now.
+    if (_falling != null && !_fallingPainted) {
       final e = scene.towns[scene.active];
       _tone.clear();
       _picking = true;
-      falling.paint(
-        p.eye,
-        (f) => _paint(p, e, f, pal, light, night, 1.0 - e.integrity, size),
-      );
+      _paintFalling(p, e, pal, light, night, size);
     }
+  }
+
+  void _paintFalling(
+    Projector p,
+    TownEntry e,
+    Palette pal,
+    V3 light,
+    bool night,
+    Size size,
+  ) {
+    final falling = _falling;
+    if (falling == null || _fallingPainted) return;
+    _fallingPainted = true;
+    falling.paint(
+      p.eye,
+      (f) => _paint(p, e, f, pal, light, night, 1.0 - e.integrity, size),
+    );
   }
 
   /// How far a box is from the eye, squared, which is all a sort needs.
@@ -1550,15 +1580,32 @@ class TownPainter extends CustomPainter {
     ).toARGB32();
   }
 
+  /// Whether this window has a light on behind it.
+  ///
+  /// One place, because two places is what it was: the same expression written
+  /// out twice, in the code that paints a window and in the code that decides
+  /// whether to board one up, and two copies of a rule are two rules waiting
+  /// to disagree.
+  ///
+  /// At full health every window is lit, which is what the app has been saying
+  /// all along — «todas las ventanas encendidas» — while this quietly lit
+  /// seventy-two per cent of them and left the rest dark on a town that had
+  /// nothing wrong with it. They go out as the days without a piece add up,
+  /// and always in the same order, so a town empties in a way you can
+  /// recognise instead of flickering at random.
+  bool _litWindow(Facet f, TownPiece piece, double decay, bool night) {
+    if (!night) return false;
+    final life = clampD(1 - decay, 0, 1);
+    final lifeCurve = life * life * (3 - 2 * life);
+    return hash01(piece.seed, 70, f.data) < lifeCurve;
+  }
+
   /// Whether a window has been boarded up. The same ones go first every time,
   /// so a town empties in an order you can recognise rather than flickering at
   /// random.
   bool _shut(Facet f, TownPiece piece, double decay, bool night) {
     final s = piece.seed;
-    final life = clampD(1 - decay, 0, 1);
-    final lifeCurve = life * life * (3 - 2 * life);
-    final lit = night && hash01(s, 70, f.data) < 0.72 * lifeCurve;
-    if (lit) return false;
+    if (_litWindow(f, piece, decay, night)) return false;
     final boarded = decay > 0.30 && hash01(s, 72) < (decay - 0.30) * 1.5;
     return boarded || hash01(s, 73, f.data) < decay * 0.8;
   }
@@ -1575,10 +1622,9 @@ class TownPainter extends CustomPainter {
     double decay,
     bool night,
   ) {
-    final s = piece.seed;
     final life = clampD(1 - decay, 0, 1);
     final lifeCurve = life * life * (3 - 2 * life);
-    final lit = night && hash01(s, 70, f.data) < 0.72 * lifeCurve;
+    final lit = _litWindow(f, piece, decay, night);
     final colour = lit
         ? Color.lerp(
             const Color(0xFF7A5C2E),
