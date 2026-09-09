@@ -415,6 +415,35 @@ class TownPainter extends CustomPainter {
   ///    with a straight line back to the start — that is where the huge wedges
   ///    across the view came from. Now only the arc actually in front of the
   ///    camera is walked at all, and each strip is closed by construction.
+  /// What one range is painted with: the colour of its body, and the colour
+  /// its foot fades to where it meets the horizon.
+  ///
+  /// Near ranges are the pale ones and far ranges are dark. That is what makes
+  /// three of them read as three: the eye takes the darkest band as the one
+  /// furthest back, and stacks the rest in front of it. It used to be the
+  /// other way round — the far range got the most haze and came out lightest,
+  /// which put the back of the world in front of everything else.
+  static (Color body, Color foot) rangeTone(Palette pal, int li, int of) {
+    // One for the range at your feet, zero for the one at the edge of the
+    // world. Every choice below hangs off this and nothing else, so «which way
+    // round are they?» is one line rather than three index sums.
+    final near01 = of <= 1 ? 1.0 : (of - 1 - li) / (of - 1);
+    // What a hill is made of at this hour, before distance touches it.
+    final hill = Color.lerp(pal.groundFar, pal.haze, 0.38)!;
+    // And then distance simply darkens it — toward black, not toward another
+    // colour out of the palette. Which of two palette colours is the lighter
+    // one changes with the hour: at night the far ground is lighter than the
+    // near ground and the haze sits between them, so a rule written as a blend
+    // of those came out in a different order at four in the morning than at
+    // noon. Toward black it holds at every hour by construction.
+    final body = Color.lerp(
+      hill,
+      const Color(0xFF000000),
+      0.54 * (1 - near01),
+    )!;
+    return (body, Color.lerp(body, pal.haze, 0.30 + 0.15 * near01)!);
+  }
+
   void _drawRanges(Canvas canvas, Projector p, Size size, double horizonY) {
     final pal = scene.palette;
     final light = pal.lightDir;
@@ -438,47 +467,23 @@ class TownPainter extends CustomPainter {
     final floor = size.height + 40;
     final look = scene.camera.travel;
 
+    // Where the sun is across the screen, for the light that grazes the tops.
+    // A number, not a side: the old code asked «is this slope facing the
+    // light?» and got a yes or a no, which put a hard vertical edge down the
+    // middle of every range at the two points where the answer flipped.
+    final sunTh = _wrap(math.atan2(light.x, light.z) - az);
+    final sunX = size.width / 2 + p.focal * math.tan(clampD(sunTh, -1.3, 1.3));
+
     for (var li = Landscape.ridges.length - 1; li >= 0; li--) {
       final layer = Landscape.ridges[li];
-      final fade = 0.30 + li * 0.28;
-      // The nearest range keeps some of the ground's own colour; the far ones
-      // dissolve almost entirely into the haze.
-      final base = Color.lerp(pal.ground, pal.groundFar, 0.35 + li * 0.3)!;
-      final body = Color.lerp(base, pal.haze, fade)!;
-      final lit = Color.lerp(body, pal.sun, 0.20 * (1 - fade))!;
+      final (body, foot) = rangeTone(pal, li, Landscape.ridges.length);
 
-      var path = Path();
-      var open = false;
-      var litSide = false;
-      var startX = 0.0, lastX = 0.0, crest = size.height;
-
-      // Each range fades into the haze where it meets the horizon, the way
-      // distance actually works. Into the haze and not into the ground: fading
-      // to the ground's own colour made the two indistinguishable exactly where
-      // they meet, and the skyline dissolved instead of standing against the
-      // field.
-      Paint fill(bool isLit) {
-        final c = isLit ? lit : body;
-        final top = math.min(crest, cut - 1);
-        return Paint()
-          ..shader = ui.Gradient.linear(Offset(0, top), Offset(0, cut), [
-            c,
-            Color.lerp(c, pal.haze, 0.42 + 0.12 * (2 - li) / 2)!,
-          ]);
-      }
-
-      void close() {
-        if (!open) return;
-        path
-          ..lineTo(lastX, floor)
-          ..lineTo(startX, floor)
-          ..close();
-        canvas.drawPath(path, fill(litSide));
-        path = Path();
-        open = false;
-        crest = size.height;
-      }
-
+      // Every sample first, then the paint, then the shapes. In one pass the
+      // gradient of a strip could only start at that strip's own highest
+      // point, so two strips of the same range began their fade at different
+      // heights and met along a visible step. One range, one paint.
+      final xs = <double>[], ys = <double>[];
+      var crest = size.height;
       for (var i = 0; i <= steps; i++) {
         final th = az - span + (i / steps) * (span * 2);
         final dx = math.sin(th), dz = math.cos(th);
@@ -495,46 +500,105 @@ class TownPainter extends CustomPainter {
           ),
         );
         if (top == null) {
-          close();
+          xs.add(double.nan);
+          ys.add(double.nan);
           continue;
         }
-        // Slopes facing the light catch a little more of it.
-        final facing = (dx * light.x + dz * light.z) < 0;
-        if (open && facing != litSide) {
-          // Carry the seam through so the two strips meet along one edge
-          // instead of leaving a hairline of sky between them.
-          if (top.y < crest) crest = top.y;
-          path
-            ..lineTo(top.x, top.y)
-            ..lineTo(top.x, floor)
-            ..lineTo(startX, floor)
-            ..close();
-          canvas.drawPath(path, fill(litSide));
-          path = Path()..moveTo(top.x, floor);
-          path.lineTo(top.x, top.y);
-          startX = top.x;
-          litSide = facing;
-          lastX = top.x;
-          crest = top.y;
-          continue;
-        }
-        if (!open) {
-          path.moveTo(top.x, floor);
-          path.lineTo(top.x, top.y);
-          startX = top.x;
-          litSide = facing;
-          crest = top.y;
-          open = true;
-        } else {
-          path.lineTo(top.x, top.y);
-          if (top.y < crest) crest = top.y;
-        }
-        lastX = top.x;
+        xs.add(top.x);
+        ys.add(top.y);
+        if (top.y < crest) crest = top.y;
       }
-      close();
+
+      // Each range fades into the haze where it meets the horizon, the way
+      // distance actually works. Into the haze and not into the ground: fading
+      // to the ground's own colour made the two indistinguishable exactly where
+      // they meet, and the skyline dissolved instead of standing against the
+      // field.
+      final paint = Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(0, math.min(crest, cut - 1)),
+          Offset(0, cut),
+          [body, foot],
+        );
+
+      final shapes = <Path>[];
+      Path? path;
+      var startX = 0.0, lastX = 0.0;
+      for (var i = 0; i <= steps; i++) {
+        if (ys[i].isNaN) {
+          if (path != null) {
+            shapes.add(
+              path
+                ..lineTo(lastX, floor)
+                ..lineTo(startX, floor)
+                ..close(),
+            );
+            path = null;
+          }
+          continue;
+        }
+        if (path == null) {
+          path = Path()..moveTo(xs[i], floor);
+          path.lineTo(xs[i], ys[i]);
+          startX = xs[i];
+        } else {
+          path.lineTo(xs[i], ys[i]);
+        }
+        lastX = xs[i];
+      }
+      if (path != null) {
+        shapes.add(
+          path
+            ..lineTo(lastX, floor)
+            ..lineTo(startX, floor)
+            ..close(),
+        );
+      }
+
+      for (final shape in shapes) {
+        canvas.drawPath(shape, paint);
+      }
+
+      // And the sun on the tops, as a wash that comes and goes across the
+      // screen rather than a side that is either lit or not. Near ranges take
+      // more of it: the far ones are too much air away to catch anything.
+      final near01 =
+          (Landscape.ridges.length - 1 - li) /
+          math.max(1, Landscape.ridges.length - 1);
+      final strength = 0.20 + 0.16 * near01;
+      if (strength > 0.02 && sunX > -size.width && sunX < size.width * 2) {
+        final reach = size.width * 0.85;
+        final glow = Paint()
+          ..shader = ui.Gradient.linear(
+            Offset(sunX - reach, 0),
+            Offset(sunX + reach, 0),
+            [
+              pal.sun.withValues(alpha: 0),
+              pal.sun.withValues(alpha: strength),
+              pal.sun.withValues(alpha: 0),
+            ],
+            const [0.0, 0.5, 1.0],
+          );
+        for (final shape in shapes) {
+          canvas.drawPath(shape, glow);
+        }
+      }
     }
 
     canvas.restore();
+  }
+
+  /// An angle brought back into -pi..pi, so «how far round is the sun from
+  /// where we are looking» never comes out as most of a circle.
+  static double _wrap(double a) {
+    var x = a;
+    while (x > math.pi) {
+      x -= 2 * math.pi;
+    }
+    while (x < -math.pi) {
+      x += 2 * math.pi;
+    }
+    return x;
   }
 
   // ------------------------------------------------------------- far wall
