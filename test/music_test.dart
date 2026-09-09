@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:la_muralla/fx/sensory.dart';
 
@@ -166,6 +167,37 @@ void main() {
       expect(calls, greaterThan(0), reason: 'nunca se le dijo nada al motor');
       expect(calls, lessThan(120), reason: 'una llamada por fotograma');
       expect(sent, closeTo(want, want * 0.02));
+    });
+  });
+
+  group('el aire es de todos', () {
+    // Lo que dejó la música muda en un teléfono y perfecta en un navegador.
+    //
+    // Cada AudioPlayer pide AUDIOFOCUS_GAIN al arrancar, y Android se lo
+    // concede a uno solo: todos los demás reciben AUDIOFOCUS_LOSS —incluidos
+    // los de la misma app, porque cada uno registra su propio escucha— y
+    // audioplayers responde a una pérdida pausando ese reproductor. Esta app
+    // tiene seis bucles a la vez, tres de ruido del valle y tres de música,
+    // así que el sexto en arrancar pausaba a los otros cinco y un solo toque
+    // en el botón de poner pausaba lo que quedara.
+    //
+    // En web no existe el foco de audio. Por eso la comprobación del
+    // navegador pasó y el teléfono se quedó callado.
+    test('esta app no le quita el foco de audio a nadie', () {
+      final air = Sensory.theAir();
+      expect(
+        air.android.audioFocus,
+        AndroidAudioFocus.none,
+        reason:
+            'con foco, cada capa pausa a las anteriores y sólo suena la '
+            'última — que además es la más floja de las seis',
+      );
+    });
+
+    test('y en iOS tampoco interrumpe lo que ya estabas escuchando', () {
+      // `ambient` se mezcla con lo demás y se calla con el interruptor de
+      // silencio, que es lo que corresponde al ruido de fondo de un pueblo.
+      expect(Sensory.theAir().iOS.category, AVAudioSessionCategory.ambient);
     });
   });
 

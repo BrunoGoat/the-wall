@@ -93,18 +93,21 @@ class Sensory {
 
   Future<void> _initMusic() async {
     if (_musReady) return;
-    try {
-      for (final name in _music) {
+    // One at a time, each on its own: a layer that will not start is one
+    // layer missing, not three. It used to be a single try around the loop,
+    // so the first failure took the whole piece with it and said nothing.
+    for (final name in _music) {
+      try {
         final p = AudioPlayer();
         await p.setReleaseMode(ReleaseMode.loop);
         await p.setVolume(0);
         await p.play(AssetSource('sfx/$name'));
         _mus.add(p);
+      } catch (_) {
+        _mus.add(AudioPlayer());
       }
-      _musReady = true;
-    } catch (_) {
-      _musReady = false;
     }
+    _musReady = _mus.isNotEmpty;
   }
 
   /// Interpola entre las cuatro horas de arriba dando la vuelta al reloj, con
@@ -211,18 +214,20 @@ class Sensory {
 
   Future<void> _initAmbience() async {
     if (_ambReady) return;
-    try {
-      for (final name in _layers) {
+    // One at a time, for the same reason as the music: a layer that will not
+    // start is one layer missing, not all of them.
+    for (final name in _layers) {
+      try {
         final p = AudioPlayer();
         await p.setReleaseMode(ReleaseMode.loop);
         await p.setVolume(0);
         await p.play(AssetSource('sfx/$name'));
         _amb.add(p);
+      } catch (_) {
+        _amb.add(AudioPlayer());
       }
-      _ambReady = true;
-    } catch (_) {
-      _ambReady = false;
     }
+    _ambReady = _amb.isNotEmpty;
   }
 
   /// How loud the valley is, from how big and how lit the town in front of you
@@ -278,8 +283,43 @@ class Sensory {
     _play(pick, volume: alive ? 0.30 : 0.24);
   }
 
+  /// How this app asks Android and iOS for the speaker.
+  ///
+  /// It asks for nothing, and that is the whole point.
+  ///
+  /// By default every `AudioPlayer` requests `AUDIOFOCUS_GAIN` the moment it
+  /// starts, and Android grants that to one client at a time. Every other
+  /// client gets `AUDIOFOCUS_LOSS` — including the other players of the same
+  /// app, because each one registers its own listener — and audioplayers
+  /// answers a loss by pausing that player. This app runs six loops at once:
+  /// three of valley noise and three of music. So the sixth to start paused
+  /// the other five, and a single tap on the place button paused whatever was
+  /// left. That is why the music was silent on a phone and perfect in a
+  /// browser, where there is no such thing as audio focus.
+  ///
+  /// Asking for no focus is also the honest thing: these are the sounds of a
+  /// town in the background, not a record somebody put on, and they have no
+  /// business stopping whatever the person was already listening to.
+  @visibleForTesting
+  static AudioContext theAir() => AudioContext(
+    android: const AudioContextAndroid(audioFocus: AndroidAudioFocus.none),
+    iOS: AudioContextIOS(category: AVAudioSessionCategory.ambient),
+  );
+
+  Future<void> _shareTheAir() async {
+    try {
+      await AudioPlayer.global.setAudioContext(theAir());
+    } catch (_) {
+      // A device that will not say is a device we carry on without.
+    }
+  }
+
   Future<void> init() async {
     if (_ready) return;
+    // First, before a single player exists: a player is born holding a copy of
+    // whatever the global context was at the time, so setting this afterwards
+    // would leave everything already made still fighting over the speaker.
+    await _shareTheAir();
     try {
       for (var i = 0; i < 4; i++) {
         final p = AudioPlayer();
