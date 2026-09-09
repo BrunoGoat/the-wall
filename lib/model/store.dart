@@ -117,13 +117,31 @@ class Store extends ChangeNotifier {
 
   /// Removing a habit removes its town. There is no way back, which is why the
   /// only caller asks twice.
+  ///
+  /// The last one can go too. A valley with nothing in it is not a state this
+  /// app has — the town view would have nothing to draw — so removing the only
+  /// habit leaves the same blank one you would have got on a phone that had
+  /// never opened the app. That is what deleting it means: the name, the mark
+  /// and every piece are gone, and the ground is empty again.
   void removeHabit(int index) {
-    if (index < 0 || index >= habits.length || habits.length <= 1) return;
+    if (index < 0 || index >= habits.length) return;
     habits.removeAt(index);
+    if (habits.isEmpty) habits.add(_blankHabit());
     if (active >= habits.length) active = habits.length - 1;
+    integrityAtLaunch = integrity;
     _save();
     notifyListeners();
   }
+
+  /// The habit a valley starts with: no name worth keeping, no pieces, the
+  /// first plot.
+  static Habit _blankHabit() => Habit(
+    id: 'h${DateTime.now().microsecondsSinceEpoch}',
+    name: 'Mi hábito',
+    symbol: kDefaultHabitSymbol,
+    slot: 0,
+    createdAt: DateTime.now(),
+  );
 
   void select(int index) {
     if (index < 0 || index >= habits.length || index == active) return;
@@ -177,17 +195,7 @@ class Store extends ChangeNotifier {
     } else {
       _adoptTheWall();
     }
-    if (habits.isEmpty) {
-      habits.add(
-        Habit(
-          id: 'h0',
-          name: 'Mi hábito',
-          symbol: kDefaultHabitSymbol,
-          slot: 0,
-          createdAt: DateTime.now(),
-        ),
-      );
-    }
+    if (habits.isEmpty) habits.add(_blankHabit());
     active = active.clamp(0, habits.length - 1);
     integrityAtLaunch = integrity;
     loaded = true;

@@ -6,7 +6,7 @@ import 'package:la_muralla/ui/habit_sigil.dart';
 void main() {
   group('the marks a habit wears', () {
     test('there are enough of them, and none is a font character', () {
-      expect(habitSymbols.length, greaterThanOrEqualTo(24));
+      expect(habitSymbols.length, greaterThanOrEqualTo(60));
       expect(habitSymbols.toSet().length, habitSymbols.length);
       for (final s in habitSymbols) {
         // An id, drawn by us. Anything outside plain lowercase ascii would be
@@ -21,6 +21,38 @@ void main() {
       for (final s in habitSymbols) {
         expect(HabitSigils.marksFor(s), isNotEmpty, reason: s);
       }
+    });
+
+    test('la lista cubre lo que la gente de verdad se propone', () {
+      // El corte de tres filas que se arrastran sólo tiene sentido si detrás
+      // hay algo que encontrar. Éstos son los que faltaban y por los que se
+      // preguntó: la mesa, los animales, el oficio, la casa y el aseo.
+      for (final s in [
+        'taza', 'jarra', 'pan', 'plato', 'pez', 'ave', 'gato', 'lobo',
+        'herradura',
+        'arco', 'puno', 'manos', 'ojo', 'dialogo', 'pergamino', 'abaco',
+        'engranaje',
+        'martillo',
+        'puerta',
+        'brujula',
+        'hoz',
+        'balanza',
+        'vela',
+        'casa',
+        'puente',
+        'barco', 'escalera', 'bota', 'cama', 'balde', 'espejo', 'peine',
+        'dado', 'puerta', 'nube', 'copo', //
+      ]) {
+        expect(habitSymbols, contains(s), reason: s);
+        expect(HabitSigils.marksFor(s), isNotEmpty, reason: s);
+      }
+    });
+
+    test('caben en tres filas sin dejar la última coja de más de dos', () {
+      // El carrete se lee hacia abajo y luego a la derecha; una columna con
+      // un solo hueco vacío está bien, tres huecos serían una columna en
+      // blanco al final.
+      expect(habitSymbols.length % 3, 0);
     });
 
     test('the emoji of older saves keep their meaning', () {

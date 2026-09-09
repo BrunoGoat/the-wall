@@ -26,7 +26,12 @@ class HabitsSheet extends StatefulWidget {
 
 /// Borrar un pueblo entero no se deshace, así que se dice en el color con el
 /// que se dicen esas cosas.
-const Color _danger = Color(0xFFD9705F);
+///
+/// Dos rojos, y no uno: el mismo rojo oscuro que sobre el panel claro se lee
+/// como un aviso, sobre el panel de noche se apaga hasta parecer un texto
+/// desactivado. El de noche es el mismo rojo, un punto más vivo.
+Color _danger(bool dark) =>
+    dark ? const Color(0xFFCC5B48) : const Color(0xFF9E3124);
 
 class _HabitsSheetState extends State<HabitsSheet> {
   late final TextEditingController _name;
@@ -34,9 +39,20 @@ class _HabitsSheetState extends State<HabitsSheet> {
   late int _place;
   bool _creating = false;
 
-  /// The thirty-six marks are only worth a screenful when somebody is
-  /// actually choosing one. Until then this sheet is a name and a mark.
+  /// The marks are only worth the room when somebody is actually choosing
+  /// one. Until then this sheet is a name and a mark.
   bool _picking = false;
+
+  /// Sixty-six marks is four screenfuls of grid on a phone, and a sheet that
+  /// tall pushes its own name field off the top. Three rows that slide
+  /// sideways instead: the common ones are already in front of you, and the
+  /// rest are a drag away rather than a scroll through everything.
+  final ScrollController _reel = ScrollController();
+
+  static const double _tile = 40;
+  static const double _gap = 8;
+  static const int _rows = 3;
+  static const double _stride = _tile + _gap;
 
   @override
   void initState() {
@@ -54,7 +70,83 @@ class _HabitsSheetState extends State<HabitsSheet> {
   @override
   void dispose() {
     _name.dispose();
+    _reel.dispose();
     super.dispose();
+  }
+
+  /// Opening the picker on a mark that lives in the twentieth column and
+  /// showing the first three would look like the mark is not in the list.
+  void _showTheChosenOne() {
+    final at = habitSymbols.indexOf(_symbol);
+    if (at < 0) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_reel.hasClients) return;
+      final want = (at ~/ _rows - 1) * _stride;
+      _reel.jumpTo(want.clamp(0.0, _reel.position.maxScrollExtent));
+    });
+  }
+
+  /// The whole catalogue, three rows tall, read down and then across.
+  Widget _reelOfMarks(UiTheme t) {
+    final columns = (habitSymbols.length + _rows - 1) ~/ _rows;
+    return SizedBox(
+      height: _rows * _tile + (_rows - 1) * _gap,
+      child: ListView.builder(
+        controller: _reel,
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.zero,
+        itemCount: columns,
+        itemBuilder: (_, column) => Padding(
+          padding: const EdgeInsets.only(right: _gap),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var row = 0; row < _rows; row++)
+                Padding(
+                  padding: EdgeInsets.only(top: row == 0 ? 0 : _gap),
+                  child: _markTile(t, column * _rows + row),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// One square of the reel, or an empty square where the list runs out — so
+  /// the last column is the same width as every other one.
+  Widget _markTile(UiTheme t, int at) {
+    if (at >= habitSymbols.length) {
+      return const SizedBox(width: _tile, height: _tile);
+    }
+    final mark = habitSymbols[at];
+    final chosen = mark == _symbol;
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () {
+        Sensory.instance.tick();
+        setState(() {
+          _symbol = mark;
+          _picking = false;
+        });
+        _keep();
+      },
+      child: Container(
+        width: _tile,
+        height: _tile,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: chosen ? t.accent.withValues(alpha: 0.20) : Colors.transparent,
+          border: Border.all(color: chosen ? t.accent : t.stroke),
+        ),
+        child: HabitSigil(
+          symbol: mark,
+          color: chosen ? t.accent : t.fg.withValues(alpha: 0.62),
+          size: 21,
+        ),
+      ),
+    );
   }
 
   /// Editing writes as you go, so there is no button to press and nothing to
@@ -118,6 +210,7 @@ class _HabitsSheetState extends State<HabitsSheet> {
                     onTap: () {
                       Sensory.instance.tick();
                       setState(() => _picking = !_picking);
+                      if (_picking) _showTheChosenOne();
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 160),
@@ -145,7 +238,7 @@ class _HabitsSheetState extends State<HabitsSheet> {
                           // you can press unless it says so.
                           Positioned(
                             right: -3,
-                            bottom: -3,
+                            top: -3,
                             child: Container(
                               padding: const EdgeInsets.all(3),
                               decoration: BoxDecoration(
@@ -192,45 +285,7 @@ class _HabitsSheetState extends State<HabitsSheet> {
                 child: _picking
                     ? Padding(
                         padding: const EdgeInsets.only(top: 16),
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final s in habitSymbols)
-                              InkWell(
-                                borderRadius: BorderRadius.circular(12),
-                                onTap: () {
-                                  Sensory.instance.tick();
-                                  setState(() {
-                                    _symbol = s;
-                                    _picking = false;
-                                  });
-                                  _keep();
-                                },
-                                child: Container(
-                                  width: 40,
-                                  height: 40,
-                                  alignment: Alignment.center,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
-                                    color: s == _symbol
-                                        ? t.accent.withValues(alpha: 0.20)
-                                        : Colors.transparent,
-                                    border: Border.all(
-                                      color: s == _symbol ? t.accent : t.stroke,
-                                    ),
-                                  ),
-                                  child: HabitSigil(
-                                    symbol: s,
-                                    color: s == _symbol
-                                        ? t.accent
-                                        : t.fg.withValues(alpha: 0.62),
-                                    size: 21,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
+                        child: _reelOfMarks(t),
                       )
                     : const SizedBox(width: double.infinity),
               ),
@@ -348,18 +403,20 @@ class _HabitsSheetState extends State<HabitsSheet> {
                 ),
               ],
 
-              if (!_creating && store.habits.length > 1) ...[
+              if (!_creating) ...[
                 const SizedBox(height: 10),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton(
                     onPressed: () => _confirmRemove(context),
-                    style: TextButton.styleFrom(foregroundColor: _danger),
+                    style: TextButton.styleFrom(
+                      foregroundColor: _danger(t.dark),
+                    ),
                     child: Text(
                       'Eliminar este hábito',
                       style: t.bodySoft.copyWith(
                         fontSize: 12.5,
-                        color: _danger,
+                        color: _danger(t.dark),
                       ),
                     ),
                   ),
@@ -375,6 +432,9 @@ class _HabitsSheetState extends State<HabitsSheet> {
   void _confirmRemove(BuildContext context) {
     final t = widget.theme;
     final h = widget.store.habit;
+    // The last one can go too, and it is worth saying what that leaves: an
+    // empty valley, not an app with nothing in it.
+    final onlyOne = widget.store.habits.length <= 1;
     showDialog<void>(
       context: context,
       builder: (dialog) => AlertDialog(
@@ -382,7 +442,9 @@ class _HabitsSheetState extends State<HabitsSheet> {
         elevation: 0,
         title: Text('¿Eliminar ${h.name}?', style: t.body),
         content: Text(
-          'Se borra su pueblo entero: ${h.total} piezas. No hay vuelta atrás.',
+          'Se borra su pueblo entero: ${h.total} piezas. No hay vuelta atrás.'
+          '${onlyOne ? ' Como es el único, el valle vuelve a empezar en '
+                    'blanco.' : ''}',
           style: t.bodySoft,
         ),
         actions: [
@@ -396,9 +458,12 @@ class _HabitsSheetState extends State<HabitsSheet> {
               Navigator.of(dialog).pop();
               Navigator.of(context).pop();
             },
-            child: const Text(
+            child: Text(
               'Eliminar',
-              style: TextStyle(color: _danger, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: _danger(t.dark),
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],

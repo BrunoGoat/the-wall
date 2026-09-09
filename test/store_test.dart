@@ -145,6 +145,52 @@ void main() {
     });
   });
 
+  group('eliminar un hábito', () {
+    test('se lleva su pueblo y deja los demás donde estaban', () async {
+      final s = await freshStore();
+      s.renameHabit(0, name: 'Leer');
+      s.addHabit('Correr', 'carrera');
+      s.addHabit('Nadar', 'ola');
+      s.select(1);
+      s.placePiece();
+      s.removeHabit(1);
+      expect(s.habits.length, 2);
+      expect(s.habits.map((h) => h.name), ['Leer', 'Nadar']);
+      expect(s.habits.every((h) => h.total == 0), isTrue);
+    });
+
+    test(
+      'el último también se puede eliminar: el valle vuelve a cero',
+      () async {
+        // Lo que pasaba: con un solo hábito el botón no hacía nada, así que no
+        // había forma de borrar un pueblo empezado por error. Un valle sin
+        // nada que dibujar no es un estado que la app tenga, así que eliminar
+        // el único deja el mismo hábito en blanco de un teléfono recién
+        // instalado — sin nombre puesto, sin piezas y sin la marca de antes.
+        final s = await freshStore();
+        s.renameHabit(0, name: 'Fumar menos', symbol: 'pipa');
+        s.placePiece();
+        s.placePiece();
+        final was = s.habit.id;
+        s.removeHabit(0);
+        expect(s.habits.length, 1);
+        expect(s.habit.id, isNot(was));
+        expect(s.habit.total, 0);
+        expect(s.habit.name, isNot('Fumar menos'));
+        expect(s.habit.symbol, isNot('pipa'));
+        expect(s.active, 0);
+      },
+    );
+
+    test('un índice que no existe no toca nada', () async {
+      final s = await freshStore();
+      s.addHabit('Correr', 'carrera');
+      s.removeHabit(7);
+      s.removeHabit(-1);
+      expect(s.habits.length, 2);
+    });
+  });
+
   group('persistence', () {
     test('the wall survives a restart exactly as it was', () async {
       SharedPreferences.setMockInitialValues({});
