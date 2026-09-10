@@ -1518,6 +1518,40 @@ class TownPainter extends CustomPainter {
   /// They cost almost nothing and they do something no amount of masonry can:
   /// they make the sky part of the place. A town with birds over it is somewhere
   /// you are looking at; a town without them is a model on a table.
+  /// Dónde va un pájaro de una bandada en este instante.
+  ///
+  /// Alrededor **de su pueblo**, y ése era el fallo: la circunferencia se
+  /// trazaba sobre el origen del valle, así que sólo el pueblo que cae ahí
+  /// tenía pájaros y los demás los tenían dando vueltas a cientos de unidades,
+  /// fuera de cuadro. Se saca aparte para poder comprobarlo sin dibujar nada.
+  @visibleForTesting
+  static V3 birdAt(
+    TownLayout town,
+    double t,
+    int flock,
+    int i,
+    double radius,
+    double height,
+  ) {
+    final drift = hash01(flock, 7) * 6.28;
+    final a =
+        t * (flock == 0 ? 0.085 : -0.062) +
+        drift +
+        i * 0.34 +
+        hash01(flock, i, 3) * 0.5;
+    final wobble = math.sin(t * 0.7 + i * 1.3) * 0.9;
+    return V3(
+      town.cx + math.cos(a) * (radius + wobble),
+      height + math.sin(t * 0.55 + i * 0.9) * 0.7,
+      town.cz + math.sin(a) * (radius + wobble) * 0.8,
+    );
+  }
+
+  /// Cuánto se aleja del centro de su pueblo cada bandada, y a qué altura va.
+  @visibleForTesting
+  static (double radius, double height) flockRing(TownLayout town, int flock) =>
+      (town.radius * (flock == 0 ? 0.55 : 0.85) + 4, 7.0 + flock * 4.5);
+
   void _drawBirds(Canvas canvas, Projector p, Size size, TownLayout town) {
     final pal = scene.palette;
     if (!pal.isDaylight) return;
@@ -1531,17 +1565,9 @@ class TownPainter extends CustomPainter {
     // Two loose flocks on wide circles at different heights and speeds.
     for (var flock = 0; flock < 2; flock++) {
       final n = flock == 0 ? 5 : 3;
-      final radius = town.radius * (flock == 0 ? 0.55 : 0.85) + 4;
-      final height = 7.0 + flock * 4.5;
-      final speed = (flock == 0 ? 0.085 : -0.062);
-      final drift = hash01(flock, 7) * 6.28;
+      final (radius, height) = flockRing(town, flock);
       for (var i = 0; i < n; i++) {
-        final a = t * speed + drift + i * 0.34 + hash01(flock, i, 3) * 0.5;
-        final wobble = math.sin(t * 0.7 + i * 1.3) * 0.9;
-        final x = math.cos(a) * (radius + wobble);
-        final z = math.sin(a) * (radius + wobble) * 0.8;
-        final y = height + math.sin(t * 0.55 + i * 0.9) * 0.7;
-        final at = p.project(V3(x, y, z));
+        final at = p.project(birdAt(town, t, flock, i, radius, height));
         if (at == null) continue;
         if (at.x < -40 || at.x > size.width + 40) continue;
         if (at.y < -40 || at.y > size.height + 40) continue;
