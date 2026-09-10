@@ -34,7 +34,7 @@ class Appearance extends ChangeNotifier {
   /// Se guarda por nombre y no por número: si mañana se quita una de las
   /// cinco, lo guardado deja de encontrarse y se cae al de siempre, en vez de
   /// que un índice signifique otra cosa.
-  String _board = 'tablon';
+  String _board = 'poste';
   String get board => _board;
 
   Future<void> setBoard(String v) async {
@@ -111,7 +111,7 @@ class Appearance extends ChangeNotifier {
     _hapticsOff = false;
     _musicVolume = _midway;
     _effectsVolume = _midway;
-    _board = 'tablon';
+    _board = 'poste';
   }
 
   Future<void> load() async {

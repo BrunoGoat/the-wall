@@ -34,7 +34,7 @@ class SettingsSheet extends StatefulWidget {
 class _SettingsSheetState extends State<SettingsSheet> {
   /// Lo elegido, o el de siempre si lo guardado ya no existe.
   BoardLook get _look =>
-      BoardLook.porNombre(Appearance.instance.board) ?? BoardLook.tablon;
+      BoardLook.porNombre(Appearance.instance.board) ?? BoardLook.poste;
 
   @override
   Widget build(BuildContext context) {
@@ -123,11 +123,11 @@ class _SettingsSheetState extends State<SettingsSheet> {
         ),
 
         const SizedBox(height: 26),
-        _Head(theme: t, text: 'CÓMO SE VE'),
+        _Head(theme: t, text: 'EL TABLÓN'),
         Text(
-          'De qué está hecho el tablón de la plaza por detrás. Lo que cambia '
-          'es el fondo: el tejadito y los chinches son los mismos en las '
-          'cinco.',
+          'Diez tablones de anuncios. El fondo es madera en los diez; lo que '
+          'cambia es todo lo demás: el remate de arriba, el marco, los '
+          'postes, la veta, la forma del papel y con qué está clavado.',
           style: t.bodySoft.copyWith(fontSize: 11.5, height: 1.4),
         ),
         const SizedBox(height: 10),
@@ -144,7 +144,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
           title: 'Ver el tablón con un pueblo lleno',
           subtitle:
               'Un valle de mentira: entrenar durante 300 días. Para poder '
-              'comparar las cinco con algo escrito.',
+              'comparar los diez con algo escrito.',
           page: () {
             final valle = demoValley();
             return NoticeBoardScreen(

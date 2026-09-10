@@ -26,7 +26,7 @@ class NoticeBoardScreen extends StatefulWidget {
     required this.valley,
     required this.habit,
     required this.theme,
-    this.look = BoardLook.tablon,
+    this.look = BoardLook.poste,
   });
 
   /// Los pueblos que hay en el valle, [habit] incluido. Es todo lo que el
@@ -46,7 +46,7 @@ class NoticeBoardScreen extends StatefulWidget {
     required List<Habit> valley,
     required Habit habit,
     required UiTheme theme,
-    BoardLook look = BoardLook.tablon,
+    BoardLook look = BoardLook.poste,
   }) => PageRouteBuilder<void>(
     opaque: false,
     barrierColor: sheetScrim(theme.dark),
@@ -73,10 +73,6 @@ class NoticeBoardScreen extends StatefulWidget {
   @override
   State<NoticeBoardScreen> createState() => _NoticeBoardScreenState();
 }
-
-/// La tinta. Es la única que no cambia con la superficie del tablón: siempre
-/// se escribe sobre un papel, y el papel siempre es claro.
-const Color _ink = Color(0xFF3B3730);
 
 class _NoticeBoardScreenState extends State<NoticeBoardScreen>
     with SingleTickerProviderStateMixin {
@@ -153,8 +149,15 @@ class _NoticeBoardScreenState extends State<NoticeBoardScreen>
             ),
           ),
           SafeArea(
+            // Arriba ya no se reserva nada: el remate del tablón es lo primero
+            // que hay, y el botón de volver flota sobre él.
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 34, 12, 12),
+              padding: EdgeInsets.fromLTRB(
+                skin.margin,
+                2,
+                skin.margin,
+                skin.margin + 2,
+              ),
               child: _Board(
                 theme: t,
                 skin: skin,
@@ -207,7 +210,8 @@ class _NoticeBoardScreenState extends State<NoticeBoardScreen>
                               ),
                               child: _Close(
                                 notice: _said[open],
-                                paper: skin.papers[open % skin.papers.length],
+                                skin: skin,
+                                index: open,
                                 detail: k,
                                 onBack: _putBack,
                               ),
@@ -226,7 +230,7 @@ class _NoticeBoardScreenState extends State<NoticeBoardScreen>
   }
 }
 
-/// The board itself: planks, a roof over them, and what is pinned up.
+/// El tablón: el remate de arriba, la madera, y lo que hay clavado en ella.
 class _Board extends StatelessWidget {
   const _Board({
     required this.theme,
@@ -248,253 +252,566 @@ class _Board extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _Roof(onLeave: onLeave),
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: skin.surface,
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(10),
-              ),
-              border: Border.all(color: skin.frame, width: skin.frameWidth),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.35),
-                  blurRadius: 26,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(8),
-              ),
-              child: CustomPaint(
-                painter: skin.texture,
-                child: said.isEmpty
-                    ? _Empty(habit: habit, skin: skin)
-                    : ListView(
-                        padding: const EdgeInsets.fromLTRB(14, 16, 14, 26),
-                        children: [
-                          _Burnt(habit: habit, skin: skin),
-                          const SizedBox(height: 10),
-                          for (var i = 0; i < said.length; i++)
-                            _Pinned(
-                              key: pins.putIfAbsent(i, GlobalKey.new),
-                              notice: said[i],
-                              paper: skin.papers[i % skin.papers.length],
-                              shadow: skin.shadow,
-                              lean: (i.isEven ? 1 : -1) * (0.6 + i % 3 * 0.35),
-                              onTap: () => onTake(i),
-                            ),
-                        ],
-                      ),
-              ),
-            ),
-          ),
-        ),
-      ],
+    final radius = BorderRadius.vertical(
+      top: Radius.circular(skin.top == TopKind.nada ? skin.radius : 0),
+      bottom: Radius.circular(skin.radius),
     );
-  }
-}
+    final madera = Container(
+      decoration: BoxDecoration(
+        color: skin.wood,
+        borderRadius: radius,
+        border: skin.frameWidth == 0
+            ? null
+            : Border.all(color: skin.frame, width: skin.frameWidth),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.35),
+            blurRadius: 26,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: CustomPaint(
+          painter: skin.grain,
+          foregroundPainter: skin.bevel ? _Bevel(skin.frame) : null,
+          child: said.isEmpty
+              ? _Empty(habit: habit, skin: skin)
+              // El relleno de los lados lo pone cada hijo y no la lista: la
+              // banda del nombre tiene que llegar a los dos bordes de la
+              // madera, y desde una lista con relleno eso sólo se consigue
+              // con un margen negativo, que no existe.
+              : ListView(
+                  padding: EdgeInsets.only(
+                    top: skin.head == HeadKind.banda ? 0 : 12,
+                    bottom: 24,
+                  ),
+                  children: [
+                    if (skin.head == HeadKind.banda)
+                      _Name(habit: habit, skin: skin)
+                    else
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        child: _Name(habit: habit, skin: skin),
+                      ),
+                    SizedBox(height: skin.head == HeadKind.banda ? 12 : 9),
+                    for (var i = 0; i < said.length; i++)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
+                        child: _Pinned(
+                          key: pins.putIfAbsent(i, GlobalKey.new),
+                          notice: said[i],
+                          skin: skin,
+                          index: i,
+                          onTap: () => onTake(i),
+                        ),
+                      ),
+                  ],
+                ),
+        ),
+      ),
+    );
 
-/// The little roof the 3D board has, so the thing you walked up to is the
-/// thing you are looking at.
-class _Roof extends StatelessWidget {
-  const _Roof({required this.onLeave});
-  final VoidCallback onLeave;
-
-  @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 42,
-    child: Stack(
+    return Stack(
       children: [
-        Positioned.fill(child: CustomPaint(painter: const _Shingles())),
+        Column(
+          children: [
+            if (skin.topHeight > 0) _Top(skin: skin),
+            Expanded(
+              child: skin.posts
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        _Post(skin: skin),
+                        Expanded(child: madera),
+                        _Post(skin: skin),
+                      ],
+                    )
+                  : madera,
+            ),
+          ],
+        ),
+        // El botón de volver flota sobre el remate en vez de reservarse su
+        // propia franja: era eso, y no el tejado, lo que empujaba el tablón
+        // treinta píxeles hacia abajo.
         Positioned(
           left: 0,
-          top: -30,
-          child: IconButton(
-            onPressed: onLeave,
-            icon: const Icon(Icons.arrow_back, size: 20),
-            color: Colors.white.withValues(alpha: 0.92),
-            tooltip: 'Volver al pueblo',
+          top: 0,
+          child: GestureDetector(
+            onTap: onLeave,
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              width: 34,
+              height: 34,
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.arrow_back,
+                size: 19,
+                color: Colors.white.withValues(alpha: 0.9),
+                shadows: const [Shadow(color: Colors.black54, blurRadius: 5)],
+              ),
+            ),
           ),
         ),
       ],
-    ),
-  );
-}
-
-class _Shingles extends CustomPainter {
-  const _Shingles();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Eaves that overhang the board a little, and a shallow pitch over them:
-    // the same little roof the board has out in the plaza, seen from in front.
-    final tile = Paint()..color = const Color(0xFF8A7355);
-    final edge = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2
-      ..color = const Color(0xFF6E5A42);
-    final pitch = Path()
-      ..moveTo(14, size.height - 9)
-      ..lineTo(size.width * 0.5, 3)
-      ..lineTo(size.width - 14, size.height - 9)
-      ..close();
-    canvas.drawPath(pitch, tile);
-    canvas.drawPath(pitch, edge);
-    final eaves = RRect.fromRectAndRadius(
-      Rect.fromLTWH(0, size.height - 11, size.width, 11),
-      const Radius.circular(3),
     );
-    canvas.drawRRect(eaves, tile);
-    canvas.drawRRect(eaves, edge);
   }
-
-  @override
-  bool shouldRepaint(_Shingles old) => false;
 }
 
-/// The habit's name, burnt into the top plank.
-class _Burnt extends StatelessWidget {
-  const _Burnt({required this.habit, required this.skin});
-  final Habit habit;
+/// Uno de los dos postes que clavan el tablón en la plaza.
+class _Post extends StatelessWidget {
+  const _Post({required this.skin});
   final BoardSkin skin;
-
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      HabitSigil(
-        symbol: habit.symbol,
-        color: skin.heading.withValues(alpha: 0.9),
-        size: 19,
-      ),
-      const SizedBox(width: 9),
-      Expanded(
-        child: Text(
-          habit.name.toUpperCase(),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: skin.heading.withValues(alpha: 0.95),
-            fontSize: 12.5,
-            letterSpacing: 2.6,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-      Text(
-        habit.place.region.toUpperCase(),
-        style: TextStyle(
-          color: skin.heading.withValues(alpha: 0.7),
-          fontSize: 9.5,
-          letterSpacing: 1.8,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-    ],
-  );
-}
-
-/// One notice, pinned up.
-class _Pinned extends StatelessWidget {
-  const _Pinned({
-    super.key,
-    required this.notice,
-    required this.paper,
-    required this.shadow,
-    required this.lean,
-    required this.onTap,
-  });
-
-  final Notice notice;
-  final Color paper;
-
-  /// Cuánta sombra echa sobre el fondo. Sobre una pared clara hace falta más,
-  /// porque ahí el papel ya no se separa por el color.
-  final double shadow;
-  final double lean;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 13),
-    child: Transform.rotate(
-      angle: lean * math.pi / 180,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(15, 15, 15, 13),
-          decoration: BoxDecoration(
-            color: paper,
-            borderRadius: BorderRadius.circular(3),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: shadow),
-                blurRadius: 7,
-                offset: const Offset(1, 3),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const _Pin(),
-                  const SizedBox(width: 9),
-                  Expanded(
-                    child: Text(
-                      notice.said,
-                      style: const TextStyle(
-                        color: _ink,
-                        fontSize: 15.5,
-                        height: 1.3,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 7),
-              Text(
-                notice.because,
-                style: TextStyle(
-                  color: _ink.withValues(alpha: 0.72),
-                  fontSize: 12.5,
-                  height: 1.42,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-class _Pin extends StatelessWidget {
-  const _Pin();
 
   @override
   Widget build(BuildContext context) => Container(
     width: 9,
-    height: 9,
     decoration: BoxDecoration(
-      color: const Color(0xFF9C4A3C),
-      shape: BoxShape.circle,
+      color: skin.postColor,
+      borderRadius: BorderRadius.circular(2),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.35),
-          blurRadius: 3,
-          offset: const Offset(0, 1),
+          color: Colors.black.withValues(alpha: 0.3),
+          blurRadius: 8,
+          offset: const Offset(0, 5),
         ),
       ],
     ),
   );
+}
+
+/// El remate de arriba, sea lo que sea en este tablón.
+class _Top extends StatelessWidget {
+  const _Top({required this.skin});
+  final BoardSkin skin;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: skin.topHeight,
+    child: CustomPaint(painter: _TopPaint(skin), size: Size.infinite),
+  );
+}
+
+class _TopPaint extends CustomPainter {
+  const _TopPaint(this.skin);
+  final BoardSkin skin;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()..color = skin.topColor;
+    switch (skin.top) {
+      case TopKind.tejado:
+        // Las dos aguas del modelo, con su alero volando por los lados.
+        final pitch = Path()
+          ..moveTo(10, size.height - 6)
+          ..lineTo(size.width * 0.5, 2)
+          ..lineTo(size.width - 10, size.height - 6)
+          ..close();
+        canvas.drawPath(pitch, p);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(0, size.height - 7, size.width, 7),
+            const Radius.circular(2),
+          ),
+          p,
+        );
+      case TopKind.alero:
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(0, size.height * 0.3, size.width, size.height * 0.7),
+            const Radius.circular(2),
+          ),
+          p,
+        );
+        canvas.drawRect(
+          Rect.fromLTWH(
+            size.width * 0.04,
+            0,
+            size.width * 0.92,
+            size.height * 0.34,
+          ),
+          Paint()..color = skin.topColor.withValues(alpha: 0.72),
+        );
+      case TopKind.liston:
+        canvas.drawRect(
+          Rect.fromLTWH(
+            size.width * 0.02,
+            size.height * 0.34,
+            size.width * 0.96,
+            size.height * 0.66,
+          ),
+          p,
+        );
+      case TopKind.cordel:
+        // Un cordel con sus dos nudos, que es de donde cuelga todo.
+        final cuerda = Paint()
+          ..color = skin.topColor
+          ..strokeWidth = 2.4
+          ..style = PaintingStyle.stroke;
+        final hilo = Path()
+          ..moveTo(4, size.height * 0.34)
+          ..quadraticBezierTo(
+            size.width / 2,
+            size.height * 0.86,
+            size.width - 4,
+            size.height * 0.34,
+          );
+        canvas.drawPath(hilo, cuerda);
+        for (final x in [8.0, size.width - 8]) {
+          canvas.drawCircle(Offset(x, size.height * 0.34), 3.4, p);
+        }
+      case TopKind.nada:
+        break;
+    }
+  }
+
+  @override
+  bool shouldRepaint(_TopPaint old) => old.skin != skin;
+}
+
+/// La luz de una moldura biselada, por dentro del marco.
+class _Bevel extends CustomPainter {
+  const _Bevel(this.frame);
+  final Color frame;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, size.width, 2),
+      Paint()..color = Colors.black.withValues(alpha: 0.3),
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(0, size.height - 2, size.width, 2),
+      Paint()..color = Colors.white.withValues(alpha: 0.14),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_Bevel old) => old.frame != frame;
+}
+
+/// El nombre del hábito, escrito como lo escriba este tablón.
+class _Name extends StatelessWidget {
+  const _Name({required this.habit, required this.skin});
+  final Habit habit;
+  final BoardSkin skin;
+
+  @override
+  Widget build(BuildContext context) {
+    final texto = habit.name.toUpperCase();
+    final region = habit.place.region.toUpperCase();
+    switch (skin.head) {
+      case HeadKind.banda:
+        return Container(
+          padding: const EdgeInsets.fromLTRB(16, 9, 16, 9),
+          color: skin.frameWidth == 0
+              ? skin.topColor
+              : skin.frame.withValues(alpha: 0.94),
+          child: _fila(texto, region, skin.heading),
+        );
+      case HeadKind.tarjeta:
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: Transform.rotate(
+            angle: -0.9 * math.pi / 180,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(11, 6, 11, 6),
+              decoration: BoxDecoration(
+                color: skin.papers.first,
+                borderRadius: BorderRadius.circular(2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: skin.shadow),
+                    blurRadius: 5,
+                    offset: const Offset(1, 2),
+                  ),
+                ],
+              ),
+              child: _fila(texto, region, skin.ink, corta: true),
+            ),
+          ),
+        );
+      case HeadKind.tallado:
+        return Stack(
+          children: [
+            // La luz que queda por debajo del trazo hundido.
+            Transform.translate(
+              offset: const Offset(0, 1),
+              child: _fila(texto, region, Colors.white.withValues(alpha: 0.45)),
+            ),
+            _fila(texto, region, skin.heading),
+          ],
+        );
+      case HeadKind.quemado:
+        return _fila(texto, region, skin.heading);
+    }
+  }
+
+  Widget _fila(String texto, String region, Color color, {bool corta = false}) {
+    return Row(
+      mainAxisSize: corta ? MainAxisSize.min : MainAxisSize.max,
+      children: [
+        HabitSigil(symbol: habit.symbol, color: color, size: 17),
+        const SizedBox(width: 8),
+        corta
+            ? Flexible(child: _titulo(texto, color))
+            : Expanded(child: _titulo(texto, color)),
+        const SizedBox(width: 8),
+        Text(
+          region,
+          style: TextStyle(
+            color: color.withValues(alpha: 0.68),
+            fontSize: 9,
+            letterSpacing: 1.6,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _titulo(String texto, Color color) => Text(
+    texto,
+    maxLines: 1,
+    overflow: TextOverflow.ellipsis,
+    style: TextStyle(
+      color: color,
+      fontSize: 12,
+      letterSpacing: 2.4,
+      fontWeight: FontWeight.w700,
+    ),
+  );
+}
+
+/// Una nota, clavada.
+class _Pinned extends StatelessWidget {
+  const _Pinned({
+    super.key,
+    required this.notice,
+    required this.skin,
+    required this.index,
+    required this.onTap,
+  });
+
+  final Notice notice;
+  final BoardSkin skin;
+  final int index;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final paper = skin.papers[index % skin.papers.length];
+    final lean = skin.lean == 0
+        ? 0.0
+        : (index.isEven ? 1 : -1) * (skin.lean * (0.6 + index % 3 * 0.28));
+    // Los recortes estrechos además se corren a un lado y a otro, porque un
+    // recorte centrado con márgenes iguales vuelve a ser una fila de lista.
+    final corre = skin.inset < 0.9
+        ? (index.isEven ? -1 : 1) * (1 - skin.inset) * 26
+        : 0.0;
+
+    Widget hoja = Container(
+      padding: EdgeInsets.fromLTRB(
+        14,
+        skin.shape == PaperShape.tapado ? 17 : 14,
+        14,
+        skin.shape == PaperShape.rasgado ? 19 : 12,
+      ),
+      color: paper,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (skin.pin != PinKind.ninguno) ...[
+                _Pin(skin: skin),
+                const SizedBox(width: 9),
+              ],
+              Expanded(
+                child: Text(
+                  notice.said,
+                  style: TextStyle(
+                    color: skin.ink,
+                    fontSize: 15.5,
+                    height: 1.3,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (skin.head == HeadKind.banda) ...[
+            const SizedBox(height: 8),
+            Container(height: 1, color: skin.ink.withValues(alpha: 0.16)),
+          ],
+          const SizedBox(height: 7),
+          Text(
+            notice.because,
+            style: TextStyle(
+              color: skin.ink.withValues(alpha: 0.72),
+              fontSize: 12.5,
+              height: 1.42,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (skin.shape == PaperShape.rasgado) {
+      hoja = ClipPath(clipper: const _Torn(), child: hoja);
+    } else {
+      hoja = ClipRRect(borderRadius: BorderRadius.circular(3), child: hoja);
+    }
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: skin.gap),
+      child: Transform.translate(
+        offset: Offset(corre, 0),
+        child: Transform.rotate(
+          angle: lean * math.pi / 180,
+          child: FractionallySizedBox(
+            widthFactor: skin.inset,
+            alignment: Alignment.center,
+            child: GestureDetector(
+              onTap: onTap,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: skin.shadow),
+                      blurRadius: skin.shape == PaperShape.tapado ? 4 : 7,
+                      offset: const Offset(1, 3),
+                    ),
+                  ],
+                ),
+                child: Stack(
+                  children: [
+                    hoja,
+                    // El listón que le cruza la cabeza al papel metido por
+                    // detrás. Va encima del papel a propósito: es lo que dice
+                    // que el papel está detrás y no clavado delante.
+                    if (skin.shape == PaperShape.tapado)
+                      Positioned(
+                        left: 0,
+                        right: 0,
+                        top: 4,
+                        child: Container(
+                          height: 5,
+                          color: skin.grain.dark.withValues(alpha: 0.8),
+                        ),
+                      ),
+                    if (skin.pin == PinKind.cinta)
+                      Positioned(
+                        left: -12,
+                        top: 8,
+                        child: Transform.rotate(
+                          angle: -0.5,
+                          child: Container(
+                            width: 42,
+                            height: 13,
+                            color: skin.pinColor,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Un papel rasgado por abajo.
+class _Torn extends CustomClipper<Path> {
+  const _Torn();
+
+  @override
+  Path getClip(Size size) {
+    final p = Path()
+      ..moveTo(0, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width, size.height - 7);
+    // Ocho dientes, siempre los mismos: un papel no cambia de rotura al
+    // volver a mirarlo.
+    const dientes = [0.0, 5.5, 1.5, 7.0, 2.5, 6.0, 1.0, 5.0, 2.0];
+    for (var i = dientes.length - 1; i >= 0; i--) {
+      p.lineTo(size.width * i / (dientes.length - 1), size.height - dientes[i]);
+    }
+    return p..close();
+  }
+
+  @override
+  bool shouldReclip(_Torn old) => false;
+}
+
+/// Lo que sujeta el papel.
+class _Pin extends StatelessWidget {
+  const _Pin({required this.skin});
+  final BoardSkin skin;
+
+  @override
+  Widget build(BuildContext context) {
+    const sombra = BoxShadow(
+      color: Colors.black38,
+      blurRadius: 3,
+      offset: Offset(0, 1),
+    );
+    switch (skin.pin) {
+      case PinKind.chincheta:
+        return Container(
+          width: 9,
+          height: 9,
+          decoration: BoxDecoration(
+            color: skin.pinColor,
+            shape: BoxShape.circle,
+            boxShadow: const [sombra],
+          ),
+        );
+      case PinKind.clavo:
+        return Transform.rotate(
+          angle: math.pi / 4,
+          child: Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: skin.pinColor,
+              boxShadow: const [sombra],
+            ),
+          ),
+        );
+      case PinKind.tachuela:
+        return Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: skin.pinColor,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.black.withValues(alpha: 0.3),
+              width: 0.8,
+            ),
+          ),
+        );
+      case PinKind.lacre:
+        // Una gota de lacre no es un círculo: se aplasta al sellarla.
+        return Container(
+          width: 14,
+          height: 11,
+          decoration: BoxDecoration(
+            color: skin.pinColor,
+            borderRadius: BorderRadius.circular(6),
+            boxShadow: const [sombra],
+          ),
+        );
+      case PinKind.cinta:
+      case PinKind.ninguno:
+        return const SizedBox.shrink();
+    }
+  }
 }
 
 /// A notice taken off the board and held up close: the same sentence, the
@@ -502,13 +819,15 @@ class _Pin extends StatelessWidget {
 class _Close extends StatelessWidget {
   const _Close({
     required this.notice,
-    required this.paper,
+    required this.skin,
+    required this.index,
     required this.detail,
     required this.onBack,
   });
 
   final Notice notice;
-  final Color paper;
+  final BoardSkin skin;
+  final int index;
 
   /// How far into the zoom we are. The extra detail fades in at the end, so
   /// the paper reads as one thing that got closer rather than two things.
@@ -518,8 +837,9 @@ class _Close extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final late = ((detail - 0.45) / 0.55).clamp(0.0, 1.0);
+    final ink = skin.ink;
     return Material(
-      color: paper,
+      color: skin.papers[index % skin.papers.length],
       elevation: 16,
       borderRadius: BorderRadius.circular(4),
       child: Padding(
@@ -532,7 +852,7 @@ class _Close extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const _Pin(),
+                  if (skin.pin != PinKind.ninguno) _Pin(skin: skin),
                   const Spacer(),
                   GestureDetector(
                     onTap: onBack,
@@ -541,7 +861,7 @@ class _Close extends StatelessWidget {
                       child: Icon(
                         Icons.close,
                         size: 18,
-                        color: _ink.withValues(alpha: 0.45),
+                        color: ink.withValues(alpha: 0.45),
                       ),
                     ),
                   ),
@@ -550,8 +870,8 @@ class _Close extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 notice.said,
-                style: const TextStyle(
-                  color: _ink,
+                style: TextStyle(
+                  color: ink,
                   fontSize: 21,
                   height: 1.25,
                   fontWeight: FontWeight.w700,
@@ -561,7 +881,7 @@ class _Close extends StatelessWidget {
               Text(
                 notice.because,
                 style: TextStyle(
-                  color: _ink.withValues(alpha: 0.78),
+                  color: ink.withValues(alpha: 0.78),
                   fontSize: 14,
                   height: 1.45,
                 ),
@@ -573,7 +893,7 @@ class _Close extends StatelessWidget {
                   child: SizedBox(
                     height: notice.ticks.isEmpty ? 78 : 96,
                     child: CustomPaint(
-                      painter: _Evidence(notice),
+                      painter: _Evidence(notice, ink),
                       size: Size.infinite,
                     ),
                   ),
@@ -586,12 +906,12 @@ class _Close extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(height: 1, color: _ink.withValues(alpha: 0.12)),
+                      Container(height: 1, color: ink.withValues(alpha: 0.12)),
                       const SizedBox(height: 12),
                       Text(
                         notice.more!,
                         style: TextStyle(
-                          color: _ink.withValues(alpha: 0.66),
+                          color: ink.withValues(alpha: 0.66),
                           fontSize: 13,
                           height: 1.55,
                         ),
@@ -611,8 +931,9 @@ class _Close extends StatelessWidget {
 /// The evidence, drawn. Every bar is a number the sentence above was read off,
 /// and the ones the sentence is about are the dark ones.
 class _Evidence extends CustomPainter {
-  const _Evidence(this.notice);
+  const _Evidence(this.notice, this.ink);
   final Notice notice;
+  final Color ink;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -624,8 +945,8 @@ class _Evidence extends CustomPainter {
     final gap = bars.length > 14 ? 1.5 : 4.0;
     final w = (size.width - gap * (bars.length - 1)) / bars.length;
 
-    final base = Paint()..color = _ink.withValues(alpha: 0.22);
-    final picked = Paint()..color = _ink.withValues(alpha: 0.82);
+    final base = Paint()..color = ink.withValues(alpha: 0.22);
+    final picked = Paint()..color = ink.withValues(alpha: 0.82);
     for (var i = 0; i < bars.length; i++) {
       final on =
           notice.mark >= 0 && i >= notice.mark && i < notice.mark + notice.span;
@@ -644,7 +965,7 @@ class _Evidence extends CustomPainter {
       Offset(0, h + 2.5),
       Offset(size.width, h + 2.5),
       Paint()
-        ..color = _ink.withValues(alpha: 0.2)
+        ..color = ink.withValues(alpha: 0.2)
         ..strokeWidth = 1,
     );
     if (!labels) return;
@@ -657,7 +978,7 @@ class _Evidence extends CustomPainter {
         text: TextSpan(
           text: text,
           style: TextStyle(
-            color: _ink.withValues(alpha: on ? 0.8 : 0.45),
+            color: ink.withValues(alpha: on ? 0.8 : 0.45),
             fontSize: bars.length > 8 ? 8.5 : 10,
             fontWeight: on ? FontWeight.w700 : FontWeight.w500,
           ),
@@ -671,7 +992,7 @@ class _Evidence extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_Evidence old) => old.notice != notice;
+  bool shouldRepaint(_Evidence old) => old.notice != notice || old.ink != ink;
 }
 
 /// A board with nothing on it yet, which is the honest state of a young town.
@@ -683,6 +1004,7 @@ class _Empty extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final days = daysOf(habit).length;
+    final ink = skin.ink;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 26),
@@ -705,12 +1027,14 @@ class _Empty extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const _Pin(),
-                const SizedBox(height: 12),
-                const Text(
+                if (skin.pin != PinKind.ninguno) ...[
+                  _Pin(skin: skin),
+                  const SizedBox(height: 12),
+                ],
+                Text(
                   'El tablón está vacío.',
                   style: TextStyle(
-                    color: _ink,
+                    color: ink,
                     fontSize: 16,
                     fontWeight: FontWeight.w700,
                   ),
@@ -724,7 +1048,7 @@ class _Empty extends StatelessWidget {
                             'bastante para estar seguro de algo, lo escribe '
                             'acá.',
                   style: TextStyle(
-                    color: _ink.withValues(alpha: 0.72),
+                    color: ink.withValues(alpha: 0.72),
                     fontSize: 13,
                     height: 1.5,
                   ),

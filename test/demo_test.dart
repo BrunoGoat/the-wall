@@ -134,14 +134,16 @@ void main() {
     });
   });
 
-  // Las cinco superficies, con el pueblo lleno encima y en dos teléfonos.
+  // Los diez tablones, con el pueblo lleno encima y en dos teléfonos.
   //
-  // Lo que se compara es el fondo, pero una de las cinco puede romper lo de
-  // delante sin que nadie lo note: el marco de nueve píxeles del corcho come
-  // ancho, y la pared de cal no es un fondo oscuro, así que el texto que se
-  // escribe sobre ella —el nombre del hábito— puede quedarse sin contraste.
-  // Esto exige que las cinco quepan y que ninguna escriba en su propio color.
-  group('las cinco superficies del tablón', () {
+  // Cada uno rediseña el remate, el marco, los postes, la forma del papel y
+  // con qué se clava, así que cualquiera de ellos puede romper lo de delante
+  // sin que se note al mirar uno solo: la moldura de nueve píxeles del roble
+  // come ancho, los recortes del clavado se corren a los lados y se pueden
+  // salir, y el nombre del hábito se escribe sobre la madera en varios de
+  // ellos. Esto exige que los diez quepan, que ninguno escriba en su propio
+  // color y que ninguno vuelva a comerse la pantalla de arriba.
+  group('los diez tablones', () {
     const pantallas = [Size(320, 640), Size(440, 950)];
 
     testWidgets('caben todas, con el pueblo de mentira encima', (tester) async {
@@ -192,7 +194,21 @@ void main() {
       }
     });
 
-    test('ninguna escribe con el color de su propio fondo', () {
+    test('ninguno se come la pantalla por arriba', () {
+      for (final look in BoardLook.values) {
+        // El tejado del modelo es un sexto de lo que mide la plancha. El de
+        // la pantalla medía cuarenta y dos píxeles y encima se le reservaban
+        // otros treinta y cuatro para el botón de volver: entre los dos, más
+        // de lo que ocupa una nota entera.
+        expect(
+          look.skin.topHeight,
+          lessThanOrEqualTo(26),
+          reason: '${look.label} vuelve a llevarse la pantalla de arriba',
+        );
+      }
+    });
+
+    test('ninguno escribe con el color de su propio fondo', () {
       for (final look in BoardLook.values) {
         final s = look.skin;
         // El nombre del hábito va sobre la superficie, no sobre un papel.
@@ -201,7 +217,7 @@ void main() {
         // siendo. Lo que esto caza es lo otro, que alguien elija un fondo
         // nuevo y se olvide de que ahí encima se escribe.
         expect(
-          _lejos(s.heading, s.surface),
+          _lejos(s.heading, s.wood),
           greaterThan(0.12),
           reason: '${look.label} escribe el nombre casi del color del fondo',
         );
@@ -213,7 +229,7 @@ void main() {
         // es ninguna de las dos.
         for (final p in s.papers) {
           expect(
-            _lejos(p, s.surface) > 0.1 || s.shadow >= 0.3,
+            _lejos(p, s.wood) > 0.1 || s.shadow >= 0.3,
             isTrue,
             reason:
                 'un papel de ${look.label} no se separa del fondo ni por el '

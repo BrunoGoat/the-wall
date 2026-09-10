@@ -382,8 +382,7 @@ class _HomeScreenState extends State<HomeScreen> {
         valley: store.habits,
         habit: store.habits[town],
         theme: _theme,
-        look:
-            BoardLook.porNombre(Appearance.instance.board) ?? BoardLook.tablon,
+        look: BoardLook.porNombre(Appearance.instance.board) ?? BoardLook.poste,
       ),
     );
   }
