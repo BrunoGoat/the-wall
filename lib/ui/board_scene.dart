@@ -14,10 +14,19 @@ import 'paper_ink.dart';
 /// El tablón de la plaza, de cerca y en tres dimensiones.
 ///
 /// No es una pantalla con el tablón dibujado: es el mismo tablón que está
-/// clavado en la plaza, con la misma cámara de órbita que el pueblo, y las
-/// notas son hojas de papel con sitio en el mundo. Se recorre —un dedo lo
-/// arrastra a lo largo, dos lo giran, pellizcar acerca— y se toca una hoja
-/// para descolgarla.
+/// clavado en la plaza, y las notas son hojas de papel con sitio en el mundo.
+///
+/// **Se ve en tres dimensiones pero se anda en dos.** La cámara llega, se
+/// pone de frente y ahí se queda: no gira nunca. Lo único que se puede hacer
+/// con los dedos es correrlo a izquierda y derecha, y eso está topado en el
+/// filo de la madera, así que no hay manera de arrastrarse fuera del tablón y
+/// quedarse mirando el prado. El zoom es una franja estrecha, para ajustar y
+/// no para explorar; alejarse más allá de ella es la puerta de salida, y es la
+/// única cosa que saca de aquí aparte de la flecha.
+///
+/// Lo que sí se mueve en tres dimensiones es la propia escena: descolgar una
+/// nota lleva la cámara hasta ella. Eso lo decide la app, no el dedo, y por
+/// eso puede permitirse lo que el dedo no.
 ///
 /// Que las hojas sean geometría y no una lista es lo que hace que esto valga
 /// la pena: una nota tapa a otra porque está delante, se tuerce porque está
@@ -56,6 +65,11 @@ class _BoardSceneState extends State<BoardScene>
   /// Cuánta ayuda se está enseñando. Se apaga sola en cuanto alguien toca.
   double _hint = 1;
 
+  /// Cuánto se ha tirado hacia atrás más allá del tope, de 0 a 1. Pasado
+  /// [_umbralSalida] al soltar, se sale al valle.
+  double _leaving = 0;
+  static const double _umbralSalida = 0.5;
+
   Size _size = const Size(400, 800);
   late final List<PaperInk> _ink = [
     for (final p in widget.plan.papers) PaperInk(p.notice),
@@ -75,11 +89,14 @@ class _BoardSceneState extends State<BoardScene>
       // Se llega andando: desde un lado y desde lejos, y la cámara se endereza
       // sola. Es la misma entrada que tenía la pantalla de antes —venía hacia
       // vos— sólo que ahora la hace la cámara y no una escala.
-      ..yaw = 0.78
-      ..pitch = 0.34
+      // Se llega de lado y la cámara se endereza sola: es lo único que hace
+      // en tres dimensiones por su cuenta, y es lo que dice de una vez que
+      // esto es un sitio y no una lámina. A partir de ahí no vuelve a girar.
+      ..yaw = 0.62
+      ..pitch = 0.26
       ..distance = 9.0
-      ..yawTarget = 0.42
-      ..pitchTarget = 0.2;
+      ..yawTarget = 0
+      ..pitchTarget = 0;
     _ticker.start();
   }
 
@@ -123,33 +140,34 @@ class _BoardSceneState extends State<BoardScene>
     }
   }
 
-  /// Lo lejos que se puede estar: lo justo para verlo entero, y un poco más
-  /// para que se vea de pie en el prado.
-  double get _far => widget.plan.fitDistance(_size) * 1.35;
+  double get _near => widget.plan.nearLimit(_size);
+  double get _far => widget.plan.farLimit(_size);
 
+  /// Lo que puede hacer el dedo, y nada más.
+  ///
+  /// La cámara no gira: de frente y de frente se queda. Sólo se corre a lo
+  /// largo del tablón, y hasta el filo de la madera: el tope sale de lo que la
+  /// lente abarca desde donde está, así que al acercarse hay más que recorrer
+  /// y al alejarse menos, hasta que el tablón cabe entero y no hay nada que
+  /// correr.
   void _clampCam() {
     final plan = widget.plan;
-    _cam.yawTarget = clampD(_cam.yawTarget, -1.05, 1.05);
-    _cam.pitchTarget = clampD(_cam.pitchTarget, -0.3, 0.8);
-    _cam.distanceTarget = clampD(_cam.distanceTarget, 0.62, _far);
-    _cam.travelTarget = clampD(
-      _cam.travelTarget,
-      -plan.halfWidth,
-      plan.halfWidth,
-    );
-    _cam.focusYTarget = clampD(_cam.focusYTarget, plan.low, plan.top);
+    _cam.yawTarget = 0;
+    _cam.pitchTarget = 0;
+    _cam.distanceTarget = clampD(_cam.distanceTarget, _near, _far);
+    _cam.focusYTarget = plan.midY;
+    final tope = plan.panLimit(_size, _cam.distanceTarget);
+    _cam.travelTarget = clampD(_cam.travelTarget, -tope, tope);
   }
 
-  /// De frente al tablón, con todo a la vista.
+  /// De vuelta al tablón, de frente y a la distancia de leer. No mueve el
+  /// tablón a los lados: uno vuelve de una nota al sitio del tablón en el que
+  /// estaba, no al principio.
   void _front() {
     setState(() => _open = null);
-    _cam
-      ..yawTarget = 0
-      ..pitchTarget = 0.04
-      ..travelTarget = 0
-      ..focusYTarget = widget.plan.midY
-      ..distanceTarget = widget.plan.fitDistance(_size);
+    _cam.distanceTarget = widget.plan.readDistance(_size);
     _clampCam();
+    _wake();
   }
 
   /// Descolgar una hoja: la cámara se va a ella y la hoja crece.
@@ -201,50 +219,55 @@ class _BoardSceneState extends State<BoardScene>
       V3(plan.halfWidth, plan.low, BoardPlan.plankDepth),
       V3(-plan.halfWidth, plan.low, BoardPlan.plankDepth),
     ]);
+    // La madera, el cielo o el prado: lo único que hace un toque fuera de una
+    // nota es volver a colgar la que estuviera descolgada. De aquí no se sale
+    // tocando —un dedo suelto en el prado no puede ser la puerta— sino
+    // alejándose o con la flecha.
     if (plank != null && insideQuad(plank, at)) {
-      if (_open != null) {
-        _front();
-      } else {
-        setState(() {});
-        _cam
-          ..yawTarget = 0
-          ..pitchTarget = 0.04
-          ..distanceTarget = math.min(
-            _cam.distanceTarget * 0.55,
-            widget.plan.fitDistance(_size),
-          );
-        _clampCam();
-      }
+      if (_open != null) _front();
       return;
     }
-    // El cielo o el prado: si hay una hoja descolgada se cuelga, y si no se
-    // sale del tablón.
-    if (_open != null) {
-      _front();
-    } else {
-      widget.onLeave();
-    }
+    if (_open != null) _front();
   }
 
   void _drag(ScaleUpdateDetails d) {
     _hint = 0;
     _wake();
-    if (d.pointerCount >= 2) {
-      // Dos dedos: girar y acercar, que es mirar el tablón como objeto.
-      if (d.scale != 1) _cam.distanceTarget /= d.scale.clamp(0.5, 2.0);
-      _cam.yawTarget -= d.focalPointDelta.dx * 0.004;
-      _cam.pitchTarget += d.focalPointDelta.dy * 0.003;
-    } else {
-      // Un dedo: recorrerlo. Cuánto mundo se anda por píxel sale de la lente y
-      // de lo lejos que se esté, así que el tablón sigue al dedo igual de
-      // cerca que de lejos en vez de dispararse al acercarse.
+    if (d.pointerCount >= 2 && d.scale != 1) {
+      // Pellizcar es lo único que cambia la distancia, y sólo dentro de la
+      // franja. Pasado el tope de atrás no se para en seco: sigue yendo con
+      // resistencia, que es lo que avisa de que ahí detrás está la salida.
+      final quiere = _cam.distanceTarget / d.scale.clamp(0.5, 2.0);
+      if (quiere > _far) {
+        final sobra = (quiere - _far) / (_far * 0.55);
+        _leaving = sobra.clamp(0.0, 1.0);
+        _cam.distanceTarget = _far + (quiere - _far) * 0.45;
+      } else {
+        _leaving = 0;
+        _cam.distanceTarget = clampD(quiere, _near, _far);
+      }
+    } else if (d.pointerCount == 1) {
+      // Un dedo lo corre a lo largo y nada más. Lo de arriba y abajo se tira:
+      // el tablón no tiene arriba y abajo a los que ir.
       final p = _projector();
-      final k = _cam.distance / p.focal;
-      _cam.travelTarget -= d.focalPointDelta.dx * k;
-      _cam.focusYTarget += d.focalPointDelta.dy * k;
+      _cam.travelTarget -= d.focalPointDelta.dx * (_cam.distance / p.focal);
       if (_open != null) setState(() => _open = null);
     }
+    final tope = widget.plan.panLimit(_size, _cam.distanceTarget);
+    _cam.travelTarget = clampD(_cam.travelTarget, -tope, tope);
+  }
+
+  /// Al soltar: si se tiró bastante hacia atrás, se sale al valle; si no, el
+  /// tablón vuelve a su sitio.
+  void _release(ScaleEndDetails d) {
+    if (_leaving > _umbralSalida) {
+      widget.onLeave();
+      return;
+    }
+    _leaving = 0;
+    _cam.distanceTarget = clampD(_cam.distanceTarget, _near, _far);
     _clampCam();
+    _wake();
   }
 
   @override
@@ -257,13 +280,14 @@ class _BoardSceneState extends State<BoardScene>
           // La distancia de entrada depende del tamaño real de la pantalla, y
           // eso no se sabe hasta aquí.
           if (_cam.distanceTarget == 9.0) {
-            _cam.distanceTarget = widget.plan.fitDistance(size);
-            _cam.distance = _cam.distanceTarget * 1.55;
+            _cam.distanceTarget = widget.plan.readDistance(size);
+            _cam.distance = _cam.distanceTarget * 2.4;
           }
         }
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onScaleUpdate: _drag,
+          onScaleEnd: _release,
           onTapUp: (d) => _tap(d.localPosition),
           child: CustomPaint(
             size: Size.infinite,
@@ -276,6 +300,7 @@ class _BoardSceneState extends State<BoardScene>
               open: _open,
               openK: _openK,
               hint: _hint,
+              leaving: _leaving,
               repaint: _frame,
             ),
           ),
@@ -308,6 +333,7 @@ class BoardPainter extends CustomPainter {
     required this.open,
     required this.openK,
     required this.hint,
+    required this.leaving,
     required Listenable repaint,
   }) : super(repaint: repaint);
 
@@ -319,6 +345,9 @@ class BoardPainter extends CustomPainter {
   final int? open;
   final double openK;
   final double hint;
+
+  /// Cuánto se está tirando hacia la salida, de 0 a 1.
+  final double leaving;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -332,6 +361,15 @@ class BoardPainter extends CustomPainter {
     _roof(canvas, p);
     _papers(canvas, p, size);
     _hint(canvas, size);
+    if (leaving > 0.01) {
+      // Se va apagando conforme se tira hacia atrás, para que soltar y salir
+      // no sea una sorpresa: cuando la pantalla ya está medio ida, soltar es
+      // lo que uno espera que pase.
+      canvas.drawRect(
+        Offset.zero & size,
+        Paint()..color = Colors.black.withValues(alpha: 0.55 * leaving),
+      );
+    }
   }
 
   // ------------------------------------------------------------ el escenario
@@ -643,7 +681,7 @@ class BoardPainter extends CustomPainter {
     if (hint <= 0.02) return;
     final tp = TextPainter(
       text: TextSpan(
-        text: 'Arrastrá para recorrerlo · dos dedos lo giran · tocá una nota',
+        text: 'Arrastrá a los lados · tocá una nota · alejá para salir',
         style: TextStyle(
           color: Colors.white.withValues(alpha: 0.85 * hint),
           fontSize: 11.5,

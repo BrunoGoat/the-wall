@@ -146,6 +146,39 @@ class BoardPlan {
   /// todas las distancias.
   static const double tanHalfFovY = 0.4586;
 
+  /// La distancia a la que se lee: la que deja el tablón llenando la mayor
+  /// parte del alto de la pantalla.
+  ///
+  /// Es la distancia de trabajo, y de ella salen las dos únicas a las que se
+  /// puede llegar con los dedos. En un teléfono de pie un tablón que es dos
+  /// veces más ancho que alto no cabe entero y a la vez se lee: o se ve entero
+  /// y las letras son puntos, o se leen las letras y se ve un trozo. Se elige
+  /// lo segundo, y por eso el tablón se recorre.
+  double readDistance(Size size) => (top - low) / (2 * 0.62 * tanHalfFovY);
+
+  /// Lo cerca y lo lejos que dejan llegar los dedos. Es una franja estrecha a
+  /// propósito: el zoom aquí no es para explorar, es para ajustar.
+  double nearLimit(Size size) => readDistance(size) * 0.72;
+
+  double farLimit(Size size) => math.max(
+    nearLimit(size) * 1.05,
+    math.min(readDistance(size) * 1.5, fitDistance(size) * 1.15),
+  );
+
+  /// Hasta dónde se puede correr el tablón a los lados sin que se vea el vacío
+  /// de al lado.
+  ///
+  /// Sale de lo que la lente abarca a esa distancia, no de un número: el
+  /// borde del tablón puede llegar al borde de la pantalla y ni un dedo más.
+  /// Cuando el tablón entero cabe en el cuadro no hay nada que correr y esto
+  /// vale cero, que es lo que hace que un tablón de dos notas no se pueda
+  /// arrastrar a ninguna parte.
+  double panLimit(Size size, double distance) {
+    final medioAncho =
+        distance * tanHalfFovY * (size.width / math.max(size.height, 1));
+    return math.max(0, halfWidth + eave - medioAncho);
+  }
+
   /// Lo lejos que hay que estar para que quepa entero de frente.
   ///
   /// Sale de la lente, no de un número a ojo: media pantalla de ancho son

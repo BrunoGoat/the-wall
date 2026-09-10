@@ -292,6 +292,83 @@ void main() {
       }
     });
 
+    // Lo que de verdad hay que exigirle al movimiento: que no deje salirse.
+    // El tablón se recorre a los lados y nada más, y el tope tiene que caer
+    // exactamente en el filo de la madera — ni antes, que dejaría notas sin
+    // alcanzar, ni después, que dejaría arrastrarse al vacío.
+    test('no se puede arrastrar fuera del tablón', () {
+      for (final size in [const Size(320, 640), const Size(440, 950)]) {
+        final cerca = plan.nearLimit(size), lejos = plan.farLimit(size);
+        expect(
+          cerca,
+          lessThan(lejos),
+          reason: 'la franja de zoom está al revés',
+        );
+        for (final d in [cerca, plan.readDistance(size), lejos]) {
+          final tope = plan.panLimit(size, d);
+          final cam = OrbitCamera()
+            ..focusY = plan.midY
+            ..focusZ = 0
+            ..yaw = 0
+            ..pitch = 0
+            ..distance = d;
+          final borde = plan.halfWidth + BoardPlan.eave;
+          if (tope == 0) {
+            // Cabe entero: los dos filos tienen que verse.
+            cam.travel = 0;
+            final p = cam.projector(size.width, size.height, 0);
+            for (final x in [-borde, borde]) {
+              final at = p.project(V3(x, plan.midY, 0))!;
+              expect(at.x, inInclusiveRange(0, size.width));
+            }
+            continue;
+          }
+          // Corrido hasta el tope, el filo de la madera llega al filo de la
+          // pantalla y ni un dedo más: no queda prado a la vista por ese lado.
+          for (final s in [-1.0, 1.0]) {
+            cam.travel = s * tope;
+            final p = cam.projector(size.width, size.height, 0);
+            final at = p.project(V3(s * borde, plan.midY, 0))!;
+            expect(
+              at.x,
+              closeTo(s > 0 ? size.width : 0, 1.5),
+              reason:
+                  'a $d de distancia el tope deja ver fuera del tablón, o no '
+                  'deja llegar al filo, en $size',
+            );
+          }
+        }
+      }
+    });
+
+    test('y de alto entra siempre, así que no hay nada que subir ni bajar', () {
+      for (final size in [const Size(320, 640), const Size(440, 950)]) {
+        for (final d in [
+          plan.nearLimit(size),
+          plan.readDistance(size),
+          plan.farLimit(size),
+        ]) {
+          final cam = OrbitCamera()
+            ..focusY = plan.midY
+            ..focusZ = 0
+            ..yaw = 0
+            ..pitch = 0
+            ..distance = d;
+          final p = cam.projector(size.width, size.height, 0);
+          for (final y in [plan.low, plan.top]) {
+            final at = p.project(V3(0, y, 0))!;
+            expect(
+              at.y,
+              inInclusiveRange(0, size.height),
+              reason:
+                  'a $d de distancia el tablón se sale por arriba o por abajo '
+                  'en $size, y no hay manera de moverse para verlo',
+            );
+          }
+        }
+      }
+    });
+
     testWidgets('se abre y se dibuja sin romperse', (tester) async {
       for (final size in [const Size(320, 640), const Size(440, 950)]) {
         tester.view.physicalSize = size;
