@@ -95,20 +95,10 @@ class PaperInk {
         ..color = BoardPlan.ink.withValues(alpha: 0.2),
     );
 
-    var y = pad;
-    // El clavo que la sujeta.
-    canvas.drawCircle(
-      const Offset(pad + 4, pad + 4),
-      4.2,
-      Paint()..color = const Color(0xFF6E3125),
-    );
-    canvas.drawCircle(
-      const Offset(pad + 2.6, pad + 2.6),
-      1.4,
-      Paint()..color = const Color(0x44FFE9C9),
-    );
-    y += 17;
-
+    // Sin chincheta dibujada: el papel se sostiene con su sombra y su
+    // filete, y un punto de color en la esquina de cada uno era lo único que
+    // quedaba del taco de pósits.
+    var y = pad + 4;
     _said.paint(canvas, Offset(pad, y));
     y += _said.height + 6;
     // La raya bajo el titular, que es lo que separa un bando de una notita.

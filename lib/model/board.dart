@@ -32,7 +32,7 @@ List<Notice> boardNotices(
   return [
     if (said.isEmpty) emptyNotice(h),
     ...said,
-    ...villageNotices(now, count: said.isEmpty ? 3 : 2),
+    ...villageNotices(now, town: h.slot, count: said.isEmpty ? 3 : 2),
   ];
 }
 

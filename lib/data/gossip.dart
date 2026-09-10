@@ -14,29 +14,48 @@ library;
 
 import '../core/rng.dart';
 import '../model/findings.dart';
+import '../model/habit.dart';
 import '../model/piece.dart';
 
-/// Los papeles del pueblo del día [at].
+/// Los papeles que le tocan hoy al pueblo [town] del valle.
 ///
-/// Dos, o [count] si se piden otros tantos. Nunca repetidos entre sí, y
-/// siempre los mismos para un mismo día.
-List<Notice> villageNotices(DateTime at, {int count = 2}) {
+/// Dos, o [count] si se piden otros tantos, y **nunca los mismos que a otro
+/// pueblo el mismo día**: seis pueblos enseñando la misma cabra perdida no son
+/// seis pueblos, son seis copias de una pantalla. Lo que sí se repite es de un
+/// día para otro, que es lo que hace un tablón de verdad.
+///
+/// Se hace barajando el catálogo entero con la fecha y dándole a cada pueblo
+/// su tramo: el pueblo cero se lleva los tres primeros de la baraja del día,
+/// el uno los tres siguientes, y así. Repartir así y no sortear por separado
+/// es lo que hace que no puedan chocar — con seis pueblos y treinta y seis
+/// bandos sobra baraja de sobra.
+List<Notice> villageNotices(DateTime at, {required int town, int count = 2}) {
   if (_bandos.isEmpty || count <= 0) return const [];
-  final dia = dayKey(dayStart(at));
+  final baraja = _shuffled(dayKey(dayStart(at)));
+  // Tres por pueblo, que es lo más que se le piden. De ancho fijo para que
+  // pedir dos o pedir tres no le corra el tramo al pueblo de al lado.
+  const window = 3;
+  final from = (town.clamp(0, Habit.maxSlots - 1)) * window;
   final out = <Notice>[];
-  final usados = <int>{};
-  // Se elige saltando por la lista con un paso primo respecto de su largo, así
-  // que dos papeles del mismo día nunca caen en el mismo sitio por mucho que
-  // el día empuje.
-  var at0 = hashInt(_bandos.length, dia, 91);
-  final paso = 1 + hashInt(_bandos.length - 1, dia, 92);
-  for (var k = 0; k < count && usados.length < _bandos.length; k++) {
-    while (!usados.add(at0)) {
-      at0 = (at0 + 1) % _bandos.length;
-    }
-    final (dice, y) = _bandos[at0];
+  for (var k = 0; k < count; k++) {
+    final (dice, y) = _bandos[baraja[(from + k) % baraja.length]];
     out.add(Notice(NoticeKind.pueblo, dice, y));
-    at0 = (at0 + paso) % _bandos.length;
+  }
+  return out;
+}
+
+/// El catálogo barajado con la fecha: la baraja del día.
+///
+/// Barajado de verdad y no recorrido a saltos, para que valga sea cual sea el
+/// número de bandos. Con saltos habría que elegir un paso primo con ese
+/// número, y añadir un bando podría romperlo en silencio.
+List<int> _shuffled(int day) {
+  final out = [for (var i = 0; i < _bandos.length; i++) i];
+  for (var i = out.length - 1; i > 0; i--) {
+    final j = hashInt(i + 1, day, i, 77);
+    final t = out[i];
+    out[i] = out[j];
+    out[j] = t;
   }
   return out;
 }
@@ -44,6 +63,12 @@ List<Notice> villageNotices(DateTime at, {int count = 2}) {
 /// Cuántos hay. Para que el catálogo se pueda contar sin abrirlo.
 int get villageNoticeCount => _bandos.length;
 
+/// Los papeles del pueblo, uno por línea.
+///
+/// Para añadir uno: una pareja más, el titular y el renglón de debajo. Ni
+/// número que cuadrar ni sitio donde apuntarlo — el reparto se hace sobre lo
+/// que haya. Y que no hable de quien usa la app: eso es lo que dice el tablón
+/// por su cuenta, y un bando que lo imitara sería el pueblo inventándose algo.
 const List<(String, String)> _bandos = [
   ('Se perdió una cabra.', 'Atiende por Nube. Recompensa: media hogaza.'),
   (

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../engine/solids.dart';
 import '../model/board.dart';
+import '../model/board_slots.dart';
 import '../model/habit.dart';
 import 'board_plan.dart';
 import 'board_scene.dart';
@@ -61,7 +63,18 @@ class _NoticeBoardScreenState extends State<NoticeBoardScreen> {
   @override
   void initState() {
     super.initState();
-    _plan = BoardPlan.of(boardNotices(widget.habit, valley: widget.valley));
+    final said = boardNotices(widget.habit, valley: widget.valley);
+    _plan = BoardPlan.of(
+      said,
+      // Dónde quedó clavado cada papel. La misma tabla que mira el pueblo para
+      // dibujar la silueta de su tablón, así que lo que se ve desde el valle y
+      // lo que se ve al entrar es lo mismo.
+      slots: BoardSlots.instance.assign(
+        widget.habit.id,
+        said,
+        slots: NoticeBoard.capacity,
+      ),
+    );
   }
 
   @override

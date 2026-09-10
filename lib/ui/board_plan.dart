@@ -112,9 +112,14 @@ class BoardPlan {
   /// nota y sigue donde estaba.
   /// [slots] dice en qué hueco va cada una de [said], en el mismo orden, y es
   /// lo que se acuerda de dónde quedó clavado cada papel — lo reparte
-  /// [BoardSlots]. Sin ella se clavan en fila, que es lo que hace falta para
-  /// la silueta de la plaza y para los tests.
-  factory BoardPlan.of(List<Notice> said, {List<int>? slots}) {
+  /// [BoardSlots].
+  ///
+  /// Va sin valor por defecto a propósito. Lo tuvo, y era «clavarlas en
+  /// fila»: una versión salió con el tablón de la plaza usando los huecos
+  /// sorteados y el de cerca poniéndolas en fila, o sea que desde el valle los
+  /// papeles estaban a la derecha y al entrar aparecían a la izquierda.
+  /// Olvidarse de pasarlos ahora no compila.
+  factory BoardPlan.of(List<Notice> said, {required List<int> slots}) {
     const halfWidth = cols * colPitch / 2 + margin;
     const low = 0.42;
     const high = low + rows * rowPitch + 0.3;
@@ -139,7 +144,7 @@ class BoardPlan {
 
     final papers = <BoardPaper>[];
     for (var i = 0; i < math.min(said.length, capacity); i++) {
-      final hueco = slots == null ? i : slots[i];
+      final hueco = slots[i];
       if (hueco < 0 || hueco >= capacity) continue;
       final row = hueco % rows, col = hueco ~/ rows;
       // Todo lo que hace que un papel sea ese papel —cuánto se sale de su
@@ -169,7 +174,13 @@ class BoardPlan {
           openCy: cy.clamp(medio - margenY, medio + margenY),
           w: w,
           h: h,
-          lean: hashJitter(0.075, semilla, 24),
+          // Torcida siempre, y de cuánto y hacia dónde por separado. Con un
+          // solo sorteo simétrico salían papeles a medio grado —que se leen
+          // como rectos— y vecinos con la misma inclinación, que es lo que
+          // convierte el desorden en un patrón.
+          lean:
+              (hash01(semilla, 26) < 0.5 ? -1 : 1) *
+              (0.03 + hash01(semilla, 24) * 0.085),
           paper: said[i].kind == NoticeKind.pueblo
               ? villagePaper
               : _papers[hashInt(_papers.length, semilla, 25)],

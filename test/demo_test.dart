@@ -10,6 +10,7 @@ import 'package:la_muralla/core/math3.dart';
 import 'package:la_muralla/engine/camera.dart';
 import 'package:la_muralla/engine/solids.dart';
 import 'package:la_muralla/model/board.dart';
+import 'package:la_muralla/model/habit.dart';
 import 'package:la_muralla/model/board_slots.dart';
 import 'package:la_muralla/ui/board_plan.dart';
 import 'package:la_muralla/ui/notice_board.dart';
@@ -164,7 +165,7 @@ void main() {
       left: obra?.$2 ?? 0,
       at: DateTime(2026, 3, 12, 21),
     );
-    final plan = BoardPlan.of(said);
+    final plan = BoardPlan.of(said, slots: _enFila(said.length));
 
     test('es más ancho que alto, que era el encargo', () {
       expect(plan.papers.length, said.length);
@@ -395,8 +396,8 @@ void main() {
     test('mide siempre lo mismo, y las hojas también', () {
       const size = Size(400, 860);
       BoardPlan conN(int n) => BoardPlan.of([
-        for (var i = 0; i < n; i++) Notice(NoticeKind.pueblo, 'x', 'y'),
-      ]);
+        for (var i = 0; i < n; i++) Notice(NoticeKind.pueblo, 'x\$i', 'y'),
+      ], slots: _enFila(n));
       final uno = conN(1);
       for (final n in [1, 2, 5, 9, 10]) {
         final p = conN(n);
@@ -425,8 +426,8 @@ void main() {
 
     test('con pocas notas la madera se queda vacía a la derecha', () {
       final p = BoardPlan.of([
-        for (var i = 0; i < 2; i++) Notice(NoticeKind.pueblo, 'x', 'y'),
-      ]);
+        for (var i = 0; i < 2; i++) Notice(NoticeKind.pueblo, 'x\$i', 'y'),
+      ], slots: _enFila(2));
       expect(p.papers.length, 2);
       // Las dos en la primera columna, una arriba y otra abajo, y todo lo demás
       // madera. Eso es lo que cuenta la verdad de un pueblo que no sabe casi
@@ -449,6 +450,69 @@ void main() {
           lessThanOrEqualTo(BoardPlan.capacity),
         );
       }
+    });
+
+    // El que faltaba, y por faltar salió una versión con el tablón de la plaza
+    // usando los huecos sorteados y el de cerca poniendo los papeles en fila:
+    // desde el valle estaban a la derecha y al entrar aparecían a la
+    // izquierda. Que los dos reciban la misma lista de huecos no basta si
+    // luego no la usan igual, así que se comparan las dos colocaciones.
+    test('la plaza y el tablón de cerca colocan igual', () {
+      final huecos = [7, 1, 8, 6, 5, 0, 4, 3, 9, 2];
+      final notas = [
+        for (var i = 0; i < huecos.length; i++)
+          Notice(NoticeKind.pueblo, 'nota $i', 'porque sí'),
+      ];
+      final cerca = BoardPlan.of(notas, slots: huecos);
+      final plaza = <(double, double)>[];
+      for (final sol in NoticeBoard.solidsAt(0, 0, sheets: huecos)) {
+        for (final f in sol.faces) {
+          for (final d in f.decals ?? const []) {
+            plaza.add(((d.v[0].x + d.v[1].x) / 2, (d.v[0].y + d.v[2].y) / 2));
+          }
+        }
+      }
+      expect(plaza.length, cerca.papers.length);
+      for (var i = 0; i < plaza.length; i++) {
+        for (var j = i + 1; j < plaza.length; j++) {
+          // Dos papeles de columnas distintas tienen que estar en el mismo
+          // orden de izquierda a derecha en los dos tablones, y lo mismo de
+          // arriba abajo. Si uno de los dos se diera la vuelta, esto lo canta.
+          if (huecos[i] ~/ BoardPlan.rows != huecos[j] ~/ BoardPlan.rows) {
+            expect(
+              (cerca.papers[i].cx - cerca.papers[j].cx).sign,
+              (plaza[i].$1 - plaza[j].$1).sign,
+              reason: 'los papeles $i y $j se cruzan de un tablón al otro',
+            );
+          }
+          if (huecos[i] % BoardPlan.rows != huecos[j] % BoardPlan.rows) {
+            expect(
+              (cerca.papers[i].cy - cerca.papers[j].cy).sign,
+              (plaza[i].$2 - plaza[j].$2).sign,
+              reason:
+                  'los papeles $i y $j cambian de fila de un tablón al otro',
+            );
+          }
+        }
+      }
+    });
+
+    test('ninguna hoja se queda recta ni copia la de al lado', () {
+      // Las inclinaciones salían de un solo sorteo simétrico, así que algunas
+      // caían a medio grado —que se lee como recta— y las vecinas coincidían:
+      // el desorden se leía como un patrón por columnas.
+      final huecos = [for (var i = 0; i < BoardPlan.capacity; i++) i];
+      final p = BoardPlan.of([
+        for (var i = 0; i < huecos.length; i++)
+          Notice(NoticeKind.pueblo, 'nota $i', 'y'),
+      ], slots: huecos);
+      final grados = [for (final h in p.papers) h.lean * 57.2958];
+      for (final g in grados) {
+        expect(g.abs(), greaterThan(1.2), reason: 'una hoja quedó recta');
+        expect(g.abs(), lessThan(7), reason: 'una hoja quedó de lado');
+      }
+      // Y de los dos signos: todas cayendo al mismo lado vuelve a ser un patrón.
+      expect(grados.where((g) => g > 0).length, inInclusiveRange(2, 8));
     });
 
     test('el tablón de la plaza clava las notas de verdad', () {
@@ -484,8 +548,9 @@ void main() {
       // a lo ancho, y cuanto más ancho el tablón —más notas— peor.
       for (final cuantas in [1, 4, 8, 14]) {
         final p = BoardPlan.of([
-          for (var i = 0; i < cuantas; i++) Notice(NoticeKind.pueblo, 'x', 'y'),
-        ]);
+          for (var i = 0; i < cuantas; i++)
+            Notice(NoticeKind.pueblo, 'x\$i', 'y'),
+        ], slots: _enFila(cuantas));
         final hueco = 2 * (p.halfWidth - 0.1) / BoardPlan.headHeight;
         expect(
           p.headBox.width / p.headBox.height,
@@ -582,7 +647,7 @@ void main() {
       final vistos = <String>{};
       for (var d = 0; d < 60; d++) {
         final dia = DateTime(2026, 3, 1).add(Duration(days: d));
-        final hoy = villageNotices(dia, count: 3);
+        final hoy = villageNotices(dia, town: 0, count: 3);
         expect(hoy.length, 3);
         expect(
           {for (final n in hoy) n.said}.length,
@@ -604,12 +669,62 @@ void main() {
     });
 
     test('el mismo día clava siempre lo mismo', () {
-      final a = villageNotices(DateTime(2026, 5, 4, 9));
-      final b = villageNotices(DateTime(2026, 5, 4, 23));
+      final a = villageNotices(DateTime(2026, 5, 4, 9), town: 2);
+      final b = villageNotices(DateTime(2026, 5, 4, 23), town: 2);
       expect(a.map((n) => n.said).toList(), b.map((n) => n.said).toList());
       expect(
-        villageNotices(DateTime(2026, 5, 5)).map((n) => n.said).toList(),
+        villageNotices(
+          DateTime(2026, 5, 5),
+          town: 2,
+        ).map((n) => n.said).toList(),
         isNot(a.map((n) => n.said).toList()),
+      );
+    });
+
+    test('a dos pueblos nunca les toca el mismo el mismo día', () {
+      // Seis pueblos enseñando la misma cabra perdida no son seis pueblos, son
+      // seis copias de una pantalla.
+      for (var d = 0; d < 90; d++) {
+        final dia = DateTime(2026, 1, 1).add(Duration(days: d));
+        final todos = <String>[];
+        for (var town = 0; town < Habit.maxSlots; town++) {
+          todos.addAll(
+            villageNotices(dia, town: town, count: 3).map((n) => n.said),
+          );
+        }
+        expect(
+          todos.toSet().length,
+          todos.length,
+          reason: 'el ${dia.day}/${dia.month} dos pueblos clavaron lo mismo',
+        );
+      }
+    });
+
+    test('pero de un día para otro sí se repiten, que es lo normal', () {
+      // Lo que no puede repetirse es entre pueblos el mismo día. Con los días
+      // sí: un tablón de plaza vuelve a sacar el bando de la cabra, y en
+      // cuatro meses tiene que haber sacado casi todos.
+      final vistos = <String>{};
+      var total = 0;
+      for (var d = 0; d < 120; d++) {
+        final hoy = villageNotices(
+          DateTime(2026, 1, 1).add(Duration(days: d)),
+          town: 0,
+        );
+        total += hoy.length;
+        vistos.addAll(hoy.map((n) => n.said));
+      }
+      expect(
+        total,
+        greaterThan(vistos.length),
+        reason:
+            'en cuatro meses no se repitió ninguno, que sería un reparto '
+            'y no una baraja',
+      );
+      expect(
+        vistos.length,
+        greaterThan(villageNoticeCount ~/ 2),
+        reason: 'el pueblo se quedó girando sobre cuatro bandos',
       );
     });
 
@@ -756,3 +871,6 @@ void main() {
     });
   });
 }
+
+/// Huecos en fila, para los tests a los que el reparto les da igual.
+List<int> _enFila(int n) => [for (var i = 0; i < n; i++) i];
