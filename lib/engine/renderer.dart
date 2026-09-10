@@ -304,7 +304,7 @@ class TownPainter extends CustomPainter {
     _lamps.clear();
 
     final p = scene.camera.projector(size.width, size.height, scene.time);
-    final horizonY = _horizonY(p, size);
+    final horizonY = horizonOf(p, size);
     final town = scene.town;
 
     _drawSky(canvas, size, p, horizonY);
@@ -330,7 +330,11 @@ class TownPainter extends CustomPainter {
 
   // ------------------------------------------------------------------- sky
 
-  double _horizonY(Projector p, Size size) {
+  /// Dónde cae la línea del horizonte. Estática porque no mira nada de la
+  /// escena: sólo hacia dónde apunta la cámara. El tablón de cerca dibuja su
+  /// propio prado y necesita exactamente esta cuenta, y dos copias de esto
+  /// serían dos horizontes que se separan en cuanto una de las dos cambie.
+  static double horizonOf(Projector p, Size size) {
     final f = p.forward;
     var hx = f.x, hz = f.z;
     final l = math.sqrt(hx * hx + hz * hz);

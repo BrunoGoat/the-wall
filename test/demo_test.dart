@@ -4,7 +4,9 @@ import 'package:la_muralla/data/demo.dart';
 import 'package:la_muralla/engine/town.dart';
 import 'package:la_muralla/model/findings.dart';
 import 'package:la_muralla/engine/palette.dart';
-import 'package:la_muralla/ui/board_look.dart';
+import 'package:la_muralla/core/math3.dart';
+import 'package:la_muralla/engine/camera.dart';
+import 'package:la_muralla/ui/board_plan.dart';
 import 'package:la_muralla/ui/notice_board.dart';
 import 'package:la_muralla/ui/style.dart';
 
@@ -134,120 +136,188 @@ void main() {
     });
   });
 
-  // Los diez tablones, con el pueblo lleno encima y en dos teléfonos.
+  // El tablón, ahora que es un sitio en el mundo y no una pantalla.
   //
-  // Cada uno rediseña el remate, el marco, los postes, la forma del papel y
-  // con qué se clava, así que cualquiera de ellos puede romper lo de delante
-  // sin que se note al mirar uno solo: la moldura de nueve píxeles del roble
-  // come ancho, los recortes del clavado se corren a los lados y se pueden
-  // salir, y el nombre del hábito se escribe sobre la madera en varios de
-  // ellos. Esto exige que los diez quepan, que ninguno escriba en su propio
-  // color y que ninguno vuelva a comerse la pantalla de arriba.
-  group('los diez tablones', () {
-    const pantallas = [Size(320, 640), Size(440, 950)];
+  // Lo que hay que exigirle no es cómo se ve sino que la geometría cierre: que
+  // sea horizontal, que ninguna hoja se salga de la madera, que la matriz que
+  // planta el texto sobre el papel lo plante donde está el papel, y que la
+  // distancia calculada para verlo entero lo enseñe entero de verdad. Todo eso
+  // es comprobable sin mirar.
+  group('el tablón en tres dimensiones', () {
+    final valle = demoValley(DateTime(2026, 3, 12, 21));
+    final entrenar = valle.first;
+    final obra = TownPlan.of(
+      entrenar.place,
+    ).underway(entrenar.total, entrenar.chronicle);
+    final said = noticesFor(
+      entrenar,
+      others: valle,
+      underway: obra?.$1,
+      left: obra?.$2 ?? 0,
+      at: DateTime(2026, 3, 12, 21),
+    );
+    final plan = BoardPlan.of(said);
 
-    testWidgets('caben todas, con el pueblo de mentira encima', (tester) async {
-      final valle = demoValley(DateTime(2026, 3, 12, 21));
-      for (final look in BoardLook.values) {
-        for (final size in pantallas) {
-          tester.view.physicalSize = size;
-          tester.view.devicePixelRatio = 1;
-          addTearDown(tester.view.reset);
-          await tester.pumpWidget(
-            MediaQuery(
-              data: MediaQueryData(
-                size: size,
-                padding: const EdgeInsets.only(top: 34, bottom: 22),
-              ),
-              child: MaterialApp(
-                debugShowCheckedModeBanner: false,
-                home: NoticeBoardScreen(
-                  valley: valle,
-                  habit: valle.first,
-                  theme: UiTheme(Palette.forMoment(13, 1.0)),
-                  look: look,
-                ),
-              ),
-            ),
-          );
-          await tester.pump();
-          expect(
-            tester.takeException(),
-            isNull,
-            reason: '${look.label} se rompe en $size',
-          );
-          for (final e in find.byType(Text).evaluate()) {
-            final box = e.renderObject! as RenderBox;
-            final at = box.localToGlobal(Offset.zero);
+    test('es más ancho que alto, que era el encargo', () {
+      expect(plan.papers.length, said.length);
+      expect(
+        plan.halfWidth * 2,
+        greaterThan((plan.top - plan.low) * 1.5),
+        reason: 'el tablón volvió a ser una columna',
+      );
+    });
+
+    test('ninguna hoja se sale de la madera, ni descolgada', () {
+      for (final hoja in plan.papers) {
+        for (final open in [0.0, 0.5, 1.0]) {
+          for (final v in hoja.cornersAt(open)) {
             expect(
-              at.dx,
-              greaterThan(-1),
-              reason: '${look.label} se sale por la izquierda en $size',
+              v.x.abs(),
+              lessThanOrEqualTo(plan.halfWidth),
+              reason:
+                  'la hoja ${hoja.index} se sale por un lado con open=$open',
             );
             expect(
-              at.dx + box.size.width,
-              lessThan(size.width + 1),
-              reason: '${look.label} se sale por la derecha en $size',
+              v.y,
+              inInclusiveRange(plan.low, plan.high),
+              reason:
+                  'la hoja ${hoja.index} se sale por arriba o por abajo con '
+                  'open=$open',
             );
           }
         }
       }
     });
 
-    test('ninguno se come la pantalla por arriba', () {
-      for (final look in BoardLook.values) {
-        // El tejado del modelo es un sexto de lo que mide la plancha. El de
-        // la pantalla medía cuarenta y dos píxeles y encima se le reservaban
-        // otros treinta y cuatro para el botón de volver: entre los dos, más
-        // de lo que ocupa una nota entera.
-        expect(
-          look.skin.topHeight,
-          lessThanOrEqualTo(26),
-          reason: '${look.label} vuelve a llevarse la pantalla de arriba',
-        );
-      }
-    });
-
-    test('ninguno escribe con el color de su propio fondo', () {
-      for (final look in BoardLook.values) {
-        final s = look.skin;
-        // El nombre del hábito va sobre la superficie, no sobre un papel.
-        // El listón es flojo a propósito: el de tablones está quemado en la
-        // madera y es de los suaves que hay (0,13), y así tiene que seguir
-        // siendo. Lo que esto caza es lo otro, que alguien elija un fondo
-        // nuevo y se olvide de que ahí encima se escribe.
-        expect(
-          _lejos(s.heading, s.wood),
-          greaterThan(0.12),
-          reason: '${look.label} escribe el nombre casi del color del fondo',
-        );
-        // Y los papeles tienen que despegarse de ella de una de las dos
-        // maneras que hay: por el color, o por la sombra que echan. Sobre una
-        // pared de cal casi blanca un papel claro nunca va a separarse por el
-        // color —y no tiene por qué, es lo que pasa en una pared de verdad—,
-        // pero entonces la sombra tiene que hacer ese trabajo. Lo que no vale
-        // es ninguna de las dos.
-        for (final p in s.papers) {
+    test('y ninguna tapa a otra estando clavadas', () {
+      // Descolgada sí puede taparlas —para eso se descuelga—, pero clavadas
+      // tienen que poder tocarse una a una.
+      for (var i = 0; i < plan.papers.length; i++) {
+        for (var j = i + 1; j < plan.papers.length; j++) {
+          final a = plan.papers[i], b = plan.papers[j];
+          final juntas =
+              (a.cx - b.cx).abs() < a.w + b.w &&
+              (a.cy - b.cy).abs() < a.h + b.h;
           expect(
-            _lejos(p, s.wood) > 0.1 || s.shadow >= 0.3,
-            isTrue,
-            reason:
-                'un papel de ${look.label} no se separa del fondo ni por el '
-                'color ni por la sombra',
-          );
-          expect(
-            _luz(p),
-            greaterThan(0.75),
-            reason:
-                'un papel de ${look.label} es demasiado oscuro para la '
-                'tinta que lleva encima',
+            juntas,
+            isFalse,
+            reason: 'las hojas $i y $j están una encima de la otra',
           );
         }
       }
     });
+
+    test('la matriz del papel pone el texto donde está el papel', () {
+      // Es la cuenta que sostiene todo: se maqueta la nota en un rectángulo
+      // plano y esto lo estira hasta las cuatro esquinas de la hoja en la
+      // pantalla. Si esta matriz miente, el texto flota al lado del papel.
+      const src = Size(300, 230);
+      for (final quad in [
+        // de frente
+        const [
+          Offset(100, 100),
+          Offset(400, 100),
+          Offset(400, 330),
+          Offset(100, 330),
+        ],
+        // de lado, con perspectiva de verdad: los dos lados no miden igual
+        const [
+          Offset(120, 90),
+          Offset(380, 140),
+          Offset(380, 300),
+          Offset(120, 400),
+        ],
+      ]) {
+        final m = paperTransform(src, quad);
+        expect(m, isNotNull);
+        final esquinas = [
+          Offset.zero,
+          Offset(src.width, 0),
+          Offset(src.width, src.height),
+          Offset(0, src.height),
+        ];
+        for (var i = 0; i < 4; i++) {
+          final u = esquinas[i].dx, v = esquinas[i].dy;
+          final w = m![3] * u + m[7] * v + m[15];
+          final x = (m[0] * u + m[4] * v + m[12]) / w;
+          final y = (m[1] * u + m[5] * v + m[13]) / w;
+          expect(x, closeTo(quad[i].dx, 0.01), reason: 'esquina $i en x');
+          expect(y, closeTo(quad[i].dy, 0.01), reason: 'esquina $i en y');
+        }
+      }
+    });
+
+    test('tocar una hoja acierta dentro y falla fuera', () {
+      const quad = [
+        Offset(100, 100),
+        Offset(300, 120),
+        Offset(300, 260),
+        Offset(100, 240),
+      ];
+      expect(insideQuad(quad, const Offset(200, 180)), isTrue);
+      expect(insideQuad(quad, const Offset(200, 60)), isFalse);
+      expect(insideQuad(quad, const Offset(340, 180)), isFalse);
+    });
+
+    test('desde la distancia que dice, se ve entero', () {
+      for (final size in [const Size(320, 640), const Size(440, 950)]) {
+        final cam = OrbitCamera()
+          ..travel = 0
+          ..focusY = plan.midY
+          ..focusZ = 0
+          ..yaw = 0
+          ..pitch = 0
+          ..distance = plan.fitDistance(size);
+        final p = cam.projector(size.width, size.height, 0);
+        for (final v in [
+          V3(-plan.halfWidth - BoardPlan.eave, plan.low, 0),
+          V3(plan.halfWidth + BoardPlan.eave, plan.low, 0),
+          V3(plan.halfWidth + BoardPlan.eave, plan.top, 0),
+          V3(-plan.halfWidth - BoardPlan.eave, plan.top, 0),
+        ]) {
+          final at = p.project(v);
+          expect(at, isNotNull);
+          expect(
+            at!.x,
+            inInclusiveRange(0, size.width),
+            reason: 'una esquina del tablón se sale por un lado en $size',
+          );
+          expect(
+            at.y,
+            inInclusiveRange(0, size.height),
+            reason:
+                'una esquina del tablón se sale por arriba o abajo en $size',
+          );
+        }
+      }
+    });
+
+    testWidgets('se abre y se dibuja sin romperse', (tester) async {
+      for (final size in [const Size(320, 640), const Size(440, 950)]) {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        await tester.pumpWidget(
+          MediaQuery(
+            data: MediaQueryData(size: size),
+            child: MaterialApp(
+              debugShowCheckedModeBanner: false,
+              home: NoticeBoardScreen(
+                valley: valle,
+                habit: entrenar,
+                theme: UiTheme(Palette.forMoment(13, 1.0)),
+              ),
+            ),
+          ),
+        );
+        await tester.pump(const Duration(milliseconds: 16));
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(tester.takeException(), isNull, reason: 'se rompe en $size');
+        // Y tocar en medio no explota: o descuelga una hoja, o acerca.
+        await tester.tapAt(Offset(size.width / 2, size.height / 2));
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(tester.takeException(), isNull, reason: 'al tocar en $size');
+      }
+    });
   });
 }
-
-double _luz(Color c) => (0.299 * c.r + 0.587 * c.g + 0.114 * c.b);
-
-double _lejos(Color a, Color b) => (_luz(a) - _luz(b)).abs();

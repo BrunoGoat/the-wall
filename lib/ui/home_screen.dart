@@ -9,7 +9,6 @@ import '../model/appearance.dart';
 import '../model/piece.dart';
 import '../data/landmarks.dart';
 import '../model/store.dart';
-import 'board_look.dart';
 import 'habit_bar.dart';
 import 'habits_sheet.dart';
 import 'hold_button.dart';
@@ -382,7 +381,6 @@ class _HomeScreenState extends State<HomeScreen> {
         valley: store.habits,
         habit: store.habits[town],
         theme: _theme,
-        look: BoardLook.porNombre(Appearance.instance.board) ?? BoardLook.poste,
       ),
     );
   }

@@ -27,22 +27,6 @@ class Appearance extends ChangeNotifier {
   /// and this is the one place in the app where that is not true.
   bool get rapid => _rapid;
 
-  // --------------------------------------------------------------- el tablón
-
-  /// De qué está hecho el tablón de la plaza por detrás.
-  ///
-  /// Se guarda por nombre y no por número: si mañana se quita una de las
-  /// cinco, lo guardado deja de encontrarse y se cae al de siempre, en vez de
-  /// que un índice signifique otra cosa.
-  String _board = 'poste';
-  String get board => _board;
-
-  Future<void> setBoard(String v) async {
-    if (v == _board) return;
-    _board = v;
-    await _keep();
-  }
-
   // --------------------------------------------------------------- el sonido
 
   bool _soundOff = false;
@@ -111,7 +95,6 @@ class Appearance extends ChangeNotifier {
     _hapticsOff = false;
     _musicVolume = _midway;
     _effectsVolume = _midway;
-    _board = 'poste';
   }
 
   Future<void> load() async {
@@ -170,8 +153,6 @@ class Appearance extends ChangeNotifier {
           } else {
             _musicVolume = v.clamp(0.0, 1.0);
           }
-        case 'board':
-          _board = value;
         case 'effectsVol':
           _effectsVolume = (double.tryParse(value) ?? _midway).clamp(0.0, 1.0);
       }
@@ -187,7 +168,6 @@ class Appearance extends ChangeNotifier {
     '$_volMark=$_volNow',
     'musicVol=$_musicVolume',
     'effectsVol=$_effectsVolume',
-    'board=$_board',
   ];
 
   Timer? _writeSoon;
