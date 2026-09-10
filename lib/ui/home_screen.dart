@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../engine/mason.dart';
 import '../engine/palette.dart';
 import '../fx/sensory.dart';
 import '../model/appearance.dart';
@@ -12,7 +13,6 @@ import '../model/store.dart';
 import 'habit_bar.dart';
 import 'habits_sheet.dart';
 import 'hold_button.dart';
-import 'legend_card.dart';
 import 'placed_note.dart';
 import 'journey_sheet.dart';
 import 'notice_board.dart';
@@ -47,28 +47,16 @@ class _HomeScreenState extends State<HomeScreen> {
   /// El cartel del pueblo al que acabás de entrar: qué dice, con qué diseño de
   /// los cinco, y un número que cambia en cada anuncio para que la animación
   /// vuelva a empezar aunque el pueblo sea el mismo.
-  (String, String, TownSign, int)? _sign;
+  (String, String, int)? _sign;
   Timer? _signTimer;
   int _signNonce = 0;
 
   /// Cuál de las cinco maneras de anunciar la pieza le tocó a ésta. Se sortea
   /// al caer y no al pintar: si se sorteara al pintar, cambiaría de diseño en
   /// cada cuadro.
-  NoteStyle _noteStyle = NoteStyle.tarjeta;
-
-  /// Y de qué material es la tarjeta de la leyenda.
-  CardStyle _cardStyle = CardStyle.esmerilada;
-
-  /// Los tres salen de lo que esté elegido en ajustes. Un nombre que ya no
-  /// existe —o el sorteo, que se llama así a propósito— cae en uno al azar.
-  TownSign get _pickedSign =>
-      TownSign.porNombre(Appearance.instance.signStyle) ?? TownSign.alAzar();
-
-  NoteStyle get _pickedNote =>
-      NoteStyle.porNombre(Appearance.instance.noteStyle) ?? NoteStyle.alAzar();
-
-  CardStyle get _pickedCard =>
-      CardStyle.porNombre(Appearance.instance.cardStyle) ?? CardStyle.alAzar();
+  /// De qué es la pieza que acaba de caer —tejado, chimenea, pretil—, que lo
+  /// sabe el trazado del pueblo y lo cuenta al colocarla.
+  String? _justPlacedKind;
 
   static const Duration _signLife = Duration(milliseconds: 2600);
   Piece? _selected;
@@ -121,7 +109,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _announceTown() {
     final h = widget.store.habit;
     _signTimer?.cancel();
-    setState(() => _sign = (h.name, h.symbol, _pickedSign, ++_signNonce));
+    setState(() => _sign = (h.name, h.symbol, ++_signNonce));
     _signTimer = Timer(_signLife, () {
       if (mounted) setState(() => _sign = null);
     });
@@ -195,19 +183,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (Appearance.instance.rapid) return;
                 setState(() => _revealTown = (mark, ordinal));
               },
-              onPlaced: (piece) {
+              onPlaced: (piece, kind) {
                 // In the testing mode the pieces come far too fast for a card
                 // to be anything but in the way.
                 if (Appearance.instance.rapid) return;
                 setState(() {
                   _justPlaced = piece;
-                  _noteStyle = _pickedNote;
-                  _cardStyle = _pickedCard;
+                  _justPlacedKind = kind == null ? null : pieceName[kind];
                 });
               },
               onStoneTapped: (brick) => setState(() {
                 _selected = brick;
-                _cardStyle = _pickedCard;
                 // Y fuera la tarjeta de la pieza recién puesta: quien se puso
                 // a mirar otra ya pasó de página, y las dos juntas se pisan.
                 _justPlaced = null;
@@ -316,7 +302,6 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Center(
                 child: StoneCard(
                   theme: t,
-                  style: _cardStyle,
                   when: _selected!.placedAt,
                   number: _selected!.index + 1,
                   label: _selected!.label,
@@ -328,10 +313,9 @@ class _HomeScreenState extends State<HomeScreen> {
           if (_sign != null)
             Positioned.fill(
               child: TownSignOverlay(
-                key: ValueKey(_sign!.$4),
+                key: ValueKey(_sign!.$3),
                 name: _sign!.$1,
                 symbol: _sign!.$2,
-                sign: _sign!.$3,
                 theme: t,
                 life: _signLife,
               ),
@@ -354,11 +338,10 @@ class _HomeScreenState extends State<HomeScreen> {
             Positioned.fill(
               child: PlacedNote(
                 key: ValueKey(_justPlaced!.index),
-                habit: store.habit,
+                kind: _justPlacedKind,
                 ordinal: _justPlaced!.index + 1,
+                when: _justPlaced!.placedAt,
                 theme: t,
-                style: _noteStyle,
-                card: _cardStyle,
                 onWrite: (text) => store.setLabel(_justPlaced!.index, text),
                 onDismiss: () => setState(() => _justPlaced = null),
               ),

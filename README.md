@@ -158,16 +158,26 @@ se escapa.
 ## Sonido
 
 Cinco sonidos —poner una pieza, toque, reparar, obra terminada, hito del pueblo—
-y cinco temas de música de fondo, cada uno con su propio reparto por hora del
-día: *Tarde*, *Bruma*, *Sendero*, *Caja de música* y *Brasa*. Se pueden escuchar
-uno a uno desde ajustes, elegir uno o dejarlos en rotación. Todo está generado
-por `tool/make_sfx.py` y `tool/make_music.py`, no grabado.
+y dos temas de música de fondo, *Tarde* y *Sendero*, cada uno con su propio
+reparto por hora del día: suena uno de los dos al abrir la app. Todo está
+generado por `tool/make_sfx.py` y `tool/make_music.py`, no grabado.
+
+Se escribieron cinco temas y se probaron los cinco durante un tiempo con un
+selector en ajustes; quedaron dos. Los otros tres siguen escritos en
+`tool/make_music.py` por si alguno vuelve, pero no se generan: un asset que no
+suena en ninguna parte son doscientos kilos de APK por nada.
+
+**El volumen de la música no sube en línea recta.** La mitad del deslizador
+suena al quince por ciento, que es donde acaba quien la usa de verdad —es música
+de fondo—, y de ahí al tope crece rápido para que subirla sirva de algo. La
+curva es la potencia que pasa por esos dos puntos y sale de ellos, así que
+cambiar cuánto suena la mitad la recalcula sola.
 
 ## Correr y compilar
 
 ```bash
 flutter pub get
-flutter test          # 187 tests
+flutter test          # 189 tests
 flutter analyze
 flutter run
 flutter build apk --release

@@ -85,36 +85,16 @@ class Sensory {
   /// cambiar de pieza sin esperar a que llegue el fotograma siguiente.
   double _lastHour = 12;
 
-  /// Media es como sonaba antes de que hubiera dónde tocarlo.
-  double get _musLevel => _wants.musicVolume;
-
-  /// An hour to pretend it is, for listening to the mix of a moment that is
-  /// not now. Null means the real clock, which is what it is for everybody who
-  /// is not standing in the settings screen holding the slider.
-  double? _hourOverride;
-
-  double? get hourOverride => _hourOverride;
-
-  void pretendItIs(double? hour) {
-    _hourOverride = hour;
-    // Straight there rather than eased: this is a tool for comparing two
-    // moments, and a tool that takes ten seconds to answer is not one.
-    if (hour != null) _jump();
-  }
+  /// Lo que hay que pedirle al reproductor. La cuenta que traduce la posición
+  /// del deslizador a esto vive con las preferencias, que es donde está
+  /// escrito qué significa la posición.
+  double get _musLevel => _wants.musicGain;
 
   /// What each layer is playing at right now, for showing it.
   List<double> get heard => List.unmodifiable(_musAt);
 
-  /// Cuál suena hoy: una al azar de las que estén en la rotación, cada vez que
-  /// se abre la app. Con una sola elegida, ésa siempre.
-  Tune _pick() {
-    final want = [
-      for (final t in tunes)
-        if (_wants.inRotation(t.id)) t,
-    ];
-    if (want.isEmpty) return tunes.first;
-    return want[DateTime.now().microsecondsSinceEpoch % want.length];
-  }
+  /// Cuál suena hoy: una al azar, cada vez que se abre la app.
+  Tune _pick() => tunes[DateTime.now().microsecondsSinceEpoch % tunes.length];
 
   Future<void> _loadTune(Tune want) async {
     for (final p in _mus) {
@@ -160,7 +140,7 @@ class Sensory {
 
   /// El volumen que le toca a cada capa ahora mismo, sin transición.
   void _jump() {
-    final day = dayMix(_tune, _hourOverride ?? _lastHour);
+    final day = dayMix(_tune, _lastHour);
     final level = _musLevel * (_musIn <= 0 ? 1 : _musIn);
     for (var i = 0; i < _mus.length && i < 3; i++) {
       _musAt[i] = day[i] * level;
@@ -200,7 +180,7 @@ class Sensory {
     if (!_musReady) return;
     if (_asleep || !_wants.hearsMusic) return;
     _musIn = (_musIn + dt / 6.0).clamp(0.0, 1.0);
-    final day = dayMix(_tune, _hourOverride ?? hour);
+    final day = dayMix(_tune, hour);
     // Un pueblo dejado pierde parte de su música, pero no toda: el silencio
     // absoluto se lee como una app rota, no como un pueblo abandonado.
     final level =

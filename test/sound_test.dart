@@ -27,9 +27,6 @@ void main() {
     await a.setHapticsOff(false);
     await a.setMusicVolume(0.5);
     await a.setEffectsVolume(0.5);
-    for (final b in Sensory.catalogue) {
-      await a.hush(b.id, false);
-    }
   });
 
   group('el catálogo de sonidos', () {
@@ -97,65 +94,6 @@ void main() {
     });
   });
 
-  group('el sorteo de discos', () {
-    test('sin elegir nada, entran las cinco', () async {
-      final a = await fresh();
-      expect(a.rotation, tunes.length);
-      for (final t in tunes) {
-        expect(a.inRotation(t.id), isTrue, reason: t.id);
-      }
-    });
-
-    test('quitar una deja las otras cuatro', () async {
-      final a = await fresh();
-      await a.setRotation(tunes.first.id, false);
-      expect(a.inRotation(tunes.first.id), isFalse);
-      expect(a.rotation, tunes.length - 1);
-      for (final t in tunes.skip(1)) {
-        expect(a.inRotation(t.id), isTrue, reason: t.id);
-      }
-    });
-
-    test('dejar una sola es dejar una sola, no dejarlas todas', () async {
-      // El caso que se rompe si «vacío quiere decir todas» está mal escrito:
-      // quitar cuatro de cinco tiene que dejar una, y no volver a cinco.
-      final a = await fresh();
-      for (final t in tunes.skip(1)) {
-        await a.setRotation(t.id, false);
-      }
-      expect(a.rotation, 1);
-      expect(a.inRotation(tunes.first.id), isTrue);
-      expect(a.inRotation(tunes.last.id), isFalse);
-    });
-
-    test('quedarse sin ninguna vuelve a querer decir todas', () async {
-      // Nadie apaga las cinco para quedarse sin música: para eso está el
-      // interruptor de la música, dos dedos más arriba. Apagar la última es un
-      // dedo que se fue, y dejar la app muda por eso sería una trampa.
-      final a = await fresh();
-      for (final t in tunes) {
-        await a.setRotation(t.id, false);
-      }
-      expect(a.rotation, tunes.length);
-      for (final t in tunes) {
-        expect(a.inRotation(t.id), isTrue, reason: t.id);
-      }
-    });
-
-    test('y se acuerda de cuáles al volver a abrir', () async {
-      final a = await fresh();
-      await a.setRotation('bruma', false);
-      await a.setRotation('caja', false);
-      await a.flush();
-      final b = Appearance.instance;
-      await b.load();
-      expect(b.inRotation('bruma'), isFalse);
-      expect(b.inRotation('caja'), isFalse);
-      expect(b.inRotation('tarde'), isTrue);
-      expect(b.rotation, tunes.length - 2);
-    });
-  });
-
   group('los tres interruptores', () {
     test('el de todo apaga también la música', () async {
       final a = await fresh();
@@ -181,18 +119,6 @@ void main() {
         reason: 'apagar música calló los efectos',
       );
     });
-
-    test('silenciar uno no silencia a los demás', () async {
-      final a = await fresh();
-      await a.hush('cock', true);
-      await a.hush('crow', true);
-      expect(a.hears('cock'), isFalse);
-      expect(a.hears('crow'), isFalse);
-      for (final b in Sensory.catalogue) {
-        if (b.id == 'cock' || b.id == 'crow') continue;
-        expect(a.hears(b.id), isTrue, reason: '${b.id} se calló de rebote');
-      }
-    });
   });
 
   group('lo elegido sobrevive a cerrar la app', () {
@@ -213,14 +139,12 @@ void main() {
       expect(prefs.getStringList('pueblo_sound_v1'), isNotNull);
     });
 
-    test('los apagados, los volúmenes y los silenciados', () async {
+    test('los apagados y los volúmenes', () async {
       final a = await fresh();
       await a.setMusicOff(true);
       await a.setHapticsOff(true);
       await a.setMusicVolume(0.23);
       await a.setEffectsVolume(0.77);
-      await a.hush('tap', true);
-      await a.hush('amb_life', true);
 
       // El disco se escribe con retardo —arrastrar un slider cambia esto
       // sesenta veces por segundo— así que se fuerza, igual que hace la app
@@ -236,8 +160,6 @@ void main() {
       await a.setHapticsOff(false);
       await a.setMusicVolume(0.5);
       await a.setEffectsVolume(0.5);
-      await a.hush('tap', false);
-      await a.hush('amb_life', false);
       SharedPreferences.setMockInitialValues({
         'flutter.pueblo_sound_v1': written!,
       });
@@ -247,9 +169,6 @@ void main() {
       expect(a.hapticsOff, isTrue);
       expect(a.musicVolume, closeTo(0.23, 0.001));
       expect(a.effectsVolume, closeTo(0.77, 0.001));
-      expect(a.isHushed('tap'), isTrue);
-      expect(a.isHushed('amb_life'), isTrue);
-      expect(a.isHushed('place'), isFalse);
     });
 
     test(
@@ -259,11 +178,10 @@ void main() {
         // sin el volumen de la música no puede tirar abajo el resto.
         final a = await fresh(
           from: {
-            'flutter.pueblo_sound_v1': ['music=0', 'hushed=tap'],
+            'flutter.pueblo_sound_v1': ['music=0'],
           },
         );
         expect(a.musicOff, isTrue);
-        expect(a.isHushed('tap'), isTrue);
         expect(a.musicVolume, 0.5, reason: 'lo que falta vale su defecto');
         expect(a.effectsVolume, 0.5);
         expect(a.soundOff, isFalse);
@@ -280,10 +198,58 @@ void main() {
       expect(a.soundOff, isFalse);
     });
 
-    test('el volumen por defecto es la mitad', () async {
+    test('el volumen por defecto es la mitad del deslizador', () async {
       final a = await fresh();
       expect(a.musicVolume, 0.5);
       expect(a.effectsVolume, 0.5);
+    });
+
+    test('y la mitad del deslizador suena al quince por ciento', () async {
+      // Es el punto al que llegó quien la usó de verdad un tiempo. La música
+      // es de fondo, y de fondo es bastante más bajo de lo que uno pone el
+      // primer día.
+      final a = await fresh();
+      expect(a.musicGain, closeTo(0.15, 0.001));
+    });
+
+    test('y de ahí para arriba crece rápido, no en línea recta', () async {
+      final a = await fresh();
+      await a.setMusicVolume(1);
+      expect(a.musicGain, closeTo(1.0, 0.001));
+      await a.setMusicVolume(0.75);
+      final tresCuartos = a.musicGain;
+      await a.setMusicVolume(0.5);
+      final mitad = a.musicGain;
+      await a.setMusicVolume(0.25);
+      final cuarto = a.musicGain;
+      // Sube siempre...
+      expect(cuarto, lessThan(mitad));
+      expect(mitad, lessThan(tresCuartos));
+      // ...y el tramo de arriba da mucho más que el de abajo, que es lo que
+      // hace que valga la pena subirlo.
+      expect(tresCuartos - mitad, greaterThan((mitad - cuarto) * 2));
+    });
+
+    test('a quien ya la tenía donde quería no se le baja', () async {
+      // Antes de la curva, «0,15» guardado quería decir «suena al quince por
+      // ciento». Ahora eso mismo se dice con el dedo a la mitad. Si se leyera
+      // tal cual, esa música pasaría a oírse al uno por ciento.
+      SharedPreferences.setMockInitialValues({
+        'pueblo_sound_v1': ['musicVol=0.15', 'effectsVol=0.5'],
+      });
+      final a = Appearance.instance;
+      await a.load();
+      expect(a.musicGain, closeTo(0.15, 0.005));
+      expect(a.musicVolume, closeTo(0.5, 0.005));
+
+      // Y se traduce una sola vez: lo ya traducido se lee tal cual.
+      await a.flush();
+      final guardado = (await SharedPreferences.getInstance()).getStringList(
+        'pueblo_sound_v1',
+      )!;
+      SharedPreferences.setMockInitialValues({'pueblo_sound_v1': guardado});
+      await a.load();
+      expect(a.musicVolume, closeTo(0.5, 0.005));
     });
   });
 

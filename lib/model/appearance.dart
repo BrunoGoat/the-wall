@@ -1,9 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import '../data/tunes.dart';
 
 /// The handful of things about the app that are a preference rather than a
 /// record of what you did.
@@ -35,84 +34,39 @@ class Appearance extends ChangeNotifier {
   bool _effectsOff = false;
   bool _hapticsOff = false;
 
-  /// Half, and half is what the app shipped sounding like. Anything the person
-  /// does from here is measured against what they already know.
+  /// La mitad del deslizador. Lo que suena ahí lo dice [_midwayGain].
   static const double _midway = 0.5;
+
+  /// Y lo que suena en la mitad es el quince por ciento del volumen que puede
+  /// dar el aparato. Es el punto al que llegó quien la usó de verdad durante
+  /// un tiempo: la música es de fondo, y de fondo quiere decir bastante más
+  /// baja de lo que uno pondría el primer día.
+  static const double _midwayGain = 0.15;
+
+  /// Y de la mitad hacia arriba crece rápido, no en línea recta.
+  ///
+  /// Si la mitad tiene que dar un quince por ciento y el tope un cien, entre
+  /// los dos no puede haber una recta: haría que el ochenta por ciento sonara
+  /// casi igual que el cincuenta y que sólo el último tramo hiciera algo. La
+  /// curva es la potencia que pasa por los dos puntos, y sale de ellos en vez
+  /// de estar puesta a mano: cambiar [_midwayGain] la recalcula sola.
+  static final double _curve = math.log(_midwayGain) / math.log(_midway);
+
+  /// Lo que hay que pedirle al reproductor. El deslizador guarda la posición
+  /// del dedo; esto es lo que esa posición significa.
+  double get musicGain => math.pow(_musicVolume, _curve).toDouble();
+
+  /// La posición del dedo que sonaría igual que este volumen de antes, para no
+  /// bajarle la música a quien ya la tenía donde quería.
+  static double _asPosition(double oldGain) =>
+      math.pow(oldGain.clamp(0.0, 1.0), 1 / _curve).toDouble();
+
+  /// Qué versión de esa cuenta trae lo guardado. Sin marca es la de antes,
+  /// cuando la posición y el volumen eran el mismo número.
+  static const String _volMark = 'vol';
+  static const String _volNow = '2';
   double _musicVolume = _midway;
   double _effectsVolume = _midway;
-
-  /// Which single sounds have been silenced, by the ids in
-  /// `Sensory.catalogue`. Everything else stays on: this is a list of
-  /// exceptions, so a sound added later is heard rather than quietly missing.
-  final Set<String> _hushed = <String>{};
-
-  /// Qué piezas entran en el sorteo de cada apertura.
-  ///
-  /// Vacío quiere decir todas, y eso es a propósito por dos motivos. Uno, que
-  /// una instalación nueva las oiga todas antes de tener que elegir. Y dos,
-  /// que quedarse sin ninguna no es un estado que tenga sentido: quien no
-  /// quiere música tiene el interruptor de la música justo arriba, así que
-  /// apagar la última es casi siempre un dedo que se fue, no una decisión.
-  final Set<String> _rotation = <String>{};
-
-  // ------------------------------------------------------- cómo se ve la app
-
-  /// Cuál de los diseños se usa en cada uno de los tres sitios donde hay
-  /// varios: el cartel del pueblo, el anuncio de la pieza y la tarjeta de la
-  /// leyenda.
-  ///
-  /// Se guardan como el nombre pelado del diseño y no como su índice, porque
-  /// un índice se corre en cuanto se añade uno nuevo a la lista y quien había
-  /// elegido el tercero se encontraría con otro. Se guardan como texto y no
-  /// como el propio enumerado porque esto es el modelo: no sabe dibujar y no
-  /// tiene por qué conocer los nombres de la interfaz.
-  ///
-  /// `azar` —y cualquier nombre que esta versión ya no conozca— quiere decir
-  /// que se sortee. Eso segundo importa: si algún día se retira un diseño,
-  /// quien lo tuviera elegido ve otro cada vez, que es raro pero se entiende,
-  /// en vez de una pantalla vacía.
-  static const String atRandom = 'azar';
-
-  String _sign = 'sello';
-  String _note = 'tarjeta';
-  String _card = 'esmerilada';
-
-  String get signStyle => _sign;
-  String get noteStyle => _note;
-  String get cardStyle => _card;
-
-  Future<void> setSignStyle(String v) async {
-    if (v == _sign) return;
-    _sign = v;
-    await _keep();
-  }
-
-  Future<void> setNoteStyle(String v) async {
-    if (v == _note) return;
-    _note = v;
-    await _keep();
-  }
-
-  Future<void> setCardStyle(String v) async {
-    if (v == _card) return;
-    _card = v;
-    await _keep();
-  }
-
-  bool inRotation(String id) => _rotation.isEmpty || _rotation.contains(id);
-
-  /// Cuántas hay elegidas de verdad, para poder decirlo en la pantalla.
-  int get rotation => _rotation.isEmpty ? tunes.length : _rotation.length;
-
-  Future<void> setRotation(String id, bool on) async {
-    // Vacío es «todas», así que quitar la primera hay que escribirlo como
-    // «todas menos ésta» y no como un conjunto de una.
-    if (_rotation.isEmpty) _rotation.addAll(tunes.map((t) => t.id));
-    if (on ? !_rotation.add(id) : !_rotation.remove(id)) return;
-    // Y si se quedó sin ninguna, vuelve a querer decir todas.
-    if (_rotation.length >= tunes.length) _rotation.clear();
-    await _keep();
-  }
 
   /// The one switch that covers everything, music included.
   bool get soundOff => _soundOff;
@@ -123,8 +77,7 @@ class Appearance extends ChangeNotifier {
   double get effectsVolume => _effectsVolume;
 
   /// Whether this particular sound is allowed to make a noise right now.
-  bool hears(String id) => !_soundOff && !_effectsOff && !_hushed.contains(id);
-  bool isHushed(String id) => _hushed.contains(id);
+  bool hears(String id) => !_soundOff && !_effectsOff;
 
   /// Whether the music is allowed to play at all.
   bool get hearsMusic => !_soundOff && !_musicOff;
@@ -136,17 +89,12 @@ class Appearance extends ChangeNotifier {
   /// que en la app es sólo el primer arranque pero en cualquier otro sitio
   /// —un test, un reinicio en caliente— es basura del anterior.
   void _forget() {
-    _sign = 'sello';
-    _note = 'tarjeta';
-    _card = 'esmerilada';
     _soundOff = false;
     _musicOff = false;
     _effectsOff = false;
     _hapticsOff = false;
     _musicVolume = _midway;
     _effectsVolume = _midway;
-    _hushed.clear();
-    _rotation.clear();
   }
 
   Future<void> load() async {
@@ -155,7 +103,21 @@ class Appearance extends ChangeNotifier {
       final prefs = await SharedPreferences.getInstance();
       _rapid = prefs.getBool(_rapidKey) ?? false;
       final saved = prefs.getStringList(_soundKey);
-      if (saved != null) _readPrefs(saved);
+      if (saved != null) {
+        final visto = _readPrefs(saved);
+        // Lo guardado antes de la curva decía «0,15» queriendo decir «que
+        // suene al quince por ciento». Ahora eso mismo se dice con el dedo a
+        // la mitad, así que se traduce una vez y se marca como traducido.
+        //
+        // Sólo si había un volumen escrito. Un guardado que no lo traía —de
+        // una versión anterior a que se pudiera tocar, o corrupto— no tiene
+        // nada que conservar: se queda con el valor por defecto de hoy, que es
+        // justamente lo que se acaba de cambiar.
+        if (visto.contains('musicVol') && !visto.contains(_volMark)) {
+          _musicVolume = _asPosition(_musicVolume);
+          unawaited(_writeNow());
+        }
+      }
     } catch (_) {
       // A phone that will not give us its preferences still gets a town.
     }
@@ -166,11 +128,13 @@ class Appearance extends ChangeNotifier {
   /// back as its default instead of throwing the whole lot away. Que la clave
   /// del disco se llame «sound» es historia: ahí dentro va ya todo lo que se
   /// elige, y renombrarla le borraría a todo el mundo lo que tenía puesto.
-  void _readPrefs(List<String> rows) {
+  Set<String> _readPrefs(List<String> rows) {
+    final visto = <String>{};
     for (final row in rows) {
       final at = row.indexOf('=');
       if (at <= 0) continue;
       final key = row.substring(0, at), value = row.substring(at + 1);
+      visto.add(key);
       switch (key) {
         case 'sound':
           _soundOff = value == '0';
@@ -181,25 +145,19 @@ class Appearance extends ChangeNotifier {
         case 'haptics':
           _hapticsOff = value == '0';
         case 'musicVol':
-          _musicVolume = (double.tryParse(value) ?? _midway).clamp(0.0, 1.0);
+          // Un valor ilegible no es un volumen guardado: se queda el de hoy y
+          // no hay nada que traducir a la curva nueva.
+          final v = double.tryParse(value);
+          if (v == null) {
+            visto.remove(key);
+          } else {
+            _musicVolume = v.clamp(0.0, 1.0);
+          }
         case 'effectsVol':
           _effectsVolume = (double.tryParse(value) ?? _midway).clamp(0.0, 1.0);
-        case 'hushed':
-          _hushed
-            ..clear()
-            ..addAll(value.split(',').where((s) => s.isNotEmpty));
-        case 'tunes':
-          _rotation
-            ..clear()
-            ..addAll(value.split(',').where((s) => s.isNotEmpty));
-        case 'sign':
-          _sign = value;
-        case 'note':
-          _note = value;
-        case 'card':
-          _card = value;
       }
     }
+    return visto;
   }
 
   List<String> _writePrefs() => [
@@ -207,13 +165,9 @@ class Appearance extends ChangeNotifier {
     'music=${_musicOff ? 0 : 1}',
     'effects=${_effectsOff ? 0 : 1}',
     'haptics=${_hapticsOff ? 0 : 1}',
+    '$_volMark=$_volNow',
     'musicVol=$_musicVolume',
     'effectsVol=$_effectsVolume',
-    'hushed=${_hushed.join(',')}',
-    'tunes=${_rotation.join(',')}',
-    'sign=$_sign',
-    'note=$_note',
-    'card=$_card',
   ];
 
   Timer? _writeSoon;
@@ -277,11 +231,6 @@ class Appearance extends ChangeNotifier {
     final want = v.clamp(0.0, 1.0);
     if (want == _effectsVolume) return;
     _effectsVolume = want;
-    await _keep();
-  }
-
-  Future<void> hush(String id, bool quiet) async {
-    if (quiet ? !_hushed.add(id) : !_hushed.remove(id)) return;
     await _keep();
   }
 

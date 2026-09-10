@@ -55,17 +55,6 @@ const List<Tune> tunes = [
     ],
   ),
   Tune(
-    'bruma',
-    'Bruma',
-    'Sin pulso ninguno: sólo cosas que entran y salen. Lab mayor.',
-    [
-      [1.00, 0.55, 0.80],
-      [0.85, 0.85, 0.60],
-      [0.70, 1.00, 0.40],
-      [0.90, 0.70, 0.75],
-    ],
-  ),
-  Tune(
     'sendero',
     'Sendero',
     'Cuerda de nailon y flauta de madera. Sol mayor, sesenta y seis.',
@@ -74,28 +63,6 @@ const List<Tune> tunes = [
       [0.85, 0.90, 0.85],
       [0.70, 1.00, 0.50],
       [0.90, 0.60, 0.90],
-    ],
-  ),
-  Tune(
-    'caja',
-    'Caja de música',
-    'Campanitas de cola muy larga. Do mayor, sesenta.',
-    [
-      [1.00, 0.45, 0.35],
-      [0.85, 0.85, 0.70],
-      [0.70, 1.00, 0.60],
-      [0.92, 0.70, 0.80],
-    ],
-  ),
-  Tune(
-    'brasa',
-    'Brasa',
-    'Rhodes grave y una campana cada tanto, muy arriba. Reb mayor.',
-    [
-      [1.00, 0.60, 0.70],
-      [0.85, 0.55, 0.45],
-      [0.75, 0.85, 0.35],
-      [1.00, 1.00, 0.80],
     ],
   ),
 ];

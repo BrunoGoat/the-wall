@@ -630,8 +630,10 @@ def write(name, samples, sr, scale):
           % (name, len(samples) / sr, sr, len(frames) / 1024, peak, rms))
 
 
-PIECES = (('tarde', tarde), ('bruma', bruma), ('sendero', sendero),
-          ('caja', caja), ('brasa', brasa))
+# Se probaron cinco y quedaron dos. Las otras tres —bruma, caja, brasa— siguen
+# aquí abajo escritas por si alguna vuelve, pero no se generan: un asset que no
+# suena en ninguna parte son doscientos kilos de APK por nada.
+PIECES = (('tarde', tarde), ('sendero', sendero))
 
 if __name__ == '__main__':
     import sys

@@ -152,7 +152,6 @@ class StoneCard extends StatelessWidget {
   const StoneCard({
     super.key,
     required this.theme,
-    required this.style,
     required this.when,
     required this.number,
     required this.label,
@@ -160,11 +159,6 @@ class StoneCard extends StatelessWidget {
   });
 
   final UiTheme theme;
-
-  /// De qué está hecha esta vez. Se sortea al tocar la pieza, no aquí: si se
-  /// sorteara al construir, cambiaría de material en cada cuadro.
-  final CardStyle style;
-
   final DateTime when;
   final int number;
   final String? label;
@@ -199,18 +193,17 @@ class StoneCard extends StatelessWidget {
     // una fecha y una frase, que es todo lo que tenía que ser.
     return LegendCard(
       theme: t,
-      style: style,
       onTap: onEdit,
       header: 'PIEZA $number · ${formatDate(when)}',
       child: Text(
         has ? label! : 'escribir una leyenda',
-        // Sin color cuando hay leyenda: lo pone el material de la tarjeta,
-        // que en el papel no es el mismo que en el resto de la interfaz.
+        // Sin color cuando hay leyenda: lo pone la tarjeta. Cuando no la hay,
+        // pardo flojo — es una frase que falta, no un aviso.
         style: TextStyle(
           fontSize: 13.5,
           height: 1.25,
           fontWeight: has ? FontWeight.w500 : FontWeight.w400,
-          color: has ? null : t.accent,
+          color: has ? null : LegendCard.pending(t),
         ),
       ),
     );
