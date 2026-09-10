@@ -213,9 +213,9 @@ class TownPlan {
   /// in what order, is its own, so two habits never walk the same road.
   ///
   /// Ésta es además la lista donde se mete algo que tiene que salirle a todo el
-  /// mundo, como el observatorio: quien no haya terminado sus obras de apertura
-  /// —que son las dieciocho primeras— se lo va a encontrar, y a quien ya las
-  /// tenga no se le mueve ni una piedra.
+  /// mundo, como el observatorio: a quien le queden obras de apertura por
+  /// terminar se lo va a encontrar, y a quien ya las tenga todas no se le mueve
+  /// ni una piedra.
   static const List<String> _openers = [
     'pozo',
     'horno',

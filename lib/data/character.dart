@@ -81,7 +81,7 @@ class TownCharacter {
   final double gardens, trees;
 
   /// Seeds this town's own shuffle of the landmark catalogue, so no two towns
-  /// meet the hundred and twelve in the same order.
+  /// meet it in the same order. Sin número: el catálogo crece.
   final int order;
 
   static const List<TownCharacter> all = [
