@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/gossip.dart';
 import '../engine/town.dart';
 import '../model/findings.dart';
 import '../model/habit.dart';
@@ -71,12 +72,23 @@ class _NoticeBoardScreenState extends State<NoticeBoardScreen> {
       underway: work?.$1,
       left: work?.$2 ?? 0,
     );
-    _plan = BoardPlan.of(said.isEmpty ? [_vacio(widget.habit)] : said);
+    // Lo que el pueblo sabe de vos primero, y detrás lo que el pueblo tiene
+    // clavado por su cuenta. Nunca al revés: un bando sobre una cabra perdida
+    // no puede ser lo primero que se lee de tu propio tablón.
+    //
+    // Y si de vos no sabe nada todavía, el tablón no se queda pelado: se dice
+    // que está vacío y se clavan unos cuantos bandos más, que es lo que
+    // tendría un tablón de plaza el primer día.
+    _plan = BoardPlan.of([
+      if (said.isEmpty) _vacio(widget.habit),
+      ...said,
+      ...villageNotices(DateTime.now(), count: said.isEmpty ? 3 : 2),
+    ]);
   }
 
-  /// Un tablón sin nada es un tablón con una hoja que lo dice. Se clava como
-  /// cualquier otra porque es lo que sería en la plaza: nadie deja el tablón
-  /// pelado, se clava un papel avisando.
+  /// Un tablón sin nada de vos es un tablón con una hoja que lo dice. Se clava
+  /// como cualquier otra porque es lo que sería en la plaza: nadie deja el
+  /// hueco en blanco, se clava un papel avisando.
   static Notice _vacio(Habit h) {
     final days = daysOf(h).length;
     return Notice(

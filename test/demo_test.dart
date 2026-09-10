@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:la_muralla/data/demo.dart';
+import 'package:la_muralla/data/gossip.dart';
 import 'package:la_muralla/engine/town.dart';
 import 'package:la_muralla/model/findings.dart';
 import 'package:la_muralla/engine/palette.dart';
@@ -96,7 +97,10 @@ void main() {
         at: hoy,
       );
       final tipos = {for (final n in notas) n.kind};
+      // Todas menos las del pueblo, que no salen de acá: una cabra perdida no
+      // es algo que se sepa de nadie.
       for (final quiere in NoticeKind.values) {
+        if (quiere == NoticeKind.pueblo) continue;
         expect(
           tipos,
           contains(quiere),
@@ -369,6 +373,76 @@ void main() {
       }
     });
 
+    test('el nombre del hábito no sale estirado', () {
+      // La homografía estira lo que le den hasta las cuatro esquinas, así que
+      // la caja donde se maqueta el nombre tiene que llevar la proporción del
+      // hueco al que va. Con una caja de medidas fijas las letras se alargaban
+      // a lo ancho, y cuanto más ancho el tablón —más notas— peor.
+      for (final cuantas in [1, 4, 8, 14]) {
+        final p = BoardPlan.of([
+          for (var i = 0; i < cuantas; i++) Notice(NoticeKind.pueblo, 'x', 'y'),
+        ]);
+        final hueco = 2 * (p.halfWidth - 0.1) / BoardPlan.headHeight;
+        expect(
+          p.headBox.width / p.headBox.height,
+          closeTo(hueco, 1e-6),
+          reason: 'con $cuantas notas el nombre sale deformado',
+        );
+      }
+    });
+
+    test('descolgar una nota la trae hacia el ojo, no sólo la agranda', () {
+      for (final hoja in plan.papers) {
+        final clavada = hoja.cornersAt(0);
+        final suelta = hoja.cornersAt(1);
+        expect(
+          suelta[0].z - clavada[0].z,
+          greaterThan(0.3),
+          reason: 'la nota ${hoja.index} crece en el sitio y no se despega',
+        );
+        // Y desde la distancia de leerla, cabe y es de verdad un primer plano.
+        const size = Size(400, 860);
+        final cam = OrbitCamera()
+          ..travel = hoja.openCx
+          ..focusY = hoja.openCy
+          ..focusZ = 0
+          ..yaw = 0
+          ..pitch = 0
+          ..distance = hoja.closeUpDistance;
+        final p = cam.projector(size.width, size.height, 0);
+        final alto = (p.project(suelta[3])!.y - p.project(suelta[0])!.y).abs();
+        expect(
+          alto,
+          lessThan(size.height),
+          reason: 'la nota ${hoja.index} se sale de cuadro al descolgarla',
+        );
+        expect(
+          alto,
+          greaterThan(size.height * 0.55),
+          reason: 'descolgar la nota ${hoja.index} apenas se nota',
+        );
+      }
+    });
+
+    test('los papeles son una familia y no un taco de pósits', () {
+      final tonos = [
+        for (final hoja in plan.papers) HSVColor.fromColor(hoja.paper),
+      ];
+      final matices = tonos.map((c) => c.hue).toList()..sort();
+      expect(
+        matices.last - matices.first,
+        lessThan(25),
+        reason: 'los papeles son de colores distintos y eso parece un código',
+      );
+      for (final c in tonos) {
+        expect(
+          c.saturation,
+          lessThan(0.3),
+          reason: 'un papel está demasiado saturado para ser pergamino',
+        );
+      }
+    });
+
     testWidgets('se abre y se dibuja sin romperse', (tester) async {
       for (final size in [const Size(320, 640), const Size(440, 950)]) {
         tester.view.physicalSize = size;
@@ -395,6 +469,48 @@ void main() {
         await tester.pump(const Duration(milliseconds: 300));
         expect(tester.takeException(), isNull, reason: 'al tocar en $size');
       }
+    });
+  });
+
+  // Los bandos del pueblo: lo que hay clavado cuando el tablón no habla de vos.
+  group('los bandos del pueblo', () {
+    test('cambian cada día y no se repiten dentro del mismo', () {
+      final vistos = <String>{};
+      for (var d = 0; d < 60; d++) {
+        final dia = DateTime(2026, 3, 1).add(Duration(days: d));
+        final hoy = villageNotices(dia, count: 3);
+        expect(hoy.length, 3);
+        expect(
+          {for (final n in hoy) n.said}.length,
+          3,
+          reason:
+              'el ${dia.day}/${dia.month} el pueblo clavó dos veces lo mismo',
+        );
+        for (final n in hoy) {
+          expect(n.kind, NoticeKind.pueblo);
+          // Un bando no puede fingir que sabe algo de nadie: ni barras ni
+          // párrafo de pruebas, que es lo que llevan las notas de verdad.
+          expect(n.bars, isEmpty);
+          expect(n.more, isNull);
+        }
+        vistos.add(hoy.map((n) => n.said).join('|'));
+      }
+      // En dos meses el pueblo tiene que tener vida propia, no un cartel fijo.
+      expect(vistos.length, greaterThan(40));
+    });
+
+    test('el mismo día clava siempre lo mismo', () {
+      final a = villageNotices(DateTime(2026, 5, 4, 9));
+      final b = villageNotices(DateTime(2026, 5, 4, 23));
+      expect(a.map((n) => n.said).toList(), b.map((n) => n.said).toList());
+      expect(
+        villageNotices(DateTime(2026, 5, 5)).map((n) => n.said).toList(),
+        isNot(a.map((n) => n.said).toList()),
+      );
+    });
+
+    test('hay bastantes como para que no canse', () {
+      expect(villageNoticeCount, greaterThanOrEqualTo(30));
     });
   });
 }

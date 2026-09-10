@@ -29,6 +29,12 @@ enum NoticeKind {
 
   /// Who is ahead in the valley.
   crown,
+
+  /// Lo que el pueblo clava cuando no está hablando de vos: una cabra
+  /// perdida, un baile el sábado. No sale de [noticesFor] —esto es lo que se
+  /// sabe de alguien, y una cabra no se sabe de nadie— sino de
+  /// `data/gossip.dart`, y lo pone el tablón.
+  pueblo,
 }
 
 /// One thing the town noticed.

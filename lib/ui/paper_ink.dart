@@ -12,10 +12,16 @@ import 'board_plan.dart';
 /// pantalla. Por eso aquí no hay ni cámara ni perspectiva: esto es la hoja
 /// vista de frente, y torcerla es asunto de quien la clava.
 ///
-/// Hay dos maquetaciones, la de la hoja clavada y la de la hoja descolgada, y
-/// se cruzan al abrirla. Las dos caben en el mismo rectángulo a propósito: la
-/// hoja crece por igual de ancho y de alto, así que lo que cambia no es el
-/// sitio sino cuánto se cuenta.
+/// **Una sola maquetación.** Antes había dos —la de la hoja clavada y la de
+/// la descolgada— y se cruzaban al abrirla. Eso hacía que durante el cruce se
+/// vieran las dos frases, una encima de la otra y las dos a medias, que es
+/// exactamente lo que parece papel transparente. Ahora el texto es el mismo
+/// clavada que descolgada, y lo único que cambia al descolgarla es lo que se
+/// añade debajo: las barras y el párrafo de más, que aparecen porque hay sitio
+/// y porque ahora se puede leer.
+///
+/// El aire es de cartel de bando y no de nota adhesiva: un filete alrededor,
+/// el titular espaciado con su raya debajo, y tinta parda.
 class PaperInk {
   PaperInk(this.notice) {
     _lay();
@@ -27,34 +33,18 @@ class PaperInk {
   /// ([BoardPlan.paperW] contra [BoardPlan.paperH]), o el texto saldría
   /// estirado.
   static const Size box = Size(300, 230);
-  static const double pad = 20;
+  static const double pad = 22;
 
-  late final TextPainter _saidShut, _saidOpen, _becauseShut, _becauseOpen;
+  late final TextPainter _said, _because;
   TextPainter? _more;
 
   void _lay() {
     final ancho = box.width - pad * 2;
-    _saidShut = _paint(notice.said, 17, FontWeight.w700, 1.0, 3, ancho);
-    _saidOpen = _paint(notice.said, 15.5, FontWeight.w700, 1.0, 3, ancho);
-    _becauseShut = _paint(
-      notice.because,
-      11.5,
-      FontWeight.w400,
-      0.72,
-      3,
-      ancho,
-    );
-    _becauseOpen = _paint(
-      notice.because,
-      10.5,
-      FontWeight.w400,
-      0.74,
-      3,
-      ancho,
-    );
+    _said = _paint(notice.said, 16, FontWeight.w700, 1.0, 3, ancho, 0.15);
+    _because = _paint(notice.because, 11, FontWeight.w400, 0.74, 3, ancho, 0);
     final more = notice.more;
     if (more != null) {
-      _more = _paint(more, 8.6, FontWeight.w400, 0.6, 4, ancho);
+      _more = _paint(more, 8.6, FontWeight.w400, 0.6, 4, ancho, 0);
     }
   }
 
@@ -65,13 +55,15 @@ class PaperInk {
     double alpha,
     int lines,
     double width,
+    double spacing,
   ) => TextPainter(
     text: TextSpan(
       text: text,
       style: TextStyle(
         color: BoardPlan.ink.withValues(alpha: alpha),
         fontSize: size,
-        height: 1.28,
+        height: 1.26,
+        letterSpacing: spacing,
         fontWeight: weight,
       ),
     ),
@@ -86,50 +78,57 @@ class PaperInk {
   void paint(Canvas canvas, double open, double detail) {
     if (detail <= 0.02) return;
     final abierta = Curves.easeOutCubic.transform(open.clamp(0.0, 1.0));
-    if (abierta < 0.999) {
-      _cara(canvas, _saidShut, _becauseShut, (1 - abierta) * detail, 0);
-    }
-    if (abierta > 0.001) {
-      _cara(canvas, _saidOpen, _becauseOpen, abierta * detail, abierta);
-    }
-  }
-
-  void _cara(
-    Canvas canvas,
-    TextPainter said,
-    TextPainter because,
-    double alpha,
-    double abierta,
-  ) {
-    if (alpha <= 0.02) return;
-    final capa = alpha < 0.99;
+    final capa = detail < 0.99;
     if (capa) {
       canvas.saveLayer(
         Offset.zero & box,
-        Paint()..color = Colors.white.withValues(alpha: alpha.clamp(0.0, 1.0)),
+        Paint()..color = Colors.white.withValues(alpha: detail.clamp(0.0, 1.0)),
       );
     }
+
+    // El filete del bando, por dentro del filo.
+    canvas.drawRect(
+      Rect.fromLTWH(9, 9, box.width - 18, box.height - 18),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..color = BoardPlan.ink.withValues(alpha: 0.2),
+    );
+
     var y = pad;
-    // La chincheta, en el mismo sitio en las dos maquetaciones para que no
-    // salte al abrir.
+    // El clavo que la sujeta.
     canvas.drawCircle(
-      const Offset(pad + 4.5, pad + 4.5),
-      4.5,
-      Paint()..color = const Color(0xFF9C4A3C),
+      const Offset(pad + 4, pad + 4),
+      4.2,
+      Paint()..color = const Color(0xFF6E3125),
     );
     canvas.drawCircle(
-      const Offset(pad + 3, pad + 3),
-      1.6,
-      Paint()..color = const Color(0x55FFFFFF),
+      const Offset(pad + 2.6, pad + 2.6),
+      1.4,
+      Paint()..color = const Color(0x44FFE9C9),
     );
     y += 17;
 
-    said.paint(canvas, Offset(pad, y));
-    y += said.height + 7;
-    because.paint(canvas, Offset(pad, y));
-    y += because.height;
+    _said.paint(canvas, Offset(pad, y));
+    y += _said.height + 6;
+    // La raya bajo el titular, que es lo que separa un bando de una notita.
+    canvas.drawLine(
+      Offset(pad, y),
+      Offset(box.width - pad, y),
+      Paint()..color = BoardPlan.ink.withValues(alpha: 0.28),
+    );
+    y += 7;
+    _because.paint(canvas, Offset(pad, y));
+    y += _because.height;
 
     if (abierta > 0.02) {
+      // Lo de más abajo entra al descolgarla, y entra despacio: es lo que
+      // hace que descolgar una nota sea ganar algo y no sólo acercarse.
+      final gana = ((abierta - 0.25) / 0.6).clamp(0.0, 1.0);
+      canvas.saveLayer(
+        Offset.zero & box,
+        Paint()..color = Colors.white.withValues(alpha: gana),
+      );
       final hueco = box.height - pad - y;
       if (notice.bars.isNotEmpty && hueco > 34) {
         y += 8;
@@ -149,6 +148,7 @@ class PaperInk {
         );
         more.paint(canvas, Offset(pad, y + 6));
       }
+      canvas.restore();
     }
     if (capa) canvas.restore();
   }

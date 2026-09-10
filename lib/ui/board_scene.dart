@@ -251,7 +251,12 @@ class _BoardSceneState extends State<BoardScene>
       // el tablón no tiene arriba y abajo a los que ir.
       final p = _projector();
       _cam.travelTarget -= d.focalPointDelta.dx * (_cam.distance / p.focal);
-      if (_open != null) setState(() => _open = null);
+      // Un roce no cuelga la nota. El dedo que se apoya al tocar produce
+      // arrastres de una décima de píxel, y con ellos la nota se cerraba en el
+      // mismo gesto que la abría.
+      if (_open != null && d.focalPointDelta.dx.abs() > 1.5) {
+        setState(() => _open = null);
+      }
     }
     final tope = widget.plan.panLimit(_size, _cam.distanceTarget);
     _cam.travelTarget = clampD(_cam.travelTarget, -tope, tope);
@@ -518,24 +523,9 @@ class BoardPainter extends CustomPainter {
       BoardPlan.plankDepth,
       BoardPlan.wood,
     );
-    _grain(canvas, p);
+    // Sin juntas ni veta: la madera va lisa. Las líneas verticales partían el
+    // tablón en columnas y el ojo las leía como si separaran algo.
     _name(canvas, p);
-  }
-
-  /// Las juntas entre tablas, dibujadas en el plano de la plancha para que se
-  /// tuerzan con ella.
-  void _grain(Canvas canvas, Projector p) {
-    final tablas = math.max(3, (plan.halfWidth * 2 / 0.42).round());
-    final linea = Paint()
-      ..color = _lit(BoardPlan.shingle, 1).withValues(alpha: 0.42)
-      ..strokeWidth = 1.4;
-    for (var i = 1; i < tablas; i++) {
-      final x = -plan.halfWidth + 2 * plan.halfWidth * i / tablas;
-      final a = p.project(V3(x, plan.low, BoardPlan.plankDepth + 0.001));
-      final b = p.project(V3(x, plan.high, BoardPlan.plankDepth + 0.001));
-      if (a == null || b == null) continue;
-      canvas.drawLine(Offset(a.x, a.y), Offset(b.x, b.y), linea);
-    }
   }
 
   /// El nombre del hábito, quemado en el filo de arriba de la plancha.
@@ -543,7 +533,7 @@ class BoardPainter extends CustomPainter {
     final texto =
         '${habit.name.toUpperCase()}   ·   '
         '${habit.place.region.toUpperCase()}';
-    const alto = 0.115;
+    const alto = BoardPlan.headHeight;
     final quad = projectQuad(p, [
       V3(
         -plan.halfWidth + 0.1,
@@ -557,16 +547,21 @@ class BoardPainter extends CustomPainter {
     if (quad == null) return;
     final ancho = (quad[1] - quad[0]).distance;
     if (ancho < 60) return;
-    const src = Size(600, 40);
+    // La caja de maquetar tiene que tener la proporción del hueco al que va,
+    // porque la homografía estira lo que le den hasta las cuatro esquinas. Con
+    // una caja fija, un tablón ancho estiraba las letras a lo largo y el
+    // nombre salía deformado: cuanto más ancho el tablón, más deformado. Sale
+    // de las medidas del mundo, así que vale para cualquier ancho.
+    final src = plan.headBox;
     final m = paperTransform(src, quad);
     if (m == null) return;
     final tp = TextPainter(
       text: TextSpan(
         text: texto,
         style: TextStyle(
-          color: _lit(BoardPlan.post, 1).withValues(alpha: 0.85),
-          fontSize: 21,
-          letterSpacing: 5,
+          color: _lit(BoardPlan.post, 1).withValues(alpha: 0.8),
+          fontSize: 26,
+          letterSpacing: 6,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -576,7 +571,10 @@ class BoardPainter extends CustomPainter {
     )..layout(maxWidth: src.width);
     canvas.save();
     canvas.transform(m);
-    tp.paint(canvas, Offset((src.width - tp.width) / 2, 8));
+    tp.paint(
+      canvas,
+      Offset((src.width - tp.width) / 2, (src.height - tp.height) / 2),
+    );
     canvas.restore();
   }
 
@@ -651,6 +649,16 @@ class BoardPainter extends CustomPainter {
     });
 
     for (final (_, i, quad) in orden) {
+      // Justo antes de la descolgada se echa un velo sobre todo lo demás. Sin
+      // él la nota crecía delante de un tablón igual de nítido que ella y no
+      // había manera de saber cuál se estaba leyendo.
+      if (i == open && openK > 0.01) {
+        canvas.drawRect(
+          Offset.zero & size,
+          Paint()
+            ..color = Colors.black.withValues(alpha: 0.5 * openK.clamp(0, 1)),
+        );
+      }
       final path = _path(quad);
       // La sombra que echa la hoja sobre la madera.
       canvas.drawPath(

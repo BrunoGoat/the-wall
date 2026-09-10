@@ -30,7 +30,12 @@ class BoardPlan {
   static const double plankDepth = 0.05;
 
   /// Cuánto vuela el tejado por los lados y cuánto de fondo.
-  static const double eave = 0.1, roofDepth = 0.18, roofRise = 0.19;
+  /// Cuánto vuela el tejado por los lados, cuánto de fondo y cuánto sube.
+  ///
+  /// El fondo es poco a propósito: desde la altura a la que se mira el tablón
+  /// se le ve la panza al alero, y con el fondo del modelo esa panza era una
+  /// franja oscura tan ancha como una nota.
+  static const double eave = 0.1, roofDepth = 0.11, roofRise = 0.17;
 
   /// Media hoja, y cuánto hay de una a la siguiente.
   static const double paperW = 0.3, paperH = 0.23;
@@ -58,6 +63,19 @@ class BoardPlan {
 
   /// Dónde se clava el nombre del hábito: en el filo de arriba de la plancha.
   double get headY => high - 0.11;
+  static const double headHeight = 0.115;
+
+  /// El rectángulo plano en el que se maqueta ese nombre.
+  ///
+  /// Tiene que llevar la proporción del hueco al que va, porque la homografía
+  /// estira lo que le den hasta las cuatro esquinas: con una caja de medidas
+  /// fijas, cuanto más ancho el tablón más se estiraban las letras a lo largo.
+  /// Era eso lo que hacía que el nombre saliera deformado, y se notaba más
+  /// cuantas más notas tenía el pueblo, porque el tablón crecía a lo ancho.
+  Size get headBox {
+    const alto = 44.0;
+    return Size(alto * (2 * (halfWidth - 0.1)) / headHeight, alto);
+  }
 
   /// Las notas, repartidas por el tablón.
   ///
@@ -116,7 +134,9 @@ class BoardPlan {
           w: w,
           h: h,
           lean: hashJitter(0.055, i, 24),
-          paper: _papers[i % _papers.length],
+          paper: said[i].kind == NoticeKind.pueblo
+              ? villagePaper
+              : _papers[i % _papers.length],
         ),
       );
     }
@@ -128,18 +148,31 @@ class BoardPlan {
     );
   }
 
-  /// Los tonos de papel del modelo. El primero es el suyo exacto.
+  /// Los tonos de papel.
+  ///
+  /// Tres pergaminos de la misma familia, no tres colores. Lo que hacía que
+  /// las notas parecieran un taco de pósits no era que fueran claras sino que
+  /// eran de tres tonos distintos —crema, verde, amarillo—: tres colores es un
+  /// código, y un código pide que signifiquen algo. Aquí no significan nada:
+  /// son tres papeles de la misma resma envejecidos de manera distinta, que es
+  /// lo que hay clavado en un tablón de verdad.
   static const List<Color> _papers = [
-    Color(0xFFF0E7D2),
-    Color(0xFFE7EDD6),
-    Color(0xFFF4EBCB),
+    Color(0xFFE9DCBC),
+    Color(0xFFDFD1AE),
+    Color(0xFFF0E5C9),
   ];
+
+  /// El de los papeles del pueblo: el más viejo de los tres, para que un bando
+  /// sobre una cabra no se confunda con lo que el tablón sabe de vos.
+  static const Color villagePaper = Color(0xFFD8C8A2);
 
   /// Los colores del modelo de la plaza, sin tocar.
   static const Color wood = Color(0xFFC9B896);
   static const Color post = Color(0xFF6B573F);
   static const Color shingle = Color(0xFF8A7355);
-  static const Color ink = Color(0xFF3B3730);
+
+  /// La tinta: parda y oscura, de las que se hacían con agallas de roble.
+  static const Color ink = Color(0xFF33291B);
 
   /// La tangente de medio campo vertical, que es la lente de [OrbitCamera]:
   /// `fovY` es 0,86 radianes allí. Aquí escrita una vez, porque de esto salen
@@ -230,10 +263,17 @@ class BoardPaper {
   final double lean;
   final Color paper;
 
-  /// Justo delante de la plancha, y las abiertas un poco más: una hoja que se
-  /// despega del tablón tiene que taparlo, no pelearse con él.
+  /// Justo delante de la plancha.
   static const double rest = plankFront + 0.004;
   static const double plankFront = BoardPlan.plankDepth;
+
+  /// Cuánto se despega del tablón al descolgarla.
+  ///
+  /// Mucho, y ahí está la gracia: crecer en el sitio no era descolgar nada,
+  /// era la misma nota un poco más grande entre las demás. Medio metro hacia
+  /// el que mira es la mitad del camino hasta el ojo, así que la nota se sale
+  /// del tablón de verdad, tapa lo que haya detrás y el acercamiento se nota.
+  static const double lift = 0.5;
 
   /// Cuánto crece al abrirse. Una nota que se descuelga para leerla es más
   /// grande que la misma nota clavada entre las otras siete.
@@ -244,6 +284,14 @@ class BoardPaper {
   /// abrirse, las letras se estirarían con ella.
   static const double grown = 1.85;
 
+  /// A qué distancia hay que ponerse para leerla descolgada.
+  ///
+  /// Cuenta con las dos cosas que le pasan a la nota al abrirse: que crece y
+  /// que se viene [lift] hacia el ojo. Sin lo segundo la cámara se paraba
+  /// donde estaría la nota clavada, la nota ya se le había acercado medio
+  /// metro, y se salía de cuadro por arriba y por abajo.
+  double get closeUpDistance => h * grow / BoardPlan.tanHalfFovY * 1.2 + lift;
+
   /// Las cuatro esquinas, en el mundo, con [open] entre 0 y 1.
   List<V3> cornersAt(double open) {
     final k = Curves.easeOutCubic.transform(open.clamp(0.0, 1.0));
@@ -251,7 +299,7 @@ class BoardPaper {
     final hw = w * crece;
     final hh = h * crece;
     final a = lean * (1 - k);
-    final z = rest + 0.06 * k;
+    final z = rest + lift * k;
     final mx = cx + (openCx - cx) * k;
     final my = cy + (openCy - cy) * k;
     final ca = math.cos(a), sa = math.sin(a);
