@@ -1,0 +1,24 @@
+gradle-wrapper.jar
+/.gradle
+/captures/
+/gradlew
+/gradlew.bat
+/local.properties
+GeneratedPluginRegistrant.java
+.cxx/
+
+# Normalmente una clave de firma no se guarda aquí. Ésta sí, a propósito, y
+# hay una razón concreta: la app no está publicada en ningún lado, así que no
+# existe ninguna instalación de nadie que alguien pudiera reemplazar firmando
+# con ella. A cambio, cualquiera que clone esto construye una APK que se
+# instala encima de la anterior conservando el pueblo, sin secretos que pegar
+# en ninguna parte.
+#
+# QUÉ HACER EL DÍA QUE SE PUBLIQUE: generar una clave nueva y sacarla de aquí,
+# o dejar que se encargue la firma de Play. Desde ese día ésta ya no sirve,
+# porque una clave que está en un repositorio la tiene cualquiera.
+key.properties
+**/*.keystore
+**/*.jks
+!muralla.jks
+!key.properties
