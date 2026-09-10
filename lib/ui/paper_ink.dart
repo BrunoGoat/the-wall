@@ -33,18 +33,46 @@ class PaperInk {
   /// ([BoardPlan.paperW] contra [BoardPlan.paperH]), o el texto saldría
   /// estirado.
   static const Size box = Size(300, 230);
-  static const double pad = 22;
+  static const double pad = 18;
+
+  /// Cómo se maqueta, en un solo sitio.
+  ///
+  /// Público porque hay un test que mide si a los cientos de bandos escritos a
+  /// mano les cabe lo que dicen, y para que esa medida signifique algo tiene
+  /// que hacerse con estos números y no con unos parecidos. Un bando que no
+  /// cabe sale recortado con puntos suspensivos, y con un catálogo que crece a
+  /// mano no hay manera de verlo a ojo.
+  static const double saidSize = 15.5, becauseSize = 10.5;
+  static const int saidLines = 4, becauseLines = 4;
+  static const double lineHeight = 1.26;
+  static double get textWidth => box.width - pad * 2;
 
   late final TextPainter _said, _because;
   TextPainter? _more;
 
   void _lay() {
-    final ancho = box.width - pad * 2;
-    _said = _paint(notice.said, 16, FontWeight.w700, 1.0, 3, ancho, 0.15);
-    _because = _paint(notice.because, 11, FontWeight.w400, 0.74, 3, ancho, 0);
+    final ancho = textWidth;
+    _said = _paint(
+      notice.said,
+      saidSize,
+      FontWeight.w700,
+      1.0,
+      saidLines,
+      ancho,
+      0.15,
+    );
+    _because = _paint(
+      notice.because,
+      becauseSize,
+      FontWeight.w400,
+      0.74,
+      becauseLines,
+      ancho,
+      0,
+    );
     final more = notice.more;
     if (more != null) {
-      _more = _paint(more, 8.6, FontWeight.w400, 0.6, 4, ancho, 0);
+      _more = _paint(more, 8.4, FontWeight.w400, 0.6, 3, ancho, 0);
     }
   }
 
@@ -62,7 +90,7 @@ class PaperInk {
       style: TextStyle(
         color: BoardPlan.ink.withValues(alpha: alpha),
         fontSize: size,
-        height: 1.26,
+        height: lineHeight,
         letterSpacing: spacing,
         fontWeight: weight,
       ),

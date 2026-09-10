@@ -1,7 +1,12 @@
+import 'dart:io';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:la_muralla/data/demo.dart';
+import 'package:la_muralla/data/bandos.dart';
 import 'package:la_muralla/data/gossip.dart';
 import 'package:la_muralla/engine/town.dart';
 import 'package:la_muralla/model/findings.dart';
@@ -13,6 +18,7 @@ import 'package:la_muralla/model/board.dart';
 import 'package:la_muralla/model/habit.dart';
 import 'package:la_muralla/model/board_slots.dart';
 import 'package:la_muralla/ui/board_plan.dart';
+import 'package:la_muralla/ui/paper_ink.dart';
 import 'package:la_muralla/ui/notice_board.dart';
 import 'package:la_muralla/ui/style.dart';
 
@@ -723,13 +729,106 @@ void main() {
       );
       expect(
         vistos.length,
-        greaterThan(villageNoticeCount ~/ 2),
+        greaterThan(total ~/ 2),
         reason: 'el pueblo se quedó girando sobre cuatro bandos',
       );
     });
 
+    test('y con los años acaba sacándolos casi todos', () {
+      // La baraja es del día entero, así que a la larga el catálogo se recorre
+      // solo. Si un bando no saliera nunca, sobra del archivo.
+      final vistos = <String>{};
+      for (var d = 0; d < 2000; d++) {
+        vistos.addAll(
+          villageNotices(
+            DateTime(2026, 1, 1).add(Duration(days: d)),
+            town: 3,
+          ).map((n) => n.said),
+        );
+      }
+      expect(vistos.length, greaterThan((villageNoticeCount * 0.85).round()));
+    });
+
     test('hay bastantes como para que no canse', () {
-      expect(villageNoticeCount, greaterThanOrEqualTo(30));
+      expect(villageNoticeCount, greaterThanOrEqualTo(400));
+    });
+
+    test('y ninguno repetido ni vacío', () {
+      final titulares = <String>{};
+      for (final (dice, y) in bandos) {
+        expect(dice.trim(), isNotEmpty);
+        expect(y.trim(), isNotEmpty);
+        expect(
+          titulares.add(dice),
+          isTrue,
+          reason: 'el bando «$dice» está dos veces en el catálogo',
+        );
+      }
+    });
+
+    testWidgets('y a todos les cabe lo que dicen en su papel', (tester) async {
+      // Un bando que no cabe sale recortado con puntos suspensivos, y con
+      // cuatrocientos escritos a mano no hay manera de verlo a ojo.
+      //
+      // Se mide con una fuente de verdad y no con la cuadrada de los tests,
+      // que da veinte caracteres por línea y diría que no cabe ni la mitad del
+      // catálogo. La del repositorio es más ancha que la que usa la app, así
+      // que lo que quepa aquí cabe allí de sobra.
+      await tester.runAsync(() async {
+        final bytes = await File('assets/fonts/RobotoSlab.ttf').readAsBytes();
+        await (FontLoader(
+          'Prueba',
+        )..addFont(Future.value(bytes.buffer.asByteData()))).load();
+      });
+      TextPainter mide(String t, double size, FontWeight w, int lines) =>
+          TextPainter(
+            text: TextSpan(
+              text: t,
+              style: TextStyle(
+                fontFamily: 'Prueba',
+                fontSize: size,
+                height: PaperInk.lineHeight,
+                fontWeight: w,
+              ),
+            ),
+            textDirection: TextDirection.ltr,
+            maxLines: lines,
+            ellipsis: '…',
+          )..layout(maxWidth: PaperInk.textWidth);
+
+      var altoMax = 0.0;
+      for (final (dice, y) in bandos) {
+        final titular = mide(
+          dice,
+          PaperInk.saidSize,
+          FontWeight.w700,
+          PaperInk.saidLines,
+        );
+        final renglon = mide(
+          y,
+          PaperInk.becauseSize,
+          FontWeight.w400,
+          PaperInk.becauseLines,
+        );
+        expect(
+          titular.didExceedMaxLines,
+          isFalse,
+          reason: 'el titular no cabe: «$dice»',
+        );
+        expect(
+          renglon.didExceedMaxLines,
+          isFalse,
+          reason: 'el renglón no cabe: «$y»',
+        );
+        altoMax = math.max(altoMax, titular.height + renglon.height);
+      }
+      // Y que quede sitio debajo para las barras y el párrafo de pruebas, que
+      // es lo que aparece al descolgar una nota de verdad.
+      expect(
+        altoMax + PaperInk.pad * 2,
+        lessThan(PaperInk.box.height - 90),
+        reason: 'el papel se queda sin sitio para las barras',
+      );
     });
   });
 
