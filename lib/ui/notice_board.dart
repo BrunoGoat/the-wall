@@ -6,7 +6,7 @@ import '../engine/town.dart';
 import '../fx/sensory.dart';
 import '../model/findings.dart';
 import '../model/habit.dart';
-import '../model/store.dart';
+import 'board_look.dart';
 import 'habit_sigil.dart';
 import 'style.dart';
 
@@ -23,28 +23,41 @@ import 'style.dart';
 class NoticeBoardScreen extends StatefulWidget {
   const NoticeBoardScreen({
     super.key,
-    required this.store,
+    required this.valley,
     required this.habit,
     required this.theme,
+    this.look = BoardLook.tablon,
   });
 
-  final Store store;
+  /// Los pueblos que hay en el valle, [habit] incluido. Es todo lo que el
+  /// tablón necesita saber de fuera: las notas que comparan dos hábitos y la
+  /// corona salen de aquí. Pide la lista y no el almacén a propósito, para
+  /// que se le pueda enseñar un valle de mentira sin tocar el de verdad.
+  final List<Habit> valley;
   final Habit habit;
   final UiTheme theme;
+
+  /// De qué está hecho el tablón por detrás.
+  final BoardLook look;
 
   /// The route that walks you up to it: the board comes towards you rather
   /// than a panel sliding over the town.
   static Route<void> route({
-    required Store store,
+    required List<Habit> valley,
     required Habit habit,
     required UiTheme theme,
+    BoardLook look = BoardLook.tablon,
   }) => PageRouteBuilder<void>(
     opaque: false,
     barrierColor: sheetScrim(theme.dark),
     transitionDuration: const Duration(milliseconds: 260),
     reverseTransitionDuration: const Duration(milliseconds: 200),
-    pageBuilder: (_, _, _) =>
-        NoticeBoardScreen(store: store, habit: habit, theme: theme),
+    pageBuilder: (_, _, _) => NoticeBoardScreen(
+      valley: valley,
+      habit: habit,
+      theme: theme,
+      look: look,
+    ),
     transitionsBuilder: (_, a, _, child) {
       final eased = CurvedAnimation(parent: a, curve: Curves.easeOutCubic);
       return FadeTransition(
@@ -61,23 +74,17 @@ class NoticeBoardScreen extends StatefulWidget {
   State<NoticeBoardScreen> createState() => _NoticeBoardScreenState();
 }
 
-/// The wood, and the three papers people pin to it.
-const Color _wood = Color(0xFFB08D62);
-const Color _woodDark = Color(0xFF8A6B47);
+/// La tinta. Es la única que no cambia con la superficie del tablón: siempre
+/// se escribe sobre un papel, y el papel siempre es claro.
 const Color _ink = Color(0xFF3B3730);
-const List<Color> _papers = [
-  Color(0xFFF4EEDD),
-  Color(0xFFDCEBC6),
-  Color(0xFFF5EDBE),
-];
 
 class _NoticeBoardScreenState extends State<NoticeBoardScreen>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _zoom = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 280),
-    reverseDuration: const Duration(milliseconds: 200),
-  );
+  /// Se crea en [initState] y no al usarse. Perezoso parecía gratis, pero
+  /// quien entra al tablón y se va sin tocar ninguna nota nunca lo llega a
+  /// leer, y entonces el que lo creaba era [dispose] — un reloj nuevo mientras
+  /// la pantalla se desmonta, buscando un ancestro que ya no está.
+  late final AnimationController _zoom;
 
   final Map<int, GlobalKey> _pins = {};
   int? _open;
@@ -88,12 +95,17 @@ class _NoticeBoardScreenState extends State<NoticeBoardScreen>
   @override
   void initState() {
     super.initState();
+    _zoom = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+      reverseDuration: const Duration(milliseconds: 200),
+    );
     final work = TownPlan.of(
       widget.habit.place,
     ).underway(widget.habit.total, widget.habit.chronicle);
     _said = noticesFor(
       widget.habit,
-      others: widget.store.habits,
+      others: widget.valley,
       underway: work?.$1,
       left: work?.$2 ?? 0,
     );
@@ -125,6 +137,7 @@ class _NoticeBoardScreenState extends State<NoticeBoardScreen>
   @override
   Widget build(BuildContext context) {
     final t = widget.theme;
+    final skin = widget.look.skin;
     final media = MediaQuery.of(context);
     final open = _open;
 
@@ -144,6 +157,7 @@ class _NoticeBoardScreenState extends State<NoticeBoardScreen>
               padding: const EdgeInsets.fromLTRB(12, 34, 12, 12),
               child: _Board(
                 theme: t,
+                skin: skin,
                 habit: widget.habit,
                 said: _said,
                 pins: _pins,
@@ -193,7 +207,7 @@ class _NoticeBoardScreenState extends State<NoticeBoardScreen>
                               ),
                               child: _Close(
                                 notice: _said[open],
-                                paper: _papers[open % _papers.length],
+                                paper: skin.papers[open % skin.papers.length],
                                 detail: k,
                                 onBack: _putBack,
                               ),
@@ -216,6 +230,7 @@ class _NoticeBoardScreenState extends State<NoticeBoardScreen>
 class _Board extends StatelessWidget {
   const _Board({
     required this.theme,
+    required this.skin,
     required this.habit,
     required this.said,
     required this.pins,
@@ -224,6 +239,7 @@ class _Board extends StatelessWidget {
   });
 
   final UiTheme theme;
+  final BoardSkin skin;
   final Habit habit;
   final List<Notice> said;
   final Map<int, GlobalKey> pins;
@@ -238,11 +254,11 @@ class _Board extends StatelessWidget {
         Expanded(
           child: Container(
             decoration: BoxDecoration(
-              color: _wood,
+              color: skin.surface,
               borderRadius: const BorderRadius.vertical(
                 bottom: Radius.circular(10),
               ),
-              border: Border.all(color: _woodDark, width: 3),
+              border: Border.all(color: skin.frame, width: skin.frameWidth),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.35),
@@ -256,19 +272,20 @@ class _Board extends StatelessWidget {
                 bottom: Radius.circular(8),
               ),
               child: CustomPaint(
-                painter: const _Planks(),
+                painter: skin.texture,
                 child: said.isEmpty
-                    ? _Empty(habit: habit)
+                    ? _Empty(habit: habit, skin: skin)
                     : ListView(
                         padding: const EdgeInsets.fromLTRB(14, 16, 14, 26),
                         children: [
-                          _Burnt(habit: habit),
+                          _Burnt(habit: habit, skin: skin),
                           const SizedBox(height: 10),
                           for (var i = 0; i < said.length; i++)
                             _Pinned(
                               key: pins.putIfAbsent(i, GlobalKey.new),
                               notice: said[i],
-                              paper: _papers[i % _papers.length],
+                              paper: skin.papers[i % skin.papers.length],
+                              shadow: skin.shadow,
                               lean: (i.isEven ? 1 : -1) * (0.6 + i % 3 * 0.35),
                               onTap: () => onTake(i),
                             ),
@@ -341,48 +358,18 @@ class _Shingles extends CustomPainter {
   bool shouldRepaint(_Shingles old) => false;
 }
 
-/// The grain, and the seams between the planks.
-class _Planks extends CustomPainter {
-  const _Planks();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final seam = Paint()
-      ..color = _woodDark.withValues(alpha: 0.55)
-      ..strokeWidth = 1.6;
-    final grain = Paint()
-      ..color = _woodDark.withValues(alpha: 0.18)
-      ..strokeWidth = 1.0;
-    const planks = 5;
-    for (var i = 1; i < planks; i++) {
-      final y = size.height * i / planks;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), seam);
-    }
-    for (var i = 0; i < 14; i++) {
-      final y = size.height * (i + 0.35) / 14;
-      canvas.drawLine(
-        Offset(size.width * 0.06, y),
-        Offset(size.width * (0.4 + (i % 4) * 0.14), y),
-        grain,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_Planks old) => false;
-}
-
 /// The habit's name, burnt into the top plank.
 class _Burnt extends StatelessWidget {
-  const _Burnt({required this.habit});
+  const _Burnt({required this.habit, required this.skin});
   final Habit habit;
+  final BoardSkin skin;
 
   @override
   Widget build(BuildContext context) => Row(
     children: [
       HabitSigil(
         symbol: habit.symbol,
-        color: _woodDark.withValues(alpha: 0.9),
+        color: skin.heading.withValues(alpha: 0.9),
         size: 19,
       ),
       const SizedBox(width: 9),
@@ -392,7 +379,7 @@ class _Burnt extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            color: _woodDark.withValues(alpha: 0.95),
+            color: skin.heading.withValues(alpha: 0.95),
             fontSize: 12.5,
             letterSpacing: 2.6,
             fontWeight: FontWeight.w700,
@@ -402,7 +389,7 @@ class _Burnt extends StatelessWidget {
       Text(
         habit.place.region.toUpperCase(),
         style: TextStyle(
-          color: _woodDark.withValues(alpha: 0.7),
+          color: skin.heading.withValues(alpha: 0.7),
           fontSize: 9.5,
           letterSpacing: 1.8,
           fontWeight: FontWeight.w700,
@@ -418,12 +405,17 @@ class _Pinned extends StatelessWidget {
     super.key,
     required this.notice,
     required this.paper,
+    required this.shadow,
     required this.lean,
     required this.onTap,
   });
 
   final Notice notice;
   final Color paper;
+
+  /// Cuánta sombra echa sobre el fondo. Sobre una pared clara hace falta más,
+  /// porque ahí el papel ya no se separa por el color.
+  final double shadow;
   final double lean;
   final VoidCallback onTap;
 
@@ -441,7 +433,7 @@ class _Pinned extends StatelessWidget {
             borderRadius: BorderRadius.circular(3),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.28),
+                color: Colors.black.withValues(alpha: shadow),
                 blurRadius: 7,
                 offset: const Offset(1, 3),
               ),
@@ -684,8 +676,9 @@ class _Evidence extends CustomPainter {
 
 /// A board with nothing on it yet, which is the honest state of a young town.
 class _Empty extends StatelessWidget {
-  const _Empty({required this.habit});
+  const _Empty({required this.habit, required this.skin});
   final Habit habit;
+  final BoardSkin skin;
 
   @override
   Widget build(BuildContext context) {
@@ -698,11 +691,11 @@ class _Empty extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
             decoration: BoxDecoration(
-              color: _papers.first,
+              color: skin.papers.first,
               borderRadius: BorderRadius.circular(3),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.28),
+                  color: Colors.black.withValues(alpha: skin.shadow),
                   blurRadius: 7,
                   offset: const Offset(1, 3),
                 ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/demo.dart';
 import '../data/landmarks.dart';
 import '../engine/town.dart';
 import '../fx/sensory.dart';
@@ -7,6 +8,7 @@ import '../model/appearance.dart';
 import '../model/piece.dart';
 import '../model/store.dart';
 import 'backup_sheet.dart';
+import 'board_look.dart';
 import 'debug_sheet.dart';
 import 'gallery_screen.dart';
 import 'notice_board.dart';
@@ -30,6 +32,10 @@ class SettingsSheet extends StatefulWidget {
 }
 
 class _SettingsSheetState extends State<SettingsSheet> {
+  /// Lo elegido, o el de siempre si lo guardado ya no existe.
+  BoardLook get _look =>
+      BoardLook.porNombre(Appearance.instance.board) ?? BoardLook.tablon;
+
   @override
   Widget build(BuildContext context) {
     final t = widget.theme;
@@ -117,6 +123,40 @@ class _SettingsSheetState extends State<SettingsSheet> {
         ),
 
         const SizedBox(height: 26),
+        _Head(theme: t, text: 'CÓMO SE VE'),
+        Text(
+          'De qué está hecho el tablón de la plaza por detrás. Lo que cambia '
+          'es el fondo: el tejadito y los chinches son los mismos en las '
+          'cinco.',
+          style: t.bodySoft.copyWith(fontSize: 11.5, height: 1.4),
+        ),
+        const SizedBox(height: 10),
+        _Pick(
+          theme: t,
+          value: _look.name,
+          options: [for (final v in BoardLook.values) (v.name, v.label)],
+          onPick: (name) => Appearance.instance.setBoard(name),
+        ),
+        const SizedBox(height: 6),
+        _Row(
+          theme: t,
+          icon: Icons.auto_stories_outlined,
+          title: 'Ver el tablón con un pueblo lleno',
+          subtitle:
+              'Un valle de mentira: entrenar durante 300 días. Para poder '
+              'comparar las cinco con algo escrito.',
+          page: () {
+            final valle = demoValley();
+            return NoticeBoardScreen(
+              valley: valle,
+              habit: valle.first,
+              theme: t,
+              look: _look,
+            );
+          },
+        ),
+
+        const SizedBox(height: 26),
         _Head(theme: t, text: 'LO DEMÁS'),
         _Switch(
           theme: t,
@@ -154,8 +194,12 @@ class _SettingsSheetState extends State<SettingsSheet> {
           icon: Icons.push_pin_outlined,
           title: 'El tablón del pueblo',
           subtitle: 'Lo que el pueblo fue notando de vos.',
-          page: () =>
-              NoticeBoardScreen(store: store, habit: store.habit, theme: t),
+          page: () => NoticeBoardScreen(
+            valley: store.habits,
+            habit: store.habit,
+            theme: t,
+            look: _look,
+          ),
         ),
         _Row(
           theme: t,
@@ -438,6 +482,68 @@ class _Row extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Una fila de botones donde sólo uno está encendido.
+///
+/// Está aquí y no dentro de un menú a propósito: es para ir probando una tras
+/// otra y ver el cambio, no para elegir una vez y olvidarse. Con un menú hay
+/// que abrirlo, elegir, cerrarlo y volver a mirar; así son cinco toques y
+/// cinco miradas.
+class _Pick extends StatelessWidget {
+  const _Pick({
+    required this.theme,
+    required this.value,
+    required this.options,
+    required this.onPick,
+  });
+
+  final UiTheme theme;
+  final String value;
+
+  /// El nombre con que se guarda, y el nombre con que se lee.
+  final List<(String, String)> options;
+  final void Function(String name) onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = theme;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final (name, label) in options)
+          GestureDetector(
+            onTap: () {
+              Sensory.instance.tick();
+              onPick(name);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+              decoration: BoxDecoration(
+                color: name == value
+                    ? t.accent.withValues(alpha: 0.18)
+                    : t.fg.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(
+                  color: name == value
+                      ? t.accent.withValues(alpha: 0.7)
+                      : t.fg.withValues(alpha: 0.12),
+                ),
+              ),
+              child: Text(
+                label,
+                style: t.body.copyWith(
+                  fontSize: 12.5,
+                  color: name == value ? t.accent : t.fgSoft,
+                  fontWeight: name == value ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
