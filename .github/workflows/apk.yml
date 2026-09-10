@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build:
-    name: Build La Muralla APK
+    name: Build Towny APK
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -58,8 +58,13 @@ jobs:
           fi
           "$APKSIGNER" verify --print-certs \
             build/app/outputs/flutter-apk/app-release.apk | tee certs.txt
+          # El CN del certificado sigue diciendo «La Muralla» y tiene que
+          # seguir diciéndolo: la app se llama Towny ahora, pero la clave es
+          # la misma de siempre a propósito, que es lo único que permite
+          # instalar encima sin perder los pueblos. Cambiar el nombre del
+          # certificado sería cambiar de clave.
           grep -qi "CN=La Muralla" certs.txt || {
-            echo "::error::La APK no está firmada con la clave de La Muralla."
+            echo "::error::La APK no está firmada con la clave de siempre."
             exit 1
           }
 
@@ -68,13 +73,13 @@ jobs:
         run: |
           mkdir -p out
           cp build/app/outputs/flutter-apk/app-release.apk \
-             "out/la-muralla-${{ github.run_number }}.apk"
-          echo "apk=out/la-muralla-${{ github.run_number }}.apk" >> "$GITHUB_OUTPUT"
+             "out/towny-${{ github.run_number }}.apk"
+          echo "apk=out/towny-${{ github.run_number }}.apk" >> "$GITHUB_OUTPUT"
           ls -la out
 
       - uses: actions/upload-artifact@v4
         with:
-          name: la-muralla-apk
+          name: towny-apk
           path: out/*.apk
           if-no-files-found: error
           retention-days: 90
@@ -83,9 +88,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-${{ github.run_number }}
-          name: La Muralla · build ${{ github.run_number }}
+          name: Towny · build ${{ github.run_number }}
           body: |
-            APK de prueba de **La Muralla**.
+            APK de prueba de **Towny**.
 
             Se instala encima de la build anterior y **conserva tus pueblos**:
             todas las builds van firmadas con la misma clave. Android 7.0

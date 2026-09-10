@@ -1,5 +1,5 @@
 name: la_muralla
-description: "La Muralla — un habito, un ladrillo, una muralla que crece."
+description: "Towny — un hábito, una pieza, un pueblo que crece."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
