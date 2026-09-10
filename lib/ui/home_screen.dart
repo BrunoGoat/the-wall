@@ -19,6 +19,7 @@ import 'overlays.dart';
 import 'settings_sheet.dart';
 import 'sky_sheet.dart';
 import 'style.dart';
+import 'town_sign.dart';
 import '../engine/town.dart';
 import 'town_view.dart';
 
@@ -41,6 +42,20 @@ class _HomeScreenState extends State<HomeScreen> {
   Piece? _justPlaced;
   String? _whisper;
   Timer? _whisperTimer;
+
+  /// El cartel del pueblo al que acabás de entrar: qué dice, con qué diseño de
+  /// los cinco, y un número que cambia en cada anuncio para que la animación
+  /// vuelva a empezar aunque el pueblo sea el mismo.
+  (String, String, TownSign, int)? _sign;
+  Timer? _signTimer;
+  int _signNonce = 0;
+
+  /// Cuál de las cinco maneras de anunciar la pieza le tocó a ésta. Se sortea
+  /// al caer y no al pintar: si se sorteara al pintar, cambiaría de diseño en
+  /// cada cuadro.
+  NoteStyle _noteStyle = NoteStyle.tarjeta;
+
+  static const Duration _signLife = Duration(milliseconds: 2600);
   Piece? _selected;
 
   @override
@@ -56,6 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
     widget.store.removeListener(_onStore);
     Appearance.instance.removeListener(_onStore);
     _whisperTimer?.cancel();
+    _signTimer?.cancel();
     super.dispose();
   }
 
@@ -83,6 +99,17 @@ class _HomeScreenState extends State<HomeScreen> {
         duration: const Duration(seconds: 5),
       );
     }
+  }
+
+  /// Anunciar el pueblo. Sale uno de los cinco diseños al azar, para poder
+  /// verlos todos usando la app y quedarse con uno.
+  void _announceTown() {
+    final h = widget.store.habit;
+    _signTimer?.cancel();
+    setState(() => _sign = (h.name, h.symbol, TownSign.alAzar(), ++_signNonce));
+    _signTimer = Timer(_signLife, () {
+      if (mounted) setState(() => _sign = null);
+    });
   }
 
   void _showWhisper(
@@ -157,7 +184,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 // In the testing mode the pieces come far too fast for a card
                 // to be anything but in the way.
                 if (Appearance.instance.rapid) return;
-                setState(() => _justPlaced = piece);
+                setState(() {
+                  _justPlaced = piece;
+                  _noteStyle = NoteStyle.alAzar();
+                });
               },
               onStoneTapped: (brick) => setState(() {
                 _selected = brick;
@@ -172,7 +202,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onDomeTapped: _openSky,
               onTownTapped: (i) {
                 store.select(i);
-                _showWhisper(store.habit.name);
+                _announceTown();
               },
               onBoardTapped: _readBoard,
               onWhisper: _showWhisper,
@@ -277,6 +307,18 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
+          if (_sign != null)
+            Positioned.fill(
+              child: TownSignOverlay(
+                key: ValueKey(_sign!.$4),
+                name: _sign!.$1,
+                symbol: _sign!.$2,
+                sign: _sign!.$3,
+                theme: t,
+                life: _signLife,
+              ),
+            ),
+
           if (_whisper != null && _selected == null)
             Positioned(
               left: 0,
@@ -291,17 +333,13 @@ class _HomeScreenState extends State<HomeScreen> {
           // The card for the piece just laid, riding above the deck and out of
           // the way of the keyboard when it comes up.
           if (_justPlaced != null)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: MediaQuery.of(context).viewInsets.bottom > 0
-                  ? MediaQuery.of(context).viewInsets.bottom + 10
-                  : 208 + media.padding.bottom,
+            Positioned.fill(
               child: PlacedNote(
                 key: ValueKey(_justPlaced!.index),
                 habit: store.habit,
                 ordinal: _justPlaced!.index + 1,
                 theme: t,
+                style: _noteStyle,
                 onWrite: (text) => store.setLabel(_justPlaced!.index, text),
                 onDismiss: () => setState(() => _justPlaced = null),
               ),
@@ -318,7 +356,7 @@ class _HomeScreenState extends State<HomeScreen> {
               store: store,
               onSelect: (i) {
                 widget.store.select(i);
-                _showWhisper(widget.store.habit.name);
+                _announceTown();
               },
               onManage: _openHabits,
               onAdd: () => _openHabits(startNew: true),
