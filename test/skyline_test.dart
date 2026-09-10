@@ -103,7 +103,7 @@ void main() {
       // prado y el horizonte se volvían una sola mancha con una raya en medio.
       for (final hour in everyHour) {
         final pal = Palette.forMoment(hour, 1.0);
-        final (_, grass) = TownPainter.meadowTone(pal);
+        final grass = TownPainter.meadowTone(pal);
         final (hill, _) = TownPainter.rangeTone(pal, 0, howMany);
         expect(
           _apart(grass, hill),
@@ -123,20 +123,18 @@ void main() {
       for (final hour in everyHour) {
         final pal = Palette.forMoment(hour, 1.0);
         if (pal.daylight > 0.2) continue;
-        final (far, near) = TownPainter.meadowTone(pal);
-        for (final grass in [far, near]) {
-          expect(
-            grass.g,
-            greaterThan(grass.r),
-            reason: 'a las ${hour.toStringAsFixed(1)} el pasto no tiene verde',
-          );
-        }
+        final grass = TownPainter.meadowTone(pal);
+        expect(
+          grass.g,
+          greaterThan(grass.r),
+          reason: 'a las ${hour.toStringAsFixed(1)} el pasto no tiene verde',
+        );
       }
     });
 
     test('y de noche es oscuro, no un prado de mediodía a oscuras', () {
-      final noche = TownPainter.meadowTone(Palette.forMoment(2, 1.0)).$2;
-      final medio = TownPainter.meadowTone(Palette.forMoment(13, 1.0)).$2;
+      final noche = TownPainter.meadowTone(Palette.forMoment(2, 1.0));
+      final medio = TownPainter.meadowTone(Palette.forMoment(13, 1.0));
       expect(
         noche.computeLuminance(),
         lessThan(medio.computeLuminance() * 0.30),
