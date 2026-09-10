@@ -55,33 +55,6 @@ enum PieceKind {
 }
 
 /// One piece of a building, before it is given to an achievement.
-/// Cómo se llama cada pieza en castellano, para poder decirlo en pantalla.
-///
-/// Vive aquí, al lado del enumerado, y no en la interfaz: el vocabulario de la
-/// obra es de la obra. Están las diecinueve; si mañana hay una más, el
-/// analizador señala este mapa.
-const Map<PieceKind, String> pieceName = {
-  PieceKind.plinth: 'Zócalo',
-  PieceKind.floor: 'Planta',
-  PieceKind.roof: 'Tejado',
-  PieceKind.thatch: 'Techo de paja',
-  PieceKind.chimney: 'Chimenea',
-  PieceKind.dormer: 'Buhardilla',
-  PieceKind.porch: 'Porche',
-  PieceKind.parapet: 'Pretil',
-  PieceKind.spire: 'Aguja',
-  PieceKind.field: 'Huerta',
-  PieceKind.water: 'Agua',
-  PieceKind.wheel: 'Rueda',
-  PieceKind.sail: 'Aspas',
-  PieceKind.dome: 'Cúpula',
-  PieceKind.tree: 'Árbol',
-  PieceKind.palisade: 'Empalizada',
-  PieceKind.banner: 'Estandarte',
-  PieceKind.arcade: 'Arcada',
-  PieceKind.stair: 'Escalinata',
-};
-
 class Spec {
   Spec({
     required this.kind,

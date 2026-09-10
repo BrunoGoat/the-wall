@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../data/landmarks.dart';
 import 'papyrus.dart';
+import '../fx/sensory.dart';
 import 'legend_card.dart';
 import 'style.dart';
 
@@ -144,25 +145,32 @@ class Whisper extends StatelessWidget {
   }
 }
 
-/// What one stone was for, shown when you tap it.
+/// Para qué fue una pieza, al tocarla.
 ///
-/// The note is always optional: a stone with nothing written on it counts for
-/// exactly as much as one with a paragraph.
-class StoneCard extends StatelessWidget {
+/// La leyenda se escribe aquí mismo. Antes esto abría una hoja por debajo con
+/// su título, su explicación y sus botones de guardar y cancelar: una pantalla
+/// entera para una frase de sesenta letras que ya estaba en pantalla. Ahora el
+/// texto se convierte en el campo y se escribe donde se lee.
+///
+/// Y no hay botón de guardar. Tocar fuera guarda, que es lo que iba a pasar de
+/// todas formas.
+class StoneCard extends StatefulWidget {
   const StoneCard({
     super.key,
     required this.theme,
     required this.when,
     required this.number,
     required this.label,
-    required this.onEdit,
+    required this.onWrite,
   });
 
   final UiTheme theme;
   final DateTime when;
   final int number;
   final String? label;
-  final VoidCallback onEdit;
+
+  /// La leyenda nueva. Vacía quiere decir que se borró.
+  final void Function(String text) onWrite;
 
   static const _months = [
     'ene',
@@ -184,159 +192,87 @@ class StoneCard extends StatelessWidget {
       '${w.hour.toString().padLeft(2, '0')}:${w.minute.toString().padLeft(2, '0')}';
 
   @override
-  Widget build(BuildContext context) {
-    final t = theme;
-    final has = label != null && label!.trim().isNotEmpty;
-    // Sin lápiz y sin aspa. El lápiz decía lo que tocar el texto ya hace, y el
-    // aspa lo que tocar cualquier otro sitio de la pantalla ya hace: dos
-    // botones para dos cosas que iban a pasar igual. Sin ellos la tarjeta es
-    // una fecha y una frase, que es todo lo que tenía que ser.
-    return LegendCard(
-      theme: t,
-      onTap: onEdit,
-      header: 'PIEZA $number · ${formatDate(when)}',
-      child: Text(
-        has ? label! : 'escribir una leyenda',
-        // Sin color cuando hay leyenda: lo pone la tarjeta. Cuando no la hay,
-        // pardo flojo — es una frase que falta, no un aviso.
-        style: TextStyle(
-          fontSize: 13.5,
-          height: 1.25,
-          fontWeight: has ? FontWeight.w500 : FontWeight.w400,
-          color: has ? null : LegendCard.pending(t),
-        ),
-      ),
-    );
-  }
+  State<StoneCard> createState() => _StoneCardState();
 }
 
-/// The little editor for a stone's note.
-class LabelSheet extends StatefulWidget {
-  const LabelSheet({
-    super.key,
-    required this.theme,
-    required this.number,
-    required this.initial,
-  });
-
-  final UiTheme theme;
-  final int number;
-  final String? initial;
-
-  /// Returns the new note, an empty string to clear it, or null if cancelled.
-  static Future<String?> show(
-    BuildContext context, {
-    required UiTheme theme,
-    required int number,
-    String? initial,
-  }) {
-    return showModalBottomSheet<String>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: sheetScrim(theme.dark),
-      builder: (_) =>
-          LabelSheet(theme: theme, number: number, initial: initial),
-    );
-  }
-
-  @override
-  State<LabelSheet> createState() => _LabelSheetState();
-}
-
-class _LabelSheetState extends State<LabelSheet> {
-  late final TextEditingController _ctl = TextEditingController(
-    text: widget.initial ?? '',
+class _StoneCardState extends State<StoneCard> {
+  late final TextEditingController _text = TextEditingController(
+    text: widget.label ?? '',
   );
+  final FocusNode _focus = FocusNode();
+  bool _writing = false;
 
   @override
   void dispose() {
-    _ctl.dispose();
+    _text.dispose();
+    _focus.dispose();
     super.dispose();
+  }
+
+  void _open() {
+    if (_writing) return;
+    Sensory.instance.tick();
+    setState(() => _writing = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _focus.requestFocus());
+  }
+
+  void _close() {
+    if (!_writing) return;
+    final t = _text.text.trim();
+    if (t != (widget.label ?? '')) {
+      Sensory.instance.tick();
+      widget.onWrite(t);
+    }
+    setState(() => _writing = false);
   }
 
   @override
   Widget build(BuildContext context) {
     final t = widget.theme;
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
-      child: SheetSurface(
-        theme: t,
-        padding: const EdgeInsets.fromLTRB(22, 18, 22, 26),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: t.fgFaint,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 18),
-            Text('LEYENDA DE LA PIEZA ${widget.number}', style: t.label),
-            const SizedBox(height: 4),
-            Text(
-              'Opcional. Para acordarte de qué fue este.',
-              style: t.bodySoft.copyWith(fontSize: 12),
-            ),
-            const SizedBox(height: 14),
-            TextField(
-              controller: _ctl,
-              autofocus: true,
+    final has = widget.label != null && widget.label!.trim().isNotEmpty;
+    return LegendCard(
+      theme: t,
+      onTap: _writing ? null : _open,
+      header: 'PIEZA ${widget.number} · ${StoneCard.formatDate(widget.when)}',
+      child: _writing
+          ? TextField(
+              controller: _text,
+              focusNode: _focus,
               maxLength: 60,
-              textCapitalization: TextCapitalization.sentences,
               textInputAction: TextInputAction.done,
-              onSubmitted: (v) => Navigator.of(context).pop(v),
-              style: t.body.copyWith(fontSize: 17),
+              onSubmitted: (_) => _close(),
+              onTapOutside: (_) => _close(),
+              textCapitalization: TextCapitalization.sentences,
+              cursorColor: t.accent,
+              style: const TextStyle(
+                fontSize: 13.5,
+                height: 1.25,
+                fontWeight: FontWeight.w500,
+              ),
               decoration: InputDecoration(
-                hintText: 'Leí',
-                hintStyle: TextStyle(color: t.fgFaint),
-                counterStyle: TextStyle(color: t.fgFaint, fontSize: 10),
-                enabledBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: t.stroke),
-                ),
-                focusedBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: t.accent),
-                ),
+                isDense: true,
+                counterText: '',
+                contentPadding: EdgeInsets.zero,
+                hintText: 'qué fue',
+                hintStyle: t.bodySoft.copyWith(fontSize: 13.5, height: 1.25),
+                border: InputBorder.none,
+              ),
+            )
+          : Text(
+              has ? widget.label! : 'escribir una leyenda',
+              // Sin color cuando hay leyenda: lo pone la tarjeta. Cuando no la
+              // hay, pardo flojo — es una frase que falta, no un aviso.
+              style: TextStyle(
+                fontSize: 13.5,
+                height: 1.25,
+                fontWeight: has ? FontWeight.w500 : FontWeight.w400,
+                color: has ? null : LegendCard.pending(t),
               ),
             ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                if ((widget.initial ?? '').isNotEmpty)
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(''),
-                    child: Text('Borrar', style: TextStyle(color: t.fgSoft)),
-                  ),
-                const Spacer(),
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text('Cancelar', style: TextStyle(color: t.fgSoft)),
-                ),
-                const SizedBox(width: 6),
-                FilledButton(
-                  style: FilledButton.styleFrom(backgroundColor: t.accent),
-                  onPressed: () => Navigator.of(context).pop(_ctl.text),
-                  child: const Text('Guardar'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
 
-/// The strip along the bottom that shows the whole wall at a glance and lets
-/// you jump anywhere along it.
 class TravelScrubber extends StatelessWidget {
   const TravelScrubber({
     super.key,

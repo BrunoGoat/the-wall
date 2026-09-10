@@ -98,9 +98,19 @@ se apaga el color y se enturbia el cielo. **Una sola pieza lo repara entero.**
 
 Cualquier pieza se puede tocar para ver cuándo se colocó y dejarle una nota. El
 área que responde es la del sólido entero y no se atraviesa: si hay una pieza
-encima de otra, gana la de encima. Las que llevan leyenda quedan marcadas, y
-todas juntas forman la bitácora — la pestaña *Leyendas* es una hoja de papiro que
-se lee de la primera pieza a la última, por meses, como la crónica de una obra.
+encima de otra, gana la de encima.
+
+**La leyenda se escribe en la misma tarjeta donde se lee.** Se toca el texto y
+el texto se convierte en el campo; se toca fuera y queda guardado. No hay botón
+de guardar y no hay una segunda pantalla: una hoja aparte con su título, su
+explicación y sus botones es mucha pantalla para una frase de sesenta letras que
+ya estaba delante. Desde la bitácora es lo mismo —tocar una entrada lleva la
+cámara hasta esa pieza y abre su tarjeta—, así que hay una sola manera de
+escribir una leyenda y está en un solo sitio.
+
+Las que llevan leyenda quedan marcadas, y todas juntas forman la bitácora — la
+pestaña *Leyendas* es una hoja de papiro que se lee de la primera pieza a la
+última, por meses, como la crónica de una obra.
 
 Al lado están *El pueblo*, con lo que llevás en pie y las rachas, e *Hitos*, con
 lo terminado, lo que está en obra y lo que viene.
@@ -177,7 +187,7 @@ cambiar cuánto suena la mitad la recalcula sola.
 
 ```bash
 flutter pub get
-flutter test          # 189 tests
+flutter test          # 188 tests
 flutter analyze
 flutter run
 flutter build apk --release

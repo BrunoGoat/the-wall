@@ -16,7 +16,7 @@ class JourneySheet extends StatefulWidget {
     required this.store,
     required this.theme,
     required this.onGoTo,
-    required this.onEditLabel,
+    required this.onOpenPiece,
   });
 
   final Store store;
@@ -27,8 +27,10 @@ class JourneySheet extends StatefulWidget {
 
   /// Centre of each built landmark, keyed by the brick it started on.
 
-  /// Opens the note editor for a brick.
-  final void Function(Piece brick) onEditLabel;
+  /// Abre la pieza en el pueblo: la cámara va hasta ella y sale su tarjeta,
+  /// que es donde se lee y se escribe la leyenda. No hay otra pantalla para
+  /// eso, y no la había que añadir.
+  final void Function(Piece brick) onOpenPiece;
 
   @override
   State<JourneySheet> createState() => _JourneySheetState();
@@ -70,7 +72,7 @@ class _JourneySheetState extends State<JourneySheet> {
                     store: widget.store,
                     theme: t,
                     onGoTo: widget.onGoTo,
-                    onEdit: widget.onEditLabel,
+                    onEdit: widget.onOpenPiece,
                   ),
                 },
               ),

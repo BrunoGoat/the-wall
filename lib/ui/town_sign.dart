@@ -15,7 +15,7 @@ class TownSignOverlay extends StatefulWidget {
     required this.name,
     required this.symbol,
     required this.theme,
-    this.life = const Duration(milliseconds: 1700),
+    this.life = const Duration(milliseconds: 1150),
   });
 
   final String name;
@@ -46,9 +46,10 @@ class _TownSignOverlayState extends State<TownSignOverlay>
   /// la entrada y la salida. Con dos controladores habría que coordinarlos, y
   /// lo que se quiere comparar aquí es el diseño, no la mecánica.
   (double, double) _tramos(double t) {
-    // Entra rápido y se va rápido: es un rótulo, no una animación. Un segundo
-    // y pico de punta a punta, y el desvanecido ocupa el último tercio.
-    const entra = 0.14, sale = 0.30;
+    // Entra rápido y se va rápido: es un rótulo, no una animación. Poco más de
+    // un segundo de punta a punta, y el desvanecido ocupa el último tercio
+    // largo — lo justo para leer un nombre y que se quite de en medio.
+    const entra = 0.13, sale = 0.34;
     final a = Curves.easeOutCubic.transform((t / entra).clamp(0.0, 1.0));
     final b = Curves.easeInCubic.transform(
       ((t - (1 - sale)) / sale).clamp(0.0, 1.0),

@@ -3,7 +3,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../engine/mason.dart';
 import '../engine/palette.dart';
 import '../fx/sensory.dart';
 import '../model/appearance.dart';
@@ -13,7 +12,6 @@ import '../model/store.dart';
 import 'habit_bar.dart';
 import 'habits_sheet.dart';
 import 'hold_button.dart';
-import 'placed_note.dart';
 import 'journey_sheet.dart';
 import 'notice_board.dart';
 import 'overlays.dart';
@@ -40,7 +38,6 @@ class _HomeScreenState extends State<HomeScreen> {
   (Landmark, int)? _revealTown;
 
   /// The piece just laid, while its card is still up.
-  Piece? _justPlaced;
   String? _whisper;
   Timer? _whisperTimer;
 
@@ -54,10 +51,6 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Cuál de las cinco maneras de anunciar la pieza le tocó a ésta. Se sortea
   /// al caer y no al pintar: si se sorteara al pintar, cambiaría de diseño en
   /// cada cuadro.
-  /// De qué es la pieza que acaba de caer —tejado, chimenea, pretil—, que lo
-  /// sabe el trazado del pueblo y lo cuenta al colocarla.
-  String? _justPlacedKind;
-
   static const Duration _signLife = Duration(milliseconds: 2600);
   Piece? _selected;
 
@@ -126,19 +119,13 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Future<void> _editLabel(Piece brick) async {
-    final result = await LabelSheet.show(
-      context,
-      theme: _theme,
-      number: brick.index + 1,
-      initial: brick.label,
-    );
-    if (result == null) return;
-    widget.store.setLabel(brick.index, result);
-    if (mounted) {
-      Sensory.instance.tick();
-      setState(() => _selected = widget.store.pieceAt(brick.index));
-    }
+  /// Abrir una pieza desde la bitácora: se cierra el cuaderno, la cámara va
+  /// hasta ella y se abre su tarjeta. Una sola manera de leer y escribir una
+  /// leyenda, y es la misma que tocar la pieza en el pueblo.
+  void _openPiece(Piece brick) {
+    Navigator.of(context).maybePop();
+    _wall.lookAtPiece(brick.index);
+    setState(() => _selected = brick);
   }
 
   /// Alguien reconoció la constelación de esta noche y la tocó.
@@ -183,21 +170,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (Appearance.instance.rapid) return;
                 setState(() => _revealTown = (mark, ordinal));
               },
-              onPlaced: (piece, kind) {
+              onPlaced: (piece) {
                 // In the testing mode the pieces come far too fast for a card
                 // to be anything but in the way.
                 if (Appearance.instance.rapid) return;
-                setState(() {
-                  _justPlaced = piece;
-                  _justPlacedKind = kind == null ? null : pieceName[kind];
-                });
+                setState(() {});
               },
-              onStoneTapped: (brick) => setState(() {
-                _selected = brick;
-                // Y fuera la tarjeta de la pieza recién puesta: quien se puso
-                // a mirar otra ya pasó de página, y las dos juntas se pisan.
-                _justPlaced = null;
-              }),
+              onStoneTapped: (brick) => setState(() => _selected = brick),
               onNothingTapped: () {
                 if (_selected != null) setState(() => _selected = null);
               },
@@ -298,14 +277,21 @@ class _HomeScreenState extends State<HomeScreen> {
             Positioned(
               left: 14,
               right: 14,
-              bottom: media.padding.bottom + 214,
+              // Cuando se escribe en ella hay teclado, así que sube por encima.
+              bottom: media.viewInsets.bottom > 0
+                  ? media.viewInsets.bottom + 10
+                  : media.padding.bottom + 214,
               child: Center(
                 child: StoneCard(
+                  key: ValueKey(_selected!.index),
                   theme: t,
                   when: _selected!.placedAt,
                   number: _selected!.index + 1,
                   label: _selected!.label,
-                  onEdit: () => _editLabel(_selected!),
+                  onWrite: (text) => setState(() {
+                    store.setLabel(_selected!.index, text);
+                    _selected = store.pieceAt(_selected!.index);
+                  }),
                 ),
               ),
             ),
@@ -334,19 +320,6 @@ class _HomeScreenState extends State<HomeScreen> {
           // --- bottom: travel, then the one button
           // The card for the piece just laid, riding above the deck and out of
           // the way of the keyboard when it comes up.
-          if (_justPlaced != null)
-            Positioned.fill(
-              child: PlacedNote(
-                key: ValueKey(_justPlaced!.index),
-                kind: _justPlacedKind,
-                ordinal: _justPlaced!.index + 1,
-                when: _justPlaced!.placedAt,
-                theme: t,
-                onWrite: (text) => store.setLabel(_justPlaced!.index, text),
-                onDismiss: () => setState(() => _justPlaced = null),
-              ),
-            ),
-
           Positioned(
             left: 0,
             right: 0,
@@ -434,7 +407,7 @@ class _HomeScreenState extends State<HomeScreen> {
         store: widget.store,
         theme: _theme,
         onGoTo: _wall.goTo,
-        onEditLabel: _editLabel,
+        onOpenPiece: _openPiece,
       ),
     );
   }

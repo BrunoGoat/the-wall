@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:la_muralla/engine/mason.dart';
 import 'package:la_muralla/engine/palette.dart';
 import 'package:la_muralla/ui/legend_card.dart';
 import 'package:la_muralla/ui/overlays.dart';
-import 'package:la_muralla/ui/placed_note.dart';
 import 'package:la_muralla/ui/style.dart';
 import 'package:la_muralla/ui/town_sign.dart';
 
@@ -92,45 +90,6 @@ void main() {
     }
   });
 
-  testWidgets('el anuncio de la pieza dice de qué es y lleva al papel', (
-    tester,
-  ) async {
-    for (final size in _pantallas) {
-      tester.view.physicalSize = size;
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-      await tester.pumpWidget(
-        _marco(
-          size,
-          PlacedNote(
-            kind: pieceName[PieceKind.chimney],
-            ordinal: 1284,
-            when: DateTime(2026, 9, 10, 8, 50),
-            theme: UiTheme(Palette.forMoment(13, 1.0)),
-            onWrite: (_) {},
-            onDismiss: () {},
-          ),
-        ),
-      );
-      await tester.pump(const Duration(milliseconds: 400));
-      expect(tester.takeException(), isNull);
-
-      // Lo que dice es qué se construyó. Ni el pueblo ni el número de pieza:
-      // el pueblo se está mirando y el número está arriba a la izquierda.
-      expect(find.text('Chimenea'), findsOneWidget);
-      expect(find.textContaining('1284'), findsNothing);
-      _dentro(tester, size, 'el anuncio');
-
-      // Y de ahí se llega al mismo papel que sale al releer una leyenda.
-      expect(find.byType(TextField), findsNothing);
-      await tester.tap(find.byKey(anotar));
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(find.byType(LegendCard), findsOneWidget);
-      expect(find.byType(TextField), findsOneWidget);
-      await tester.pumpWidget(const SizedBox());
-    }
-  });
-
   testWidgets('la tarjeta de la leyenda cabe y se lee', (tester) async {
     const leyenda = 'Corrí ocho kilómetros por el parque, con lluvia';
     for (final size in _pantallas) {
@@ -146,7 +105,7 @@ void main() {
               when: DateTime(2026, 9, 10, 8, 50),
               number: 1284,
               label: leyenda,
-              onEdit: () {},
+              onWrite: (_) {},
             ),
           ),
         ),
@@ -178,7 +137,7 @@ void main() {
               when: DateTime(2026, 9, 10),
               number: 7,
               label: null,
-              onEdit: () {},
+              onWrite: (_) {},
             ),
           ),
         ),
@@ -200,12 +159,46 @@ void main() {
     }
   });
 
-  test('todas las piezas tienen nombre', () {
-    // El anuncio dice de qué es la pieza, así que una sin nombre sale como
-    // «Pieza» a secas y se pierde lo único que ese cartel tenía que decir.
-    for (final k in PieceKind.values) {
-      expect(pieceName[k], isNotNull, reason: '$k no tiene nombre');
-      expect(pieceName[k]!.trim(), isNotEmpty, reason: '$k tiene nombre vacío');
-    }
+  testWidgets('la leyenda se escribe en la propia tarjeta', (tester) async {
+    // Antes esto abría una hoja por debajo, con su título, su explicación y
+    // sus botones. Una pantalla entera para una frase de sesenta letras que ya
+    // estaba en pantalla.
+    final size = _pantallas.last;
+    tester.view.physicalSize = size;
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    String? escrito;
+    await tester.pumpWidget(
+      _marco(
+        size,
+        Center(
+          child: StoneCard(
+            theme: UiTheme(Palette.forMoment(13, 1.0)),
+            when: DateTime(2026, 9, 10),
+            number: 7,
+            label: null,
+            onWrite: (t) => escrito = t,
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    // Se lee, se toca, y se escribe ahí mismo: una sola tarjeta de principio a
+    // fin, sin ninguna pantalla nueva.
+    expect(find.byType(TextField), findsNothing);
+    await tester.tap(find.text('escribir una leyenda'));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.byType(LegendCard), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), 'Leí un rato');
+    // Y sin botón de guardar: tocar fuera guarda, que es lo que iba a pasar
+    // igual.
+    expect(find.text('Guardar'), findsNothing);
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(escrito, 'Leí un rato');
+    expect(find.byType(TextField), findsNothing);
   });
 }

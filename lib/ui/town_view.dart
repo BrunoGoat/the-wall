@@ -36,6 +36,9 @@ class TownViewController {
   /// True once there is more than one town to compare.
   bool get hasValley => (_state?._entries.length ?? 1) > 1;
   void goTo(double x, double z) => _state?.goTo(x, z);
+
+  /// Lleva la cámara hasta una pieza concreta, para abrirla desde la bitácora.
+  void lookAtPiece(int index) => _state?.lookAtPiece(index);
   double get travel => _state?._cam.travelTarget ?? 0;
 
   /// How wide the town in front of you reaches, for framing.
@@ -67,9 +70,7 @@ class TownView extends StatefulWidget {
   final void Function(Landmark mark, int ordinal) onTownLandmark;
 
   /// A piece has just been laid, and which one it is.
-  /// La pieza que se colocó y de qué es —tejado, chimenea, pretil—, que lo
-  /// sabe el trazado del pueblo y no el modelo.
-  final void Function(Piece piece, PieceKind? kind) onPlaced;
+  final void Function(Piece piece) onPlaced;
   final void Function(Piece piece) onStoneTapped;
 
   /// Alguien se quedó mirando la constelación de esta noche y la tocó.
@@ -459,7 +460,7 @@ class _TownViewState extends State<TownView>
     // it reads as a bug, and the anticipation is in the shadow closing under
     // it rather than in the height it falls from.
     _placement = PlacementFx(result.piece.index, dropHeight: 2.3);
-    widget.onPlaced(result.piece, _town.pieceFor(result.piece.index)?.kind);
+    widget.onPlaced(result.piece);
     setState(() {});
   }
 
@@ -562,6 +563,11 @@ class _TownViewState extends State<TownView>
   }
 
   /// Looks at a spot on the valley floor, for the map and the landmark list.
+  void lookAtPiece(int index) {
+    final p = _town.pieceFor(index);
+    if (p != null) goTo(p.cx, p.cz);
+  }
+
   void goTo(double x, double z) {
     _touched();
     _cam.travelTo(x);
