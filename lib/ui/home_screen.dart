@@ -277,10 +277,10 @@ class _HomeScreenState extends State<HomeScreen> {
             Positioned(
               left: 14,
               right: 14,
-              // Cuando se escribe en ella hay teclado, así que sube por encima.
-              bottom: media.viewInsets.bottom > 0
-                  ? media.viewInsets.bottom + 10
-                  : media.padding.bottom + 214,
+              // Se queda donde está aunque salga el teclado. Se probó a
+              // subirla por encima y quedaba flotando en mitad de la pantalla;
+              // desde su sitio de siempre se lee bien igual.
+              bottom: media.padding.bottom + 214,
               child: Center(
                 child: StoneCard(
                   key: ValueKey(_selected!.index),

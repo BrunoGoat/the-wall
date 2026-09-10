@@ -100,8 +100,9 @@ Cualquier pieza se puede tocar para ver cuándo se colocó y dejarle una nota. E
 área que responde es la del sólido entero y no se atraviesa: si hay una pieza
 encima de otra, gana la de encima.
 
-**La leyenda se escribe en la misma tarjeta donde se lee.** Se toca el texto y
-el texto se convierte en el campo; se toca fuera y queda guardado. No hay botón
+**La leyenda se escribe en la misma tarjeta donde se lee**, y sin moverse del
+sitio aunque salga el teclado. Se toca el texto y el texto se convierte en el
+campo; se toca fuera y queda guardado. No hay botón
 de guardar y no hay una segunda pantalla: una hoja aparte con su título, su
 explicación y sus botones es mucha pantalla para una frase de sesenta letras que
 ya estaba delante. Desde la bitácora es lo mismo —tocar una entrada lleva la
