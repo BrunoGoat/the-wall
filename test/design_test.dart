@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:la_muralla/engine/palette.dart';
+import 'package:la_muralla/model/appearance.dart';
 import 'package:la_muralla/model/habit.dart';
 import 'package:la_muralla/ui/legend_card.dart';
 import 'package:la_muralla/ui/overlays.dart';
 import 'package:la_muralla/ui/placed_note.dart';
 import 'package:la_muralla/ui/style.dart';
 import 'package:la_muralla/ui/town_sign.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Un teléfono estrecho y uno ancho: lo que se rompe en un diseño puesto sobre
 /// la escena es que se salga por un costado o que se desborde, y las dos cosas
@@ -237,6 +239,93 @@ void main() {
           await tester.pumpWidget(const SizedBox());
         }
       }
+    });
+  });
+
+  group('elegir el diseño en los ajustes', () {
+    // Los tres grupos, con lo que hace falta para probarlos de la misma
+    // manera: cómo se llama cada uno, cómo se guarda y cómo se lee.
+    final grupos = <String, (List<String>, List<String>)>{
+      'cartel': (
+        [for (final v in TownSign.values) v.name],
+        [for (final v in TownSign.values) v.label],
+      ),
+      'pieza': (
+        [for (final v in NoteStyle.values) v.name],
+        [for (final v in NoteStyle.values) v.label],
+      ),
+      'tarjeta': (
+        [for (final v in CardStyle.values) v.name],
+        [for (final v in CardStyle.values) v.label],
+      ),
+    };
+
+    test('cada diseño se encuentra por su nombre y tiene rótulo', () {
+      for (final e in grupos.entries) {
+        final (nombres, rotulos) = e.value;
+        expect(
+          nombres.toSet().length,
+          nombres.length,
+          reason: 'dos diseños de ${e.key} se llaman igual',
+        );
+        for (final r in rotulos) {
+          expect(
+            r.trim(),
+            isNotEmpty,
+            reason: 'un diseño de ${e.key} sin rótulo',
+          );
+        }
+      }
+      for (final v in TownSign.values) {
+        expect(TownSign.porNombre(v.name), v);
+      }
+      for (final v in NoteStyle.values) {
+        expect(NoteStyle.porNombre(v.name), v);
+      }
+      for (final v in CardStyle.values) {
+        expect(CardStyle.porNombre(v.name), v);
+      }
+    });
+
+    test('el sorteo y lo desconocido no son ningún diseño', () {
+      // Y por eso caen en uno al azar en vez de dejar la pantalla vacía.
+      for (final raro in [Appearance.atRandom, 'lo-que-sea', '']) {
+        expect(TownSign.porNombre(raro), isNull);
+        expect(NoteStyle.porNombre(raro), isNull);
+        expect(CardStyle.porNombre(raro), isNull);
+      }
+    });
+
+    test('lo elegido sobrevive a cerrar la app', () async {
+      SharedPreferences.setMockInitialValues({});
+      final a = Appearance.instance;
+      await a.load();
+      await a.setSignStyle('cinta');
+      await a.setNoteStyle('globo');
+      await a.setCardStyle(Appearance.atRandom);
+      await a.flush();
+
+      final guardado = (await SharedPreferences.getInstance()).getStringList(
+        'pueblo_sound_v1',
+      );
+      expect(guardado, isNotNull);
+
+      // Y ahora se vuelve a abrir con lo que quedó escrito.
+      SharedPreferences.setMockInitialValues({'pueblo_sound_v1': guardado!});
+      await a.load();
+      expect(a.signStyle, 'cinta');
+      expect(a.noteStyle, 'globo');
+      expect(a.cardStyle, Appearance.atRandom);
+    });
+
+    test('una instalación nueva no viene sorteando', () async {
+      // Lo que se pidió: botones para probarlos uno a uno, no una ruleta.
+      SharedPreferences.setMockInitialValues({});
+      final a = Appearance.instance;
+      await a.load();
+      expect(TownSign.porNombre(a.signStyle), isNotNull);
+      expect(NoteStyle.porNombre(a.noteStyle), isNotNull);
+      expect(CardStyle.porNombre(a.cardStyle), isNotNull);
     });
   });
 }

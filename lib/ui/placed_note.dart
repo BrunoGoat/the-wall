@@ -49,6 +49,26 @@ enum NoteStyle {
   static final math.Random _dado = math.Random();
 
   static NoteStyle alAzar() => values[_dado.nextInt(values.length)];
+
+  /// El que se llame así, o nada. Un nombre que esta versión ya no conoce
+  /// —porque el diseño se retiró— devuelve nulo a propósito: quien lo tuviera
+  /// elegido pasa a ver uno al azar, que es raro pero se entiende, en vez de
+  /// una pantalla vacía.
+  static NoteStyle? porNombre(String name) {
+    for (final v in values) {
+      if (v.name == name) return v;
+    }
+    return null;
+  }
+
+  /// Cómo se llama en los ajustes.
+  String get label => const {
+    NoteStyle.tarjeta: 'Tarjeta',
+    NoteStyle.sello: 'Sello',
+    NoteStyle.franja: 'Franja',
+    NoteStyle.globo: 'Globo',
+    NoteStyle.cuenta: 'Cuenta',
+  }[this]!;
 }
 
 class PlacedNote extends StatefulWidget {

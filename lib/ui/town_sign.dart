@@ -29,6 +29,26 @@ enum TownSign {
   static final math.Random _dado = math.Random();
 
   static TownSign alAzar() => values[_dado.nextInt(values.length)];
+
+  /// El que se llame así, o nada. Un nombre que esta versión ya no conoce
+  /// —porque el diseño se retiró— devuelve nulo a propósito: quien lo tuviera
+  /// elegido pasa a ver uno al azar, que es raro pero se entiende, en vez de
+  /// una pantalla vacía.
+  static TownSign? porNombre(String name) {
+    for (final v in values) {
+      if (v.name == name) return v;
+    }
+    return null;
+  }
+
+  /// Cómo se llama en los ajustes.
+  String get label => const {
+    TownSign.sello: 'Sello',
+    TownSign.cartel: 'Cartel',
+    TownSign.cinta: 'Cinta',
+    TownSign.brote: 'Brote',
+    TownSign.letras: 'Letras',
+  }[this]!;
 }
 
 /// El nombre del pueblo, puesto encima de la escena y quitado solo.

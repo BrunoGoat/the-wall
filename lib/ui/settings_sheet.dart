@@ -12,6 +12,9 @@ import 'debug_sheet.dart';
 import 'gallery_screen.dart';
 import 'notice_board.dart';
 import 'overlays.dart';
+import 'legend_card.dart';
+import 'town_sign.dart';
+import 'placed_note.dart';
 import 'style.dart';
 
 /// Everything about the app that is a setting rather than a town.
@@ -175,6 +178,40 @@ class _SettingsSheetState extends State<SettingsSheet> {
         _Clock(theme: t, at: _pretend, onPick: _hour),
 
         const SizedBox(height: 26),
+        _Head(theme: t, text: 'CÓMO SE VE'),
+        Text(
+          'Tres sitios donde hay varios diseños y todavía no está decidido '
+          'cuál se queda. Elegí uno y usá la app un rato con él; «Al azar» '
+          'saca uno distinto cada vez.',
+          style: t.bodySoft.copyWith(fontSize: 11.5, height: 1.4),
+        ),
+        const SizedBox(height: 10),
+        _Pick(
+          theme: t,
+          title: 'El nombre del pueblo',
+          subtitle: 'Al entrar en uno desde la barra de abajo.',
+          options: [for (final v in TownSign.values) (v.name, v.label)],
+          chosen: wants.signStyle,
+          onPick: wants.setSignStyle,
+        ),
+        _Pick(
+          theme: t,
+          title: 'Al poner una pieza',
+          subtitle: 'Lo que dice a qué pueblo fue.',
+          options: [for (final v in NoteStyle.values) (v.name, v.label)],
+          chosen: wants.noteStyle,
+          onPick: wants.setNoteStyle,
+        ),
+        _Pick(
+          theme: t,
+          title: 'La tarjeta de la leyenda',
+          subtitle: 'Al tocar una pieza y al escribirle una nota.',
+          options: [for (final v in CardStyle.values) (v.name, v.label)],
+          chosen: wants.cardStyle,
+          onPick: wants.setCardStyle,
+        ),
+
+        const SizedBox(height: 26),
         _Head(theme: t, text: 'LO DEMÁS'),
         _Switch(
           theme: t,
@@ -314,6 +351,71 @@ class _Undo extends StatelessWidget {
                 fontWeight: FontWeight.w600,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Elegir uno de varios diseños.
+///
+/// Botones a la vista y no una lista desplegable: son cinco, caben, y lo que
+/// se está haciendo aquí es probarlos uno detrás de otro — dos toques por
+/// prueba en vez de cuatro.
+class _Pick extends StatelessWidget {
+  const _Pick({
+    required this.theme,
+    required this.title,
+    required this.subtitle,
+    required this.options,
+    required this.chosen,
+    required this.onPick,
+  });
+
+  final UiTheme theme;
+  final String title;
+  final String subtitle;
+
+  /// El nombre con el que se guarda y el nombre con el que se enseña.
+  final List<(String, String)> options;
+
+  final String chosen;
+  final void Function(String) onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = theme;
+    // El sorteo va el último y no el primero: es una opción más, no el
+    // estado normal de la app.
+    final todas = [...options, (Appearance.atRandom, 'Al azar')];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: t.body.copyWith(fontSize: 14, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 1),
+          Text(subtitle, style: t.bodySoft.copyWith(fontSize: 11.5)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              // La misma ficha que usa el reloj de la música más abajo: aquí
+              // se está eligiendo lo mismo —uno de varios—, y dos maneras de
+              // dibujar eso en la misma pantalla sobran.
+              for (final (id, label) in todas)
+                _Chip(
+                  theme: t,
+                  text: label,
+                  on: id == chosen,
+                  onTap: () => onPick(id),
+                ),
+            ],
           ),
         ],
       ),

@@ -56,10 +56,19 @@ class _HomeScreenState extends State<HomeScreen> {
   /// cada cuadro.
   NoteStyle _noteStyle = NoteStyle.tarjeta;
 
-  /// Y de qué material es la tarjeta de la leyenda. Se sortea en los dos sitios
-  /// donde aparece —al caer una pieza y al tocar una vieja— porque son dos
-  /// momentos distintos, no dos vistas del mismo.
+  /// Y de qué material es la tarjeta de la leyenda.
   CardStyle _cardStyle = CardStyle.esmerilada;
+
+  /// Los tres salen de lo que esté elegido en ajustes. Un nombre que ya no
+  /// existe —o el sorteo, que se llama así a propósito— cae en uno al azar.
+  TownSign get _pickedSign =>
+      TownSign.porNombre(Appearance.instance.signStyle) ?? TownSign.alAzar();
+
+  NoteStyle get _pickedNote =>
+      NoteStyle.porNombre(Appearance.instance.noteStyle) ?? NoteStyle.alAzar();
+
+  CardStyle get _pickedCard =>
+      CardStyle.porNombre(Appearance.instance.cardStyle) ?? CardStyle.alAzar();
 
   static const Duration _signLife = Duration(milliseconds: 2600);
   Piece? _selected;
@@ -112,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _announceTown() {
     final h = widget.store.habit;
     _signTimer?.cancel();
-    setState(() => _sign = (h.name, h.symbol, TownSign.alAzar(), ++_signNonce));
+    setState(() => _sign = (h.name, h.symbol, _pickedSign, ++_signNonce));
     _signTimer = Timer(_signLife, () {
       if (mounted) setState(() => _sign = null);
     });
@@ -192,13 +201,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (Appearance.instance.rapid) return;
                 setState(() {
                   _justPlaced = piece;
-                  _noteStyle = NoteStyle.alAzar();
-                  _cardStyle = CardStyle.alAzar();
+                  _noteStyle = _pickedNote;
+                  _cardStyle = _pickedCard;
                 });
               },
               onStoneTapped: (brick) => setState(() {
                 _selected = brick;
-                _cardStyle = CardStyle.alAzar();
+                _cardStyle = _pickedCard;
                 // Y fuera la tarjeta de la pieza recién puesta: quien se puso
                 // a mirar otra ya pasó de página, y las dos juntas se pisan.
                 _justPlaced = null;

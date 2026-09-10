@@ -55,6 +55,50 @@ class Appearance extends ChangeNotifier {
   /// apagar la última es casi siempre un dedo que se fue, no una decisión.
   final Set<String> _rotation = <String>{};
 
+  // ------------------------------------------------------- cómo se ve la app
+
+  /// Cuál de los diseños se usa en cada uno de los tres sitios donde hay
+  /// varios: el cartel del pueblo, el anuncio de la pieza y la tarjeta de la
+  /// leyenda.
+  ///
+  /// Se guardan como el nombre pelado del diseño y no como su índice, porque
+  /// un índice se corre en cuanto se añade uno nuevo a la lista y quien había
+  /// elegido el tercero se encontraría con otro. Se guardan como texto y no
+  /// como el propio enumerado porque esto es el modelo: no sabe dibujar y no
+  /// tiene por qué conocer los nombres de la interfaz.
+  ///
+  /// `azar` —y cualquier nombre que esta versión ya no conozca— quiere decir
+  /// que se sortee. Eso segundo importa: si algún día se retira un diseño,
+  /// quien lo tuviera elegido ve otro cada vez, que es raro pero se entiende,
+  /// en vez de una pantalla vacía.
+  static const String atRandom = 'azar';
+
+  String _sign = 'sello';
+  String _note = 'tarjeta';
+  String _card = 'esmerilada';
+
+  String get signStyle => _sign;
+  String get noteStyle => _note;
+  String get cardStyle => _card;
+
+  Future<void> setSignStyle(String v) async {
+    if (v == _sign) return;
+    _sign = v;
+    await _keep();
+  }
+
+  Future<void> setNoteStyle(String v) async {
+    if (v == _note) return;
+    _note = v;
+    await _keep();
+  }
+
+  Future<void> setCardStyle(String v) async {
+    if (v == _card) return;
+    _card = v;
+    await _keep();
+  }
+
   bool inRotation(String id) => _rotation.isEmpty || _rotation.contains(id);
 
   /// Cuántas hay elegidas de verdad, para poder decirlo en la pantalla.
@@ -91,7 +135,10 @@ class Appearance extends ChangeNotifier {
   /// encuentra nada guardado se queda con lo que hubiese en memoria de antes,
   /// que en la app es sólo el primer arranque pero en cualquier otro sitio
   /// —un test, un reinicio en caliente— es basura del anterior.
-  void _forgetSound() {
+  void _forget() {
+    _sign = 'sello';
+    _note = 'tarjeta';
+    _card = 'esmerilada';
     _soundOff = false;
     _musicOff = false;
     _effectsOff = false;
@@ -103,12 +150,12 @@ class Appearance extends ChangeNotifier {
   }
 
   Future<void> load() async {
-    _forgetSound();
+    _forget();
     try {
       final prefs = await SharedPreferences.getInstance();
       _rapid = prefs.getBool(_rapidKey) ?? false;
       final saved = prefs.getStringList(_soundKey);
-      if (saved != null) _readSound(saved);
+      if (saved != null) _readPrefs(saved);
     } catch (_) {
       // A phone that will not give us its preferences still gets a town.
     }
@@ -116,8 +163,10 @@ class Appearance extends ChangeNotifier {
   }
 
   /// Written as a plain list of `key=value`, so a setting added later reads
-  /// back as its default instead of throwing the whole lot away.
-  void _readSound(List<String> rows) {
+  /// back as its default instead of throwing the whole lot away. Que la clave
+  /// del disco se llame «sound» es historia: ahí dentro va ya todo lo que se
+  /// elige, y renombrarla le borraría a todo el mundo lo que tenía puesto.
+  void _readPrefs(List<String> rows) {
     for (final row in rows) {
       final at = row.indexOf('=');
       if (at <= 0) continue;
@@ -143,11 +192,17 @@ class Appearance extends ChangeNotifier {
           _rotation
             ..clear()
             ..addAll(value.split(',').where((s) => s.isNotEmpty));
+        case 'sign':
+          _sign = value;
+        case 'note':
+          _note = value;
+        case 'card':
+          _card = value;
       }
     }
   }
 
-  List<String> _writeSound() => [
+  List<String> _writePrefs() => [
     'sound=${_soundOff ? 0 : 1}',
     'music=${_musicOff ? 0 : 1}',
     'effects=${_effectsOff ? 0 : 1}',
@@ -156,6 +211,9 @@ class Appearance extends ChangeNotifier {
     'effectsVol=$_effectsVolume',
     'hushed=${_hushed.join(',')}',
     'tunes=${_rotation.join(',')}',
+    'sign=$_sign',
+    'note=$_note',
+    'card=$_card',
   ];
 
   Timer? _writeSoon;
@@ -175,7 +233,7 @@ class Appearance extends ChangeNotifier {
     _writeSoon = null;
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setStringList(_soundKey, _writeSound());
+      await prefs.setStringList(_soundKey, _writePrefs());
     } catch (_) {}
   }
 

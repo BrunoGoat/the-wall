@@ -29,6 +29,26 @@ enum CardStyle {
   static final math.Random _dado = math.Random();
 
   static CardStyle alAzar() => values[_dado.nextInt(values.length)];
+
+  /// El que se llame así, o nada. Un nombre que esta versión ya no conoce
+  /// —porque el diseño se retiró— devuelve nulo a propósito: quien lo tuviera
+  /// elegido pasa a ver uno al azar, que es raro pero se entiende, en vez de
+  /// una pantalla vacía.
+  static CardStyle? porNombre(String name) {
+    for (final v in values) {
+      if (v.name == name) return v;
+    }
+    return null;
+  }
+
+  /// Cómo se llama en los ajustes.
+  String get label => const {
+    CardStyle.esmerilada: 'Esmerilada',
+    CardStyle.papel: 'Papel',
+    CardStyle.etiqueta: 'Etiqueta',
+    CardStyle.placa: 'Placa',
+    CardStyle.nota: 'Nota',
+  }[this]!;
 }
 
 /// La tarjeta de una leyenda, en cualquiera de sus cinco materiales.
