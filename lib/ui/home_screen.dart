@@ -12,6 +12,7 @@ import '../model/store.dart';
 import 'habit_bar.dart';
 import 'habits_sheet.dart';
 import 'hold_button.dart';
+import 'legend_card.dart';
 import 'placed_note.dart';
 import 'journey_sheet.dart';
 import 'notice_board.dart';
@@ -54,6 +55,11 @@ class _HomeScreenState extends State<HomeScreen> {
   /// al caer y no al pintar: si se sorteara al pintar, cambiaría de diseño en
   /// cada cuadro.
   NoteStyle _noteStyle = NoteStyle.tarjeta;
+
+  /// Y de qué material es la tarjeta de la leyenda. Se sortea en los dos sitios
+  /// donde aparece —al caer una pieza y al tocar una vieja— porque son dos
+  /// momentos distintos, no dos vistas del mismo.
+  CardStyle _cardStyle = CardStyle.esmerilada;
 
   static const Duration _signLife = Duration(milliseconds: 2600);
   Piece? _selected;
@@ -187,10 +193,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 setState(() {
                   _justPlaced = piece;
                   _noteStyle = NoteStyle.alAzar();
+                  _cardStyle = CardStyle.alAzar();
                 });
               },
               onStoneTapped: (brick) => setState(() {
                 _selected = brick;
+                _cardStyle = CardStyle.alAzar();
                 // Y fuera la tarjeta de la pieza recién puesta: quien se puso
                 // a mirar otra ya pasó de página, y las dos juntas se pisan.
                 _justPlaced = null;
@@ -299,6 +307,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Center(
                 child: StoneCard(
                   theme: t,
+                  style: _cardStyle,
                   when: _selected!.placedAt,
                   number: _selected!.index + 1,
                   label: _selected!.label,
@@ -340,6 +349,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ordinal: _justPlaced!.index + 1,
                 theme: t,
                 style: _noteStyle,
+                card: _cardStyle,
                 onWrite: (text) => store.setLabel(_justPlaced!.index, text),
                 onDismiss: () => setState(() => _justPlaced = null),
               ),

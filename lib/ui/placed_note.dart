@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../fx/sensory.dart';
 import '../model/habit.dart';
 import 'habit_sigil.dart';
+import 'legend_card.dart';
 import 'style.dart';
 
 /// What comes up the moment a piece lands.
@@ -57,11 +58,16 @@ class PlacedNote extends StatefulWidget {
     required this.ordinal,
     required this.theme,
     required this.style,
+    required this.card,
     required this.onWrite,
     required this.onDismiss,
   });
 
   final NoteStyle style;
+
+  /// De qué está hecho el papel donde se escribe. Se sortea al caer la pieza,
+  /// igual que la manera de anunciarla.
+  final CardStyle card;
 
   final Habit habit;
 
@@ -147,6 +153,7 @@ class _PlacedNoteState extends State<PlacedNote> {
             child: Center(
               child: _Slip(
                 theme: t,
+                card: widget.card,
                 habit: h,
                 ordinal: widget.ordinal,
                 text: _text,
@@ -514,6 +521,7 @@ class _Entrada extends StatelessWidget {
 class _Slip extends StatelessWidget {
   const _Slip({
     required this.theme,
+    required this.card,
     required this.habit,
     required this.ordinal,
     required this.text,
@@ -522,6 +530,7 @@ class _Slip extends StatelessWidget {
   });
 
   final UiTheme theme;
+  final CardStyle card;
   final Habit habit;
   final int ordinal;
   final TextEditingController text;
@@ -531,54 +540,36 @@ class _Slip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = theme;
-    // La misma tarjeta que sale al leer una leyenda ya escrita.
-    //
-    // Era un papelito blanco torcido, del tablón de anuncios, y quedaba como
-    // un cuerpo extraño: escribir la leyenda y leerla son la misma cosa vista
-    // dos veces, y se veían distintas. Ahora las dos son la tarjeta esmerilada
-    // que ya se había afinado, con el mismo ancho, la misma cabecera chica y
-    // el mismo tamaño de texto.
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 300),
-      child: Frosted(
-        theme: t,
-        radius: 16,
-        padding: const EdgeInsets.fromLTRB(14, 9, 14, 11),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${habit.name.toUpperCase()} · PIEZA $ordinal',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: t.label.copyWith(fontSize: 8.5, letterSpacing: 1.2),
-            ),
-            const SizedBox(height: 4),
-            TextField(
-              controller: text,
-              focusNode: focus,
-              maxLength: 60,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => onDone(),
-              onTapOutside: (_) => onDone(),
-              textCapitalization: TextCapitalization.sentences,
-              cursorColor: t.accent,
-              style: t.body.copyWith(
-                fontSize: 13.5,
-                height: 1.25,
-                fontWeight: FontWeight.w500,
-              ),
-              decoration: InputDecoration(
-                isDense: true,
-                counterText: '',
-                contentPadding: EdgeInsets.zero,
-                hintText: 'qué fue',
-                hintStyle: t.bodySoft.copyWith(fontSize: 13.5, height: 1.25),
-                border: InputBorder.none,
-              ),
-            ),
-          ],
+    // La misma tarjeta que sale al leer una leyenda ya escrita, en el mismo
+    // material. Escribir la leyenda y leerla son la misma cosa vista dos
+    // veces, y se veían distintas.
+    return LegendCard(
+      theme: t,
+      style: card,
+      header: '${habit.name.toUpperCase()} · PIEZA $ordinal',
+      child: TextField(
+        controller: text,
+        focusNode: focus,
+        maxLength: 60,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => onDone(),
+        onTapOutside: (_) => onDone(),
+        textCapitalization: TextCapitalization.sentences,
+        cursorColor: t.accent,
+        // Sin color: lo pone el material, que en el papel escribe en tinta
+        // parda aunque el resto de la interfaz vaya en claro sobre oscuro.
+        style: const TextStyle(
+          fontSize: 13.5,
+          height: 1.25,
+          fontWeight: FontWeight.w500,
+        ),
+        decoration: InputDecoration(
+          isDense: true,
+          counterText: '',
+          contentPadding: EdgeInsets.zero,
+          hintText: 'qué fue',
+          hintStyle: t.bodySoft.copyWith(fontSize: 13.5, height: 1.25),
+          border: InputBorder.none,
         ),
       ),
     );

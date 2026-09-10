@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:la_muralla/engine/palette.dart';
 import 'package:la_muralla/model/habit.dart';
+import 'package:la_muralla/ui/legend_card.dart';
+import 'package:la_muralla/ui/overlays.dart';
 import 'package:la_muralla/ui/placed_note.dart';
 import 'package:la_muralla/ui/style.dart';
 import 'package:la_muralla/ui/town_sign.dart';
@@ -102,6 +104,7 @@ void main() {
                 ordinal: 128,
                 theme: t,
                 style: s,
+                card: CardStyle.esmerilada,
                 onWrite: (_) {},
                 onDismiss: () {},
               ),
@@ -133,5 +136,107 @@ void main() {
         }
       });
     }
+  });
+
+  group('los cinco materiales de la tarjeta', () {
+    // Una leyenda larga y una pieza de cuatro cifras: es donde una tarjeta se
+    // rompe, no en «Leí».
+    const leyenda = 'Corrí ocho kilómetros por el parque, con lluvia';
+
+    for (final c in CardStyle.values) {
+      testWidgets('${c.name} cabe y se lee', (tester) async {
+        for (final size in _pantallas) {
+          tester.view.physicalSize = size;
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+          final t = UiTheme(Palette.forMoment(13, 1.0));
+          await tester.pumpWidget(
+            _marco(
+              size,
+              Center(
+                child: StoneCard(
+                  theme: t,
+                  style: c,
+                  when: DateTime(2026, 9, 10, 8, 50),
+                  number: 1284,
+                  label: leyenda,
+                  onEdit: () {},
+                ),
+              ),
+            ),
+          );
+          await tester.pump(const Duration(milliseconds: 200));
+          expect(tester.takeException(), isNull);
+          expect(find.text(leyenda), findsOneWidget);
+          for (final e in find.byType(Text).evaluate()) {
+            final box = e.renderObject! as RenderBox;
+            final at = box.localToGlobal(Offset.zero);
+            expect(at.dx, greaterThan(-1), reason: '$c se sale en $size');
+            expect(
+              at.dx + box.size.width,
+              lessThan(size.width + 1),
+              reason: '$c se sale en $size',
+            );
+          }
+          await tester.pumpWidget(const SizedBox());
+        }
+      });
+    }
+
+    testWidgets('leer y escribir salen del mismo material', (tester) async {
+      // La decisión que ya estaba tomada y que estos cinco no pueden romper:
+      // escribir una leyenda y leerla son la misma cosa vista dos veces.
+      for (final c in CardStyle.values) {
+        tester.view.physicalSize = _pantallas.last;
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.reset);
+        final t = UiTheme(Palette.forMoment(13, 1.0));
+        for (final leyendo in [true, false]) {
+          await tester.pumpWidget(
+            _marco(
+              _pantallas.last,
+              leyendo
+                  ? Center(
+                      child: StoneCard(
+                        theme: t,
+                        style: c,
+                        when: DateTime(2026, 9, 10),
+                        number: 7,
+                        label: 'algo',
+                        onEdit: () {},
+                      ),
+                    )
+                  : PlacedNote(
+                      habit: Habit(
+                        id: 'x',
+                        name: 'Correr',
+                        symbol: 'sol',
+                        slot: 0,
+                        createdAt: DateTime(2026),
+                      ),
+                      ordinal: 7,
+                      theme: t,
+                      style: NoteStyle.tarjeta,
+                      card: c,
+                      onWrite: (_) {},
+                      onDismiss: () {},
+                    ),
+            ),
+          );
+          await tester.pump(const Duration(milliseconds: 400));
+          if (!leyendo) await tester.tap(find.byKey(anotar));
+          await tester.pump(const Duration(milliseconds: 300));
+          final tarjeta = tester.widget<LegendCard>(find.byType(LegendCard));
+          expect(
+            tarjeta.style,
+            c,
+            reason: leyendo
+                ? 'al leer, la tarjeta no salió de $c'
+                : 'al escribir, la tarjeta no salió de $c',
+          );
+          await tester.pumpWidget(const SizedBox());
+        }
+      }
+    });
   });
 }

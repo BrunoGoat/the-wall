@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../data/landmarks.dart';
 import 'papyrus.dart';
+import 'legend_card.dart';
 import 'style.dart';
 
 /// The card for a landmark the town has just finished.
@@ -151,6 +152,7 @@ class StoneCard extends StatelessWidget {
   const StoneCard({
     super.key,
     required this.theme,
+    required this.style,
     required this.when,
     required this.number,
     required this.label,
@@ -158,6 +160,11 @@ class StoneCard extends StatelessWidget {
   });
 
   final UiTheme theme;
+
+  /// De qué está hecha esta vez. Se sortea al tocar la pieza, no aquí: si se
+  /// sorteara al construir, cambiaría de material en cada cuadro.
+  final CardStyle style;
+
   final DateTime when;
   final int number;
   final String? label;
@@ -190,37 +197,20 @@ class StoneCard extends StatelessWidget {
     // aspa lo que tocar cualquier otro sitio de la pantalla ya hace: dos
     // botones para dos cosas que iban a pasar igual. Sin ellos la tarjeta es
     // una fecha y una frase, que es todo lo que tenía que ser.
-    return ConstrainedBox(
-      // Y no más ancha que esto. Estirada de canto a canto tapaba el pueblo
-      // del que estaba hablando.
-      constraints: const BoxConstraints(maxWidth: 300),
-      child: GestureDetector(
-        onTap: onEdit,
-        behavior: HitTestBehavior.opaque,
-        child: Frosted(
-          theme: t,
-          radius: 16,
-          padding: const EdgeInsets.fromLTRB(14, 9, 14, 11),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'PIEZA $number · ${formatDate(when)}',
-                style: t.label.copyWith(fontSize: 8.5, letterSpacing: 1.2),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                has ? label! : 'escribir una leyenda',
-                style: t.body.copyWith(
-                  fontSize: 13.5,
-                  height: 1.25,
-                  fontWeight: has ? FontWeight.w500 : FontWeight.w400,
-                  color: has ? t.fg : t.accent,
-                ),
-              ),
-            ],
-          ),
+    return LegendCard(
+      theme: t,
+      style: style,
+      onTap: onEdit,
+      header: 'PIEZA $number · ${formatDate(when)}',
+      child: Text(
+        has ? label! : 'escribir una leyenda',
+        // Sin color cuando hay leyenda: lo pone el material de la tarjeta,
+        // que en el papel no es el mismo que en el resto de la interfaz.
+        style: TextStyle(
+          fontSize: 13.5,
+          height: 1.25,
+          fontWeight: has ? FontWeight.w500 : FontWeight.w400,
+          color: has ? null : t.accent,
         ),
       ),
     );
