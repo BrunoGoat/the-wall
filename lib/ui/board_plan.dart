@@ -37,12 +37,28 @@ class BoardPlan {
   /// franja oscura tan ancha como una nota.
   static const double eave = 0.1, roofDepth = 0.11, roofRise = 0.17;
 
-  /// Media hoja, y cuánto hay de una a la siguiente.
+  /// Media hoja, y cuánto hay de una a la siguiente. Fijas: una hoja mide lo
+  /// que mide, haya una clavada o haya diez.
   static const double paperW = 0.3, paperH = 0.23;
   static const double colPitch = 0.72, rowPitch = 0.58;
 
   /// El aire que queda entre la última hoja y el poste.
   static const double margin = 0.16;
+
+  /// El tablón es siempre igual de grande: dos filas de cinco.
+  ///
+  /// Antes crecía con lo que hubiera que clavar, y eso estaba mal por dos
+  /// motivos. Uno, que un pueblo con una sola nota tenía un tablón diminuto
+  /// con esa nota llenándolo, cuando lo que cuenta la verdad es un tablón
+  /// entero con un papel solo en una punta y el resto de la madera vacía. Y
+  /// dos, que al crecer a lo alto la cámara tenía que echarse atrás para que
+  /// cupiera, así que las hojas se veían más chicas cuantas más había: cuanto
+  /// más tenía que decir el pueblo, menos se leía.
+  ///
+  /// Diez es lo que cabe llenarlo: ocho es todo lo que [noticesFor] llega a
+  /// saber de alguien, y dos son los bandos del pueblo.
+  static const int rows = 2, cols = 5;
+  static const int capacity = rows * cols;
 
   final List<BoardPaper> papers;
 
@@ -85,34 +101,34 @@ class BoardPlan {
   /// no del azar, así que el tablón está siempre igual: uno vuelve a mirar una
   /// nota y sigue donde estaba.
   factory BoardPlan.of(List<Notice> said) {
-    final n = math.max(said.length, 1);
-    final rows = n <= 3 ? 1 : 2;
-    final cols = (n / rows).ceil();
-    final halfWidth = math.max(cols * colPitch / 2 + margin, 0.62);
+    const halfWidth = cols * colPitch / 2 + margin;
     const low = 0.42;
-    final high = low + rows * rowPitch + 0.3;
+    const high = low + rows * rowPitch + 0.3;
+    const band = (high - low - 0.3) / rows;
+    const usable = 2 * halfWidth - 2 * margin;
 
-    final usable = 2 * halfWidth - 2 * margin;
-    final band = (high - low - 0.3) / rows;
     final papers = <BoardPaper>[];
-    for (var i = 0; i < said.length; i++) {
-      final col = i % cols, row = i ~/ cols;
-      final size = 0.9 + hash01(i, 21) * 0.19;
-      final w = paperW * size, h = paperH * size;
+    // Se llena por columnas y de izquierda a derecha, que es como se llena un
+    // tablón de verdad: dos papeles en el primer hueco, dos en el siguiente, y
+    // el resto de la madera esperando. Por filas, cuatro notas dejarían la
+    // fila de abajo entera vacía y parecería que falta algo.
+    for (var i = 0; i < math.min(said.length, capacity); i++) {
+      final row = i % rows, col = i ~/ rows;
+      const w = paperW, h = paperH;
       final cx =
           -halfWidth +
           margin +
           (col + 0.5) * (usable / cols) +
-          hashJitter(0.045, i, 22);
+          hashJitter(0.04, i, 22);
       final cy =
-          low + 0.15 + (rows - 1 - row + 0.5) * band + hashJitter(0.035, i, 23);
+          low + 0.15 + (rows - 1 - row + 0.5) * band + hashJitter(0.03, i, 23);
       // Descolgada crece, y hay que decidir cuánto sabiendo dónde está: una
       // hoja crecida que se sale de la madera queda colgando del cielo. Así
       // que crece lo que quepa —nunca más de [BoardPaper.grown]— y además se
       // corre hacia dentro, que es lo que uno hace al mover a mano un papel
       // más grande. Con las dos cosas, la hoja abierta cabe siempre, y eso es
       // por construcción y no por suerte.
-      final medio = (low + high) / 2;
+      const medio = (low + high) / 2;
       // El aire que se le deja al filo. Una hoja pegada al canto de la madera
       // se lee como un fallo de recorte aunque esté dentro.
       const aire = 0.025;

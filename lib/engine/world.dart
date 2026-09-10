@@ -163,6 +163,9 @@ int _sign(TownLayout layout, int upto) {
 
   final n = math.min(upto, layout.pieces.length);
   feed(n);
+  // Cuántas hojas hay clavadas es parte de cómo se ve el pueblo: si cambia,
+  // hay que volver a levantar el tablón de la plaza y no reusar el de antes.
+  feed(layout.notices);
   for (var i = 0; i < n; i++) {
     final p = layout.pieces[i];
     feed(p.kind.index);
@@ -227,7 +230,7 @@ BuiltTown _build(TownLayout layout, int placed, BuiltTown? before) {
   // crossing the plots are laid out around, from the first achievement on, and
   // it is filed with everything else so a house in front of it hides it.
   if (from == 0 && take > 0 && !layout.solo) {
-    furnish(NoticeBoard.solidsAt(layout.cx, layout.cz));
+    furnish(NoticeBoard.solidsAt(layout.cx, layout.cz, sheets: layout.notices));
   }
 
   for (var i = from; i < take; i++) {

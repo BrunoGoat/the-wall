@@ -1125,13 +1125,25 @@ class NoticeBoard {
     V3(cx - reach, high, cz + 0.05),
   ];
 
-  /// The plank, with a few sheets pinned to it.
+  /// Cuántas hojas caben en la plancha: dos filas de cinco, las mismas que
+  /// tiene el tablón de cerca, para que la silueta se corresponda con lo que
+  /// hay clavado de verdad.
+  static const int rows = 2, cols = 5;
+  static const int capacity = rows * cols;
+
+  /// The plank, with the sheets that are actually pinned to it.
   ///
   /// The sheets are geometry and not a picture painted over the town, so a
   /// house standing between you and the board hides them the way it hides
   /// everything else. From across the plaza that is all a notice board is:
   /// pale paper on dark wood.
-  static List<Facet> _plank(double cx, double cz, int tint) {
+  ///
+  /// [sheets] es cuántas notas tiene el pueblo escritas ahora mismo, y se
+  /// clavan en el mismo orden que en el tablón de cerca: por columnas y de
+  /// izquierda a derecha. Así el tablón de la plaza dice de lejos lo mismo que
+  /// se ve al acercarse — medio lleno se ve medio lleno—, en vez de tener tres
+  /// papeles de adorno que no querían decir nada.
+  static List<Facet> _plank(double cx, double cz, int tint, int sheets) {
     final faces = boxFaces(
       cx - reach,
       low,
@@ -1143,14 +1155,18 @@ class NoticeBoard {
       ao: 1.0,
       tint: tint,
     );
-    const paper = 0xFFF0E7D2;
-    final sheets = <Facet>[];
-    for (var i = 0; i < 3; i++) {
-      final w = 0.075 + (i == 1 ? 0.02 : 0.0);
-      final h = 0.105 + (i == 2 ? 0.03 : 0.0);
-      final mx = cx - reach + reach * (0.42 + i * 0.62);
-      final my = low + (high - low) * (i == 1 ? 0.44 : 0.52);
-      sheets.add(
+    const paper = 0xFFE9DCBC;
+    // El hueco útil de la plancha, y una rejilla de dos por cinco dentro.
+    const aire = 0.035;
+    final usableW = (reach - aire) * 2, usableH = high - low - aire * 2;
+    final colW = usableW / cols, rowH = usableH / rows;
+    final w = colW * 0.36, h = w / 1.3;
+    final papeles = <Facet>[];
+    for (var i = 0; i < math.min(sheets, capacity); i++) {
+      final row = i % rows, col = i ~/ rows;
+      final mx = cx - reach + aire + (col + 0.5) * colW;
+      final my = low + aire + (rows - 1 - row + 0.5) * rowH;
+      papeles.add(
         Facet(
           [
             V3(mx - w, my - h, cz + 0.05),
@@ -1173,13 +1189,13 @@ class NoticeBoard {
         faces[i].surface,
         ao: faces[i].ao,
         tint: faces[i].tint,
-        decals: sheets,
+        decals: papeles,
       );
     }
     return faces;
   }
 
-  static List<Solid> solidsAt(double cx, double cz) {
+  static List<Solid> solidsAt(double cx, double cz, {int sheets = 3}) {
     const wood = 0xFF6B573F;
     const plank = 0xFFC9B896;
     const shingle = 0xFF8A7355;
@@ -1201,7 +1217,7 @@ class NoticeBoard {
     return [
       post(-reach + _post),
       post(reach - _post),
-      Solid(-1, _plank(cx, cz, plank)),
+      Solid(-1, _plank(cx, cz, plank, sheets)),
       // A little roof, because paper left out in the rain is not a notice.
       Solid(
         -1,

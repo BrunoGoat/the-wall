@@ -287,6 +287,15 @@ class _BoardSceneState extends State<BoardScene>
           if (_cam.distanceTarget == 9.0) {
             _cam.distanceTarget = widget.plan.readDistance(size);
             _cam.distance = _cam.distanceTarget * 2.4;
+            // Se entra por el filo izquierdo y no por el medio. El tablón es
+            // siempre igual de grande y se llena de izquierda a derecha, así
+            // que un pueblo con dos notas las tiene todas a la izquierda: caer
+            // en el medio sería caer mirando madera vacía.
+            _cam.travelTarget = -widget.plan.panLimit(
+              size,
+              _cam.distanceTarget,
+            );
+            _cam.travel = _cam.travelTarget;
           }
         }
         return GestureDetector(

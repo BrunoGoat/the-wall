@@ -17,6 +17,7 @@ import '../fx/effects.dart';
 import '../fx/sensory.dart';
 import '../model/piece.dart';
 
+import '../model/board.dart';
 import '../model/habit.dart';
 import '../model/store.dart';
 
@@ -192,6 +193,12 @@ class _TownViewState extends State<TownView>
       cx: cx,
       cz: cz,
       chronicle: h.chronicle,
+      // Cuántas hojas tiene clavadas su tablón. Sale de la misma cuenta que
+      // las escribe al acercarse, así que la silueta que se ve desde el valle
+      // es la de lo que hay de verdad. Se calcula una vez por pueblo y sólo
+      // se rehace cuando le cambia la cuenta de piezas, que es cuando puede
+      // cambiar lo que el pueblo sabe.
+      notices: boardNotices(h, valley: widget.store.habits).length,
     );
   }
 

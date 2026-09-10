@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:la_muralla/data/demo.dart';
@@ -7,6 +9,8 @@ import 'package:la_muralla/model/findings.dart';
 import 'package:la_muralla/engine/palette.dart';
 import 'package:la_muralla/core/math3.dart';
 import 'package:la_muralla/engine/camera.dart';
+import 'package:la_muralla/engine/solids.dart';
+import 'package:la_muralla/model/board.dart';
 import 'package:la_muralla/ui/board_plan.dart';
 import 'package:la_muralla/ui/notice_board.dart';
 import 'package:la_muralla/ui/style.dart';
@@ -370,6 +374,88 @@ void main() {
             );
           }
         }
+      }
+    });
+
+    // El tablón es siempre igual de grande, tenga una nota o diez. Antes
+    // crecía con lo que hubiera que clavar, y al crecer a lo alto la cámara
+    // tenía que echarse atrás: las hojas se veían más chicas cuantas más
+    // había, o sea que cuanto más tenía que decir el pueblo, menos se leía.
+    test('mide siempre lo mismo, y las hojas también', () {
+      const size = Size(400, 860);
+      BoardPlan conN(int n) => BoardPlan.of([
+        for (var i = 0; i < n; i++) Notice(NoticeKind.pueblo, 'x', 'y'),
+      ]);
+      final uno = conN(1);
+      for (final n in [1, 2, 5, 9, 10]) {
+        final p = conN(n);
+        expect(
+          p.halfWidth,
+          uno.halfWidth,
+          reason: 'con $n notas cambia de ancho',
+        );
+        expect(p.low, uno.low);
+        expect(p.high, uno.high);
+        expect(
+          p.readDistance(size),
+          uno.readDistance(size),
+          reason: 'con $n notas hay que mirarlo desde otra distancia',
+        );
+        for (final hoja in p.papers) {
+          expect(
+            hoja.w,
+            BoardPlan.paperW,
+            reason: 'con $n notas la hoja encoge',
+          );
+          expect(hoja.h, BoardPlan.paperH);
+        }
+      }
+    });
+
+    test('con pocas notas la madera se queda vacía a la derecha', () {
+      final p = BoardPlan.of([
+        for (var i = 0; i < 2; i++) Notice(NoticeKind.pueblo, 'x', 'y'),
+      ]);
+      expect(p.papers.length, 2);
+      // Las dos en la primera columna, una arriba y otra abajo, y todo lo demás
+      // madera. Eso es lo que cuenta la verdad de un pueblo que no sabe casi
+      // nada de vos; un tablón chiquito y lleno cuenta lo contrario.
+      for (final hoja in p.papers) {
+        expect(
+          hoja.cx,
+          lessThan(-p.halfWidth + BoardPlan.colPitch + BoardPlan.margin),
+          reason: 'la nota ${hoja.index} no está en la primera columna',
+        );
+      }
+      expect(p.papers[0].cy, greaterThan(p.papers[1].cy));
+    });
+
+    test('y nunca hay más notas de las que caben', () {
+      // Si las hubiera, BoardPlan las tiraría en silencio.
+      for (final h in valle) {
+        expect(
+          boardNotices(h, valley: valle, at: DateTime(2026, 3, 12, 21)).length,
+          lessThanOrEqualTo(BoardPlan.capacity),
+        );
+      }
+    });
+
+    test('el tablón de la plaza clava las notas de verdad', () {
+      // Lo que se ve desde el valle tiene que ser la silueta de lo que hay, no
+      // tres papeles de adorno: medio lleno se ve medio lleno.
+      for (final n in [0, 1, 4, 10, 14]) {
+        final solids = NoticeBoard.solidsAt(0, 0, sheets: n);
+        var hojas = 0;
+        for (final s in solids) {
+          for (final f in s.faces) {
+            hojas += f.decals?.length ?? 0;
+          }
+        }
+        expect(
+          hojas,
+          math.min(n, NoticeBoard.capacity),
+          reason: 'con $n notas la plaza enseña $hojas papeles',
+        );
       }
     });
 
