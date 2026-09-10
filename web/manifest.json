@@ -1,11 +1,11 @@
 {
-    "name": "La Muralla",
-    "short_name": "La Muralla",
+    "name": "Towny",
+    "short_name": "Towny",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#9FB6D8",
     "theme_color": "#9FB6D8",
-    "description": "Un hábito, un ladrillo, una muralla que crece.",
+    "description": "Un hábito, una pieza, un pueblo que crece.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

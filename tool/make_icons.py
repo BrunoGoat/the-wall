@@ -1,113 +1,149 @@
-"""Generates the launcher icons: a limestone wall against a night-slate ground.
+"""Recorta el icono de la app a partir de `tool/icon/towny.png`.
 
-No imaging library is available here, so this writes PNGs directly (zlib +
-struct) and antialiases by supersampling 4x.
+El dibujo —la casa de tres piezas sobre el campo, con su sombra en diagonal—
+viene hecho de fuera y aquí no se retoca: sólo se recorta, se escala y se
+reparte por los tamaños que pide cada sitio.
+
+Lo único que hay que pensar es el recorte. El campo del dibujo es plano de
+verdad —sus píxeles caen todos a menos de tres unidades de un mismo verde,
+medido— así que separar la casa de él es cuestión de distancia de color, con
+una rampa corta en medio para que los bordes queden suavizados y no dentados.
+La sombra está a treinta y siete unidades y entra entera; la casa, a cien y
+pico.
+
+El icono adaptativo de Android quiere dos capas de 108dp de las que sólo los
+72dp centrales están a salvo de la máscara, sea círculo, cuadrado redondeado o
+lo que el lanzador decida. Así que el fondo es el verde a secas, la casa va en
+la capa de delante y encogida a esos 72dp, y no hay máscara que le corte la
+chimenea.
 """
-import os, struct, zlib
 
-BG = (0x2E, 0x38, 0x50)          # deep slate, so the limestone reads at 48px
-STONE_HI = (0xF3, 0xE8, 0xCB)
-STONE_MID = (0xDE, 0xCE, 0xA9)
-STONE_LO = (0xB6, 0xA5, 0x82)
-JOINT = (0x4A, 0x44, 0x3A)
-SKY = (0x6E, 0x88, 0xB4)
+import math
+import os
 
-def png(path, w, h, px):
-    raw = b''.join(b'\x00' + bytes(px[y * w * 4:(y + 1) * w * 4]) for y in range(h))
-    def chunk(t, d):
-        c = struct.pack('>I', len(d)) + t + d
-        return c + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
-    out = (b'\x89PNG\r\n\x1a\n'
-           + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0))
-           + chunk(b'IDAT', zlib.compress(raw, 9))
-           + chunk(b'IEND', b''))
-    open(path, 'wb').write(out)
+from PIL import Image
 
-# --- the picture, drawn in a 0..1 square ---
-COURSES = [
-    # (y0, y1, [(x0, x1, shade)])
-    (0.62, 0.78, [(0.10, 0.36, 0), (0.38, 0.62, 1), (0.64, 0.90, 2)]),
-    (0.46, 0.60, [(0.10, 0.30, 1), (0.32, 0.58, 2), (0.60, 0.90, 0)]),
-    (0.30, 0.44, [(0.10, 0.42, 2), (0.44, 0.68, 0), (0.70, 0.90, 1)]),
-]
-MERLONS = [(0.10, 0.24), (0.32, 0.46), (0.54, 0.68), (0.76, 0.90)]
-SHADES = [STONE_HI, STONE_MID, STONE_LO]
+ORIGEN = 'tool/icon/towny.png'
+RES = 'android/app/src/main/res'
+WEB = 'web'
 
-def sample(x, y, transparent_bg):
-    """Colour at a point, or None for transparent."""
-    # crenellations
-    for (mx0, mx1) in MERLONS:
-        if 0.16 <= y < 0.30 and mx0 <= x < mx1:
-            return STONE_HI if x < mx0 + (mx1 - mx0) * 0.55 else STONE_MID
-    for (y0, y1, blocks) in COURSES:
-        if y0 <= y < y1:
-            for (x0, x1, s) in blocks:
-                if x0 <= x < x1:
-                    # a lit top edge on every stone
-                    if y - y0 < (y1 - y0) * 0.18:
-                        c = SHADES[s]
-                        return tuple(min(255, int(v * 1.10)) for v in c)
-                    return SHADES[s]
-            return JOINT if 0.10 <= x < 0.90 else (None if transparent_bg else BG)
-    if 0.30 <= y < 0.78 and 0.10 <= x < 0.90:
-        return JOINT
-    # ground line under the wall
-    if 0.78 <= y < 0.82 and 0.06 <= x < 0.94:
-        return JOINT
-    return None if transparent_bg else BG
+# Cuánto del lado ocupa la casa en cada sitio. En la capa adaptativa tiene que
+# caber en los 72dp centrales de 108 —el 66%— y se le deja algo de aire; el
+# icono de siempre no lleva una máscara tan agresiva y puede permitirse más.
+DENTRO_ADAPTATIVO = 0.64
+DENTRO_LEGADO = 0.74
 
-def render(size, transparent_bg, inset):
-    """inset: fraction of the canvas the drawing occupies (adaptive safe zone)."""
-    ss = 4
-    n = size * ss
-    px = bytearray(size * size * 4)
-    for y in range(size):
-        for x in range(size):
-            r = g = b = a = 0
-            for sy in range(ss):
-                for sx in range(ss):
-                    fx = (x * ss + sx + 0.5) / n
-                    fy = (y * ss + sy + 0.5) / n
-                    ux = (fx - 0.5) / inset + 0.5
-                    uy = (fy - 0.5) / inset + 0.5
-                    c = None
-                    if 0 <= ux < 1 and 0 <= uy < 1:
-                        c = sample(ux, uy, transparent_bg)
-                    elif not transparent_bg:
-                        c = BG
-                    if c is not None:
-                        r += c[0]; g += c[1]; b += c[2]; a += 255
-            k = ss * ss
-            i = (y * size + x) * 4
-            px[i] = r // k; px[i+1] = g // k; px[i+2] = b // k; px[i+3] = a // k
-    return px
+DENSIDADES = {
+    'mipmap-mdpi': 1,
+    'mipmap-hdpi': 1.5,
+    'mipmap-xhdpi': 2,
+    'mipmap-xxhdpi': 3,
+    'mipmap-xxxhdpi': 4,
+}
 
-res = 'android/app/src/main/res'
-legacy = {'mipmap-mdpi': 48, 'mipmap-hdpi': 72, 'mipmap-xhdpi': 96,
-          'mipmap-xxhdpi': 144, 'mipmap-xxxhdpi': 192}
-fore = {'mipmap-mdpi': 108, 'mipmap-hdpi': 162, 'mipmap-xhdpi': 216,
-        'mipmap-xxhdpi': 324, 'mipmap-xxxhdpi': 432}
 
-for d, s in legacy.items():
-    os.makedirs(f'{res}/{d}', exist_ok=True)
-    png(f'{res}/{d}/ic_launcher.png', s, s, render(s, False, 0.84))
-    print(d, 'ic_launcher', s)
-for d, s in fore.items():
-    # The adaptive foreground must keep its art inside the central 66%.
-    png(f'{res}/{d}/ic_launcher_foreground.png', s, s, render(s, True, 0.60))
-    print(d, 'foreground', s)
+def _campo(im):
+    """El verde del fondo, tomado del borde, que es todo fondo."""
+    px = im.load()
+    w, h = im.size
+    borde = [px[x, y] for x in range(0, w, 5) for y in (1, h - 2)]
+    borde += [px[x, y] for y in range(0, h, 5) for x in (1, w - 2)]
+    return tuple(round(sum(p[i] for p in borde) / len(borde)) for i in range(3))
 
-os.makedirs(f'{res}/mipmap-anydpi-v26', exist_ok=True)
-open(f'{res}/mipmap-anydpi-v26/ic_launcher.xml', 'w').write(
-    '<?xml version="1.0" encoding="utf-8"?>\n'
-    '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n'
-    '    <background android:drawable="@color/ic_launcher_background"/>\n'
-    '    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>\n'
-    '    <monochrome android:drawable="@mipmap/ic_launcher_foreground"/>\n'
-    '</adaptive-icon>\n')
-open(f'{res}/values/ic_launcher_background.xml', 'w').write(
-    '<?xml version="1.0" encoding="utf-8"?>\n'
-    '<resources>\n'
-    '    <color name="ic_launcher_background">#2E3850</color>\n'
-    '</resources>\n')
-print('adaptive icon written')
+
+def _verdoso(p):
+    """Si un píxel es sombra sobre la hierba y no parte de la casa.
+
+    La sombra es verde oscuro: el verde le domina y el azul se le queda muy
+    atrás. En la casa eso no pasa nunca — el muro es casi blanco, el tejado
+    tira a azul, y la chimenea y las ventanas a rojo.
+    """
+    r, g, b = p[:3]
+    return g >= r and g - b > 25
+
+
+def recorta(cerrar_sombra):
+    """El dibujo con el fondo quitado.
+
+    `cerrar_sombra` deja fuera también la sombra, que es lo que hace falta para
+    la capa monocroma: ahí Android tiñe la silueta de un color plano, y una
+    silueta que se lleve la sombra pegada deja de parecer una casa y pasa a ser
+    un manchón.
+    """
+    im = Image.open(ORIGEN).convert('RGB')
+    campo = _campo(im)
+    px = im.load()
+    w, h = im.size
+    out = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    dst = out.load()
+    for y in range(h):
+        for x in range(w):
+            p = px[x, y]
+            if cerrar_sombra and _verdoso(p):
+                continue
+            d = math.dist(p, campo)
+            # Nada por debajo de ocho, todo a partir de veinte y una rampa en
+            # medio: es el suavizado del borde del dibujo original, que si se
+            # corta en seco se ve dentado a cuarenta y ocho píxeles.
+            a = 0.0 if d <= 8 else 1.0 if d >= 20 else (d - 8) / 12
+            if a > 0:
+                dst[x, y] = p + (round(a * 255),)
+    return out, campo
+
+
+def coloca(recorte, size, dentro, fondo=None):
+    """La casa centrada y a escala en un cuadrado, sobre `fondo` o en el aire."""
+    caja = recorte.getbbox()
+    lado = max(caja[2] - caja[0], caja[3] - caja[1])
+    k = size * dentro / lado
+    trozo = recorte.crop(caja)
+    nuevo = (max(1, round(trozo.width * k)), max(1, round(trozo.height * k)))
+    trozo = trozo.resize(nuevo, Image.LANCZOS)
+    lienzo = Image.new(
+        'RGBA', (size, size), (fondo + (255,)) if fondo else (0, 0, 0, 0))
+    lienzo.alpha_composite(
+        trozo, ((size - nuevo[0]) // 2, (size - nuevo[1]) // 2))
+    return lienzo
+
+
+if __name__ == '__main__':
+    con_sombra, campo = recorta(False)
+    sin_sombra, _ = recorta(True)
+    print('campo', campo, '->', '#%02X%02X%02X' % campo)
+
+    for carpeta, escala in DENSIDADES.items():
+        os.makedirs(f'{RES}/{carpeta}', exist_ok=True)
+        legado = round(48 * escala)
+        capa = round(108 * escala)
+        coloca(con_sombra, legado, DENTRO_LEGADO, campo).convert('RGB').save(
+            f'{RES}/{carpeta}/ic_launcher.png')
+        coloca(con_sombra, capa, DENTRO_ADAPTATIVO).save(
+            f'{RES}/{carpeta}/ic_launcher_foreground.png')
+        coloca(sin_sombra, capa, DENTRO_ADAPTATIVO).save(
+            f'{RES}/{carpeta}/ic_launcher_monochrome.png')
+        print(carpeta, legado, capa)
+
+    os.makedirs(f'{RES}/mipmap-anydpi-v26', exist_ok=True)
+    open(f'{RES}/mipmap-anydpi-v26/ic_launcher.xml', 'w').write(
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n'
+        '    <background android:drawable="@color/ic_launcher_background"/>\n'
+        '    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>\n'
+        '    <monochrome android:drawable="@mipmap/ic_launcher_monochrome"/>\n'
+        '</adaptive-icon>\n')
+    open(f'{RES}/values/ic_launcher_background.xml', 'w').write(
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<resources>\n'
+        '    <color name="ic_launcher_background">#%02X%02X%02X</color>\n'
+        '</resources>\n' % campo)
+    print('icono adaptativo escrito')
+
+    # Y la web, que también tiene su pestaña y su pantalla de inicio.
+    for size in (192, 512):
+        coloca(con_sombra, size, DENTRO_LEGADO, campo).convert('RGB').save(
+            f'{WEB}/icons/Icon-{size}.png')
+        coloca(con_sombra, size, DENTRO_ADAPTATIVO, campo).convert('RGB').save(
+            f'{WEB}/icons/Icon-maskable-{size}.png')
+    coloca(con_sombra, 64, DENTRO_LEGADO, campo).convert('RGB').save(
+        f'{WEB}/favicon.png')
+    print('iconos de la web escritos')
