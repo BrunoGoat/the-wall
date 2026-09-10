@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'data/character.dart';
 import 'fx/sensory.dart';
 import 'model/appearance.dart';
+import 'model/board_slots.dart';
 import 'model/store.dart';
 import 'engine/palette.dart';
 import 'ui/gallery_screen.dart';
@@ -70,6 +71,7 @@ class _PuebloAppState extends State<PuebloApp> with WidgetsBindingObserver {
 
   Future<void> _boot() async {
     await Appearance.instance.load();
+    await BoardSlots.instance.load();
     await store.load();
 
     // Development shortcut for inspecting how the wall reads after weeks or a

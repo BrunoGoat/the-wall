@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 
 import '../core/math3.dart';
 import '../core/rng.dart';
+import '../engine/solids.dart';
+import '../model/board_slots.dart';
 import '../model/findings.dart';
 
 /// El tablón de la plaza, medido.
@@ -40,7 +42,11 @@ class BoardPlan {
   /// Media hoja, y cuánto hay de una a la siguiente. Fijas: una hoja mide lo
   /// que mide, haya una clavada o haya diez.
   static const double paperW = 0.3, paperH = 0.23;
-  static const double colPitch = 0.72, rowPitch = 0.58;
+
+  /// El hueco de cada papel. Sobra sitio alrededor de la hoja porque es ahí
+  /// donde se desordena: sin holgura, diez papeles centrados en sus diez
+  /// celdas vuelven a ser una rejilla por mucho que se sorteen los huecos.
+  static const double colPitch = 0.82, rowPitch = 0.68;
 
   /// El aire que queda entre la última hoja y el poste.
   static const double margin = 0.16;
@@ -57,8 +63,12 @@ class BoardPlan {
   ///
   /// Diez es lo que cabe llenarlo: ocho es todo lo que [noticesFor] llega a
   /// saber de alguien, y dos son los bandos del pueblo.
-  static const int rows = 2, cols = 5;
-  static const int capacity = rows * cols;
+  ///
+  /// La rejilla es la del modelo de la plaza y no una suya: si fueran dos
+  /// números, el tablón de lejos tendría huecos donde el de cerca no, y la
+  /// silueta mentiría en cuanto uno de los dos cambiara.
+  static const int rows = NoticeBoard.rows, cols = NoticeBoard.cols;
+  static const int capacity = NoticeBoard.capacity;
 
   final List<BoardPaper> papers;
 
@@ -100,44 +110,54 @@ class BoardPlan {
   /// hoja, lo que se corre de su sitio y cuánto se tuerce— sale de la nota y
   /// no del azar, así que el tablón está siempre igual: uno vuelve a mirar una
   /// nota y sigue donde estaba.
-  factory BoardPlan.of(List<Notice> said) {
+  /// [slots] dice en qué hueco va cada una de [said], en el mismo orden, y es
+  /// lo que se acuerda de dónde quedó clavado cada papel — lo reparte
+  /// [BoardSlots]. Sin ella se clavan en fila, que es lo que hace falta para
+  /// la silueta de la plaza y para los tests.
+  factory BoardPlan.of(List<Notice> said, {List<int>? slots}) {
     const halfWidth = cols * colPitch / 2 + margin;
     const low = 0.42;
     const high = low + rows * rowPitch + 0.3;
     const band = (high - low - 0.3) / rows;
     const usable = 2 * halfWidth - 2 * margin;
+    const medio = (low + high) / 2;
+    const w = paperW, h = paperH;
+    // El aire que se le deja al filo. Una hoja pegada al canto de la madera se
+    // lee como un fallo de recorte aunque esté dentro.
+    const aire = 0.025;
+    // Descolgada crece, y hay que decidir cuánto: una hoja crecida que se sale
+    // de la madera queda colgando del cielo. Crece lo que quepa —nunca más de
+    // [BoardPaper.grown]— y además se corre hacia dentro, que es lo que uno
+    // hace al mover a mano un papel más grande. Con las dos cosas, la hoja
+    // abierta cabe siempre, por construcción y no por suerte.
+    final grow = math.min(
+      BoardPaper.grown,
+      math.min(((high - low) / 2 - aire) / h, (halfWidth - aire) / w),
+    );
+    final margenX = halfWidth - w * grow - aire;
+    final margenY = (high - low) / 2 - h * grow - aire;
 
     final papers = <BoardPaper>[];
-    // Se llena por columnas y de izquierda a derecha, que es como se llena un
-    // tablón de verdad: dos papeles en el primer hueco, dos en el siguiente, y
-    // el resto de la madera esperando. Por filas, cuatro notas dejarían la
-    // fila de abajo entera vacía y parecería que falta algo.
     for (var i = 0; i < math.min(said.length, capacity); i++) {
-      final row = i % rows, col = i ~/ rows;
-      const w = paperW, h = paperH;
+      final hueco = slots == null ? i : slots[i];
+      if (hueco < 0 || hueco >= capacity) continue;
+      final row = hueco % rows, col = hueco ~/ rows;
+      // Todo lo que hace que un papel sea ese papel —cuánto se sale de su
+      // hueco, cuánto se tuerce, de qué resma es— sale de su propio nombre y
+      // no de su sitio en la lista. Si saliera de la lista, el día que una
+      // nota deja de estar, todas las de detrás cambiarían de inclinación y de
+      // color a la vez y el tablón parecería otro.
+      final semilla = stableHash(noticeId(said[i]));
       final cx =
           -halfWidth +
           margin +
           (col + 0.5) * (usable / cols) +
-          hashJitter(0.04, i, 22);
+          hashJitter((colPitch - paperW * 2) * 0.44, semilla, 22);
       final cy =
-          low + 0.15 + (rows - 1 - row + 0.5) * band + hashJitter(0.03, i, 23);
-      // Descolgada crece, y hay que decidir cuánto sabiendo dónde está: una
-      // hoja crecida que se sale de la madera queda colgando del cielo. Así
-      // que crece lo que quepa —nunca más de [BoardPaper.grown]— y además se
-      // corre hacia dentro, que es lo que uno hace al mover a mano un papel
-      // más grande. Con las dos cosas, la hoja abierta cabe siempre, y eso es
-      // por construcción y no por suerte.
-      const medio = (low + high) / 2;
-      // El aire que se le deja al filo. Una hoja pegada al canto de la madera
-      // se lee como un fallo de recorte aunque esté dentro.
-      const aire = 0.025;
-      final grow = math.min(
-        BoardPaper.grown,
-        math.min(((high - low) / 2 - aire) / h, (halfWidth - aire) / w),
-      );
-      final margenX = halfWidth - w * grow - aire;
-      final margenY = (high - low) / 2 - h * grow - aire;
+          low +
+          0.15 +
+          (rows - 1 - row + 0.5) * band +
+          hashJitter((rowPitch - paperH * 2) * 0.44, semilla, 23);
       papers.add(
         BoardPaper(
           notice: said[i],
@@ -149,10 +169,10 @@ class BoardPlan {
           openCy: cy.clamp(medio - margenY, medio + margenY),
           w: w,
           h: h,
-          lean: hashJitter(0.055, i, 24),
+          lean: hashJitter(0.075, semilla, 24),
           paper: said[i].kind == NoticeKind.pueblo
               ? villagePaper
-              : _papers[i % _papers.length],
+              : _papers[hashInt(_papers.length, semilla, 25)],
         ),
       );
     }

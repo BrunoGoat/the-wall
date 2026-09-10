@@ -165,7 +165,10 @@ int _sign(TownLayout layout, int upto) {
   feed(n);
   // Cuántas hojas hay clavadas es parte de cómo se ve el pueblo: si cambia,
   // hay que volver a levantar el tablón de la plaza y no reusar el de antes.
-  feed(layout.notices);
+  for (final hueco in layout.notices) {
+    feed(hueco);
+  }
+  feed(layout.notices.length);
   for (var i = 0; i < n; i++) {
     final p = layout.pieces[i];
     feed(p.kind.index);

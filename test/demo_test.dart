@@ -1,7 +1,6 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:la_muralla/data/demo.dart';
 import 'package:la_muralla/data/gossip.dart';
 import 'package:la_muralla/engine/town.dart';
@@ -11,6 +10,7 @@ import 'package:la_muralla/core/math3.dart';
 import 'package:la_muralla/engine/camera.dart';
 import 'package:la_muralla/engine/solids.dart';
 import 'package:la_muralla/model/board.dart';
+import 'package:la_muralla/model/board_slots.dart';
 import 'package:la_muralla/ui/board_plan.dart';
 import 'package:la_muralla/ui/notice_board.dart';
 import 'package:la_muralla/ui/style.dart';
@@ -199,18 +199,29 @@ void main() {
 
     test('y ninguna tapa a otra estando clavadas', () {
       // Descolgada sí puede taparlas —para eso se descuelga—, pero clavadas
-      // tienen que poder tocarse una a una.
-      for (var i = 0; i < plan.papers.length; i++) {
-        for (var j = i + 1; j < plan.papers.length; j++) {
-          final a = plan.papers[i], b = plan.papers[j];
-          final juntas =
-              (a.cx - b.cx).abs() < a.w + b.w &&
-              (a.cy - b.cy).abs() < a.h + b.h;
-          expect(
-            juntas,
-            isFalse,
-            reason: 'las hojas $i y $j están una encima de la otra',
-          );
+      // tienen que poder tocarse una a una. Con los huecos sorteados esto ya
+      // no es evidente: se comprueba con el tablón lleno y repartido al azar,
+      // que es el caso peor.
+      final lleno = BoardPlan.of(
+        [
+          for (var i = 0; i < BoardPlan.capacity; i++)
+            Notice(NoticeKind.pueblo, 'nota \$i', 'porque sí'),
+        ],
+        slots: [7, 2, 9, 0, 5, 3, 8, 1, 6, 4],
+      );
+      for (final p in [plan, lleno]) {
+        for (var i = 0; i < p.papers.length; i++) {
+          for (var j = i + 1; j < p.papers.length; j++) {
+            final a = p.papers[i], b = p.papers[j];
+            final juntas =
+                (a.cx - b.cx).abs() < a.w + b.w &&
+                (a.cy - b.cy).abs() < a.h + b.h;
+            expect(
+              juntas,
+              isFalse,
+              reason: 'las hojas $i y $j están una encima de la otra',
+            );
+          }
         }
       }
     });
@@ -442,19 +453,26 @@ void main() {
 
     test('el tablón de la plaza clava las notas de verdad', () {
       // Lo que se ve desde el valle tiene que ser la silueta de lo que hay, no
-      // tres papeles de adorno: medio lleno se ve medio lleno.
-      for (final n in [0, 1, 4, 10, 14]) {
-        final solids = NoticeBoard.solidsAt(0, 0, sheets: n);
+      // tres papeles de adorno: medio lleno se ve medio lleno, y con los
+      // papeles en los mismos huecos que al acercarse.
+      for (final huecos in [
+        <int>[],
+        [4],
+        [0, 3, 7, 9],
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        // Un hueco que no existe se tira, no se dibuja en cualquier parte.
+        [1, 99, -3],
+      ]) {
         var hojas = 0;
-        for (final s in solids) {
+        for (final s in NoticeBoard.solidsAt(0, 0, sheets: huecos)) {
           for (final f in s.faces) {
             hojas += f.decals?.length ?? 0;
           }
         }
         expect(
           hojas,
-          math.min(n, NoticeBoard.capacity),
-          reason: 'con $n notas la plaza enseña $hojas papeles',
+          huecos.where((h) => h >= 0 && h < NoticeBoard.capacity).length,
+          reason: 'con los huecos $huecos la plaza enseña $hojas papeles',
         );
       }
     });
@@ -597,6 +615,144 @@ void main() {
 
     test('hay bastantes como para que no canse', () {
       expect(villageNoticeCount, greaterThanOrEqualTo(30));
+    });
+  });
+
+  // Que un papel clavado no se mueva nunca más.
+  //
+  // Es lo que separa un tablón de una lista barajada: si el reparto se
+  // calculase al vuelo, en cuanto cambiara lo que hay que clavar se
+  // recolocaría todo, y la nota que uno recuerda «arriba a la izquierda»
+  // aparecería mañana en otra parte. El hueco se sortea una vez y se guarda.
+  group('el tablón se acuerda de dónde clavó cada papel', () {
+    setUp(() {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      SharedPreferences.setMockInitialValues({});
+      BoardSlots.instance.forget();
+    });
+
+    List<Notice> notas(List<String> textos) => [
+      for (final t in textos) Notice(NoticeKind.pueblo, t, 'porque sí'),
+    ];
+
+    test('reparte sin repetir hueco y sin dejarlas en fila', () {
+      final said = notas([for (var i = 0; i < 10; i++) 'nota $i']);
+      final huecos = BoardSlots.instance.assign(
+        'pueblo',
+        said,
+        slots: NoticeBoard.capacity,
+      );
+      expect(huecos.length, 10);
+      expect(
+        huecos.toSet().length,
+        10,
+        reason: 'dos papeles en el mismo hueco',
+      );
+      for (final h in huecos) {
+        expect(h, inInclusiveRange(0, NoticeBoard.capacity - 1));
+      }
+      expect(
+        huecos,
+        isNot([for (var i = 0; i < 10; i++) i]),
+        reason: 'los clavó en fila, que es lo que no se quería',
+      );
+    });
+
+    test('lo que ya estaba clavado no se mueve al cambiar lo demás', () {
+      final antes = notas(['la cabra', 'el herrero', 'el ganso', 'los nabos']);
+      final a = BoardSlots.instance.assign(
+        'pueblo',
+        antes,
+        slots: NoticeBoard.capacity,
+      );
+      // Al día siguiente: se cae uno, llegan tres nuevos, y cambia el orden.
+      final despues = notas([
+        'el puente',
+        'el ganso',
+        'la cabra',
+        'el pozo',
+        'la fuente',
+        'los nabos',
+      ]);
+      final b = BoardSlots.instance.assign(
+        'pueblo',
+        despues,
+        slots: NoticeBoard.capacity,
+      );
+      for (final texto in ['la cabra', 'el ganso', 'los nabos']) {
+        expect(
+          b[despues.indexWhere((n) => n.said == texto)],
+          a[antes.indexWhere((n) => n.said == texto)],
+          reason: '«$texto» se movió de sitio',
+        );
+      }
+      expect(b.toSet().length, b.length, reason: 'dos en el mismo hueco');
+    });
+
+    test('y dos pueblos no se pisan el tablón', () {
+      final said = notas(['la cabra', 'el herrero']);
+      final uno = BoardSlots.instance.assign(
+        'pueblo-a',
+        said,
+        slots: NoticeBoard.capacity,
+      );
+      final otro = BoardSlots.instance.assign(
+        'pueblo-b',
+        said,
+        slots: NoticeBoard.capacity,
+      );
+      // Pueden coincidir, pero cada uno recuerda el suyo: volver a preguntar
+      // devuelve lo mismo que la primera vez.
+      expect(
+        BoardSlots.instance.assign(
+          'pueblo-a',
+          said,
+          slots: NoticeBoard.capacity,
+        ),
+        uno,
+      );
+      expect(
+        BoardSlots.instance.assign(
+          'pueblo-b',
+          said,
+          slots: NoticeBoard.capacity,
+        ),
+        otro,
+      );
+    });
+
+    test('y sobrevive a cerrar la app', () async {
+      final said = notas(['la cabra', 'el herrero', 'el ganso']);
+      final antes = BoardSlots.instance.assign(
+        'pueblo',
+        said,
+        slots: NoticeBoard.capacity,
+      );
+      await BoardSlots.instance.flush();
+      // Se apaga y se vuelve a encender.
+      BoardSlots.instance.forget();
+      await BoardSlots.instance.load();
+      expect(
+        BoardSlots.instance.assign('pueblo', said, slots: NoticeBoard.capacity),
+        antes,
+        reason: 'al reabrir la app el tablón se recolocó entero',
+      );
+    });
+
+    test('el nombre de un papel no cambia porque cambie lo que dice', () {
+      // La nota del horario es *la* del horario, diga hoy las siete y mañana
+      // las ocho: si su nombre saliera del texto, cambiaría de sitio cada vez
+      // que cambia lo que sabe de vos.
+      expect(
+        noticeId(const Notice(NoticeKind.hour, 'a las 7', 'x')),
+        noticeId(const Notice(NoticeKind.hour, 'a las 8', 'y')),
+      );
+      // Los bandos sí se llaman por lo que dicen, porque no tienen clase
+      // propia: son treinta y seis con la misma.
+      expect(
+        noticeId(const Notice(NoticeKind.pueblo, 'la cabra', 'x')),
+        isNot(noticeId(const Notice(NoticeKind.pueblo, 'el ganso', 'x'))),
+      );
     });
   });
 }

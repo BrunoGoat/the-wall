@@ -10,6 +10,7 @@ import '../core/rng.dart';
 import '../engine/camera.dart';
 
 import '../data/landmarks.dart';
+import '../engine/solids.dart';
 import '../engine/town.dart';
 import '../engine/palette.dart';
 import '../engine/renderer.dart';
@@ -18,6 +19,7 @@ import '../fx/sensory.dart';
 import '../model/piece.dart';
 
 import '../model/board.dart';
+import '../model/board_slots.dart';
 import '../model/habit.dart';
 import '../model/store.dart';
 
@@ -187,18 +189,24 @@ class _TownViewState extends State<TownView>
     // moment its count changes.
     _valley.removeWhere((k, _) => k.startsWith('${h.id}:'));
     final (cx, cz) = Habit.centreOf(h.slot);
+    final said = boardNotices(h, valley: widget.store.habits);
     return _valley[key] = TownLayout(
       n,
       h.place,
       cx: cx,
       cz: cz,
       chronicle: h.chronicle,
-      // Cuántas hojas tiene clavadas su tablón. Sale de la misma cuenta que
-      // las escribe al acercarse, así que la silueta que se ve desde el valle
-      // es la de lo que hay de verdad. Se calcula una vez por pueblo y sólo
+      // En qué huecos de su tablón hay papel. Sale de las mismas dos cuentas
+      // que lo clavan al acercarse —qué hay que decir, y dónde quedó clavado
+      // cada papel—, así que la silueta que se ve desde el valle es la de lo
+      // que hay de verdad y en su sitio. Se calcula una vez por pueblo y sólo
       // se rehace cuando le cambia la cuenta de piezas, que es cuando puede
       // cambiar lo que el pueblo sabe.
-      notices: boardNotices(h, valley: widget.store.habits).length,
+      notices: BoardSlots.instance.assign(
+        h.id,
+        said,
+        slots: NoticeBoard.capacity,
+      ),
     );
   }
 

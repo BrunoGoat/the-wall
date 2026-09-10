@@ -1138,12 +1138,11 @@ class NoticeBoard {
   /// everything else. From across the plaza that is all a notice board is:
   /// pale paper on dark wood.
   ///
-  /// [sheets] es cuántas notas tiene el pueblo escritas ahora mismo, y se
-  /// clavan en el mismo orden que en el tablón de cerca: por columnas y de
-  /// izquierda a derecha. Así el tablón de la plaza dice de lejos lo mismo que
-  /// se ve al acercarse — medio lleno se ve medio lleno—, en vez de tener tres
-  /// papeles de adorno que no querían decir nada.
-  static List<Facet> _plank(double cx, double cz, int tint, int sheets) {
+  /// [sheets] son los huecos ocupados del tablón de cerca, los mismos y en el
+  /// mismo sitio. Así la plaza dice de lejos lo que se ve al acercarse —medio
+  /// lleno se ve medio lleno, y con los papeles donde están— en vez de tener
+  /// tres papeles de adorno que no querían decir nada.
+  static List<Facet> _plank(double cx, double cz, int tint, List<int> sheets) {
     final faces = boxFaces(
       cx - reach,
       low,
@@ -1162,8 +1161,9 @@ class NoticeBoard {
     final colW = usableW / cols, rowH = usableH / rows;
     final w = colW * 0.36, h = w / 1.3;
     final papeles = <Facet>[];
-    for (var i = 0; i < math.min(sheets, capacity); i++) {
-      final row = i % rows, col = i ~/ rows;
+    for (final hueco in sheets) {
+      if (hueco < 0 || hueco >= capacity) continue;
+      final row = hueco % rows, col = hueco ~/ rows;
       final mx = cx - reach + aire + (col + 0.5) * colW;
       final my = low + aire + (rows - 1 - row + 0.5) * rowH;
       papeles.add(
@@ -1195,7 +1195,11 @@ class NoticeBoard {
     return faces;
   }
 
-  static List<Solid> solidsAt(double cx, double cz, {int sheets = 3}) {
+  static List<Solid> solidsAt(
+    double cx,
+    double cz, {
+    List<int> sheets = const [0, 3, 6],
+  }) {
     const wood = 0xFF6B573F;
     const plank = 0xFFC9B896;
     const shingle = 0xFF8A7355;

@@ -496,20 +496,21 @@ class TownLayout {
     this.cx = 0,
     this.cz = 0,
     this.chronicle = const [],
-    this.notices = 3,
+    this.notices = const [0, 3, 6],
   }) : plan = TownPlan.of(character),
        plotPitch = character.plotPitch,
        solo = false {
     _build();
   }
 
-  /// Cuántas hojas hay clavadas ahora mismo en el tablón de la plaza.
+  /// En qué huecos del tablón de la plaza hay papel clavado ahora mismo.
   ///
-  /// El pueblo no sabe leerlas —de eso se encarga el tablón de cerca— pero sí
-  /// cuántas son, que es lo que hace falta para que su silueta diga la verdad
-  /// desde el otro lado del valle. Tres es lo que tenía de adorno, y es lo que
-  /// usa el expositor, que no tiene un hábito detrás del que sacar notas.
-  final int notices;
+  /// El pueblo no sabe leerlos —de eso se encarga el tablón de cerca— pero sí
+  /// cuántos hay y dónde están, que es lo que hace falta para que su silueta
+  /// diga la verdad desde el otro lado del valle. Los tres de por defecto son
+  /// los de adorno que tenía, y son los que usa el expositor, que no tiene un
+  /// hábito detrás del que sacar notas.
+  final List<int> notices;
 
   /// Qué fue cada edificio, escrito el día que se empezó.
   ///
@@ -538,7 +539,7 @@ class TownLayout {
        cx = 0,
        cz = 0,
        chronicle = const [],
-       notices = 3,
+       notices = const [0, 3, 6],
        solo = true {
     final building = TownBuilding(
       index: 0,
