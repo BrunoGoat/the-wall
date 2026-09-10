@@ -10,6 +10,7 @@ import '../model/store.dart';
 import 'backup_sheet.dart';
 import 'debug_sheet.dart';
 import 'gallery_screen.dart';
+import 'note_font.dart';
 import 'notice_board.dart';
 import 'overlays.dart';
 import 'style.dart';
@@ -119,19 +120,48 @@ class _SettingsSheetState extends State<SettingsSheet> {
 
         const SizedBox(height: 26),
         _Head(theme: t, text: 'EL TABLÓN'),
+        Text(
+          'Con qué letra están escritos los papeles. Las notas del tablón son '
+          'cuentas tuyas y los bandos los escribe alguien del pueblo, así que '
+          'van por separado; poniendo la misma en las dos, todo el tablón lo '
+          'escribe la misma mano.',
+          style: t.bodySoft.copyWith(fontSize: 11.5, height: 1.4),
+        ),
+        const SizedBox(height: 12),
+        Text('LAS NOTAS DEL TABLÓN', style: t.label),
+        const SizedBox(height: 8),
+        _Fonts(theme: t, value: wants.noteFont, onPick: wants.setNoteFont),
+        const SizedBox(height: 14),
+        Text('LOS BANDOS DEL PUEBLO', style: t.label),
+        const SizedBox(height: 8),
+        _Fonts(
+          theme: t,
+          value: wants.villageFont,
+          onPick: wants.setVillageFont,
+        ),
+        const SizedBox(height: 6),
+        _Slider(
+          theme: t,
+          title: 'Tamaño de la letra',
+          value: (wants.noteScale - 0.8) / 0.6,
+          onChanged: (v) => wants.setNoteScale(0.8 + v * 0.6),
+        ),
+        const SizedBox(height: 6),
         _Row(
           theme: t,
           icon: Icons.auto_stories_outlined,
           title: 'Ver el tablón con un pueblo lleno',
           subtitle:
-              'Un valle de mentira: entrenar durante 300 días. Para verlo con '
-              'notas de verdad clavadas.',
+              'Un valle de mentira: entrenar durante 300 días. Trae un dado '
+              'que vuelve a repartirlo con notas al azar, para ver si la letra '
+              'que elegiste cabe también en las que no salen nunca.',
           page: () {
             final valle = demoValley();
             return NoticeBoardScreen(
               valley: valle,
               habit: valle.first,
               theme: t,
+              dice: true,
             );
           },
         ),
@@ -461,6 +491,66 @@ class _Row extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Las diez letras que puede llevar un papel, para ir probándolas.
+///
+/// Cada botón está escrito con su propia letra, que es lo único que hace falta
+/// para elegir: una lista de nombres en la letra del sistema no dice nada de
+/// cómo se va a ver el tablón.
+class _Fonts extends StatelessWidget {
+  const _Fonts({
+    required this.theme,
+    required this.value,
+    required this.onPick,
+  });
+
+  final UiTheme theme;
+  final String value;
+  final void Function(String name) onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = theme;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final f in NoteFont.values)
+          GestureDetector(
+            onTap: () {
+              Sensory.instance.tick();
+              onPick(f.name);
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: f.name == value
+                    ? t.accent.withValues(alpha: 0.18)
+                    : t.fg.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(
+                  color: f.name == value
+                      ? t.accent.withValues(alpha: 0.7)
+                      : t.fg.withValues(alpha: 0.12),
+                ),
+              ),
+              child: Text(
+                f.label,
+                style: TextStyle(
+                  fontFamily: f.family,
+                  fontSize: 13.5 * f.scale,
+                  color: f.name == value ? t.accent : t.fgSoft,
+                  fontWeight: f.name == value
+                      ? FontWeight.w700
+                      : FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

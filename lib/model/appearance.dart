@@ -27,6 +27,44 @@ class Appearance extends ChangeNotifier {
   /// and this is the one place in the app where that is not true.
   bool get rapid => _rapid;
 
+  // ------------------------------------------------------- la letra del papel
+
+  /// Con qué letra están escritas las notas del tablón y los bandos del
+  /// pueblo, y de qué tamaño.
+  ///
+  /// Dos por separado porque son dos cosas distintas: una nota del tablón son
+  /// cuentas tuyas y un bando es alguien del pueblo escribiendo un papel.
+  /// Poner la misma en las dos es elegir que todo el tablón esté escrito por
+  /// la misma mano, que también es una respuesta.
+  String _noteFont = 'sistema';
+  String _villageFont = 'sistema';
+  double _noteScale = 1.0;
+
+  String get noteFont => _noteFont;
+  String get villageFont => _villageFont;
+
+  /// De 0,8 a 1,4. Multiplica el cuerpo de todo lo que va escrito en un papel.
+  double get noteScale => _noteScale;
+
+  Future<void> setNoteFont(String v) async {
+    if (v == _noteFont) return;
+    _noteFont = v;
+    await _keep();
+  }
+
+  Future<void> setVillageFont(String v) async {
+    if (v == _villageFont) return;
+    _villageFont = v;
+    await _keep();
+  }
+
+  Future<void> setNoteScale(double v) async {
+    final want = v.clamp(0.8, 1.4);
+    if (want == _noteScale) return;
+    _noteScale = want;
+    await _keep();
+  }
+
   // --------------------------------------------------------------- el sonido
 
   bool _soundOff = false;
@@ -95,6 +133,9 @@ class Appearance extends ChangeNotifier {
     _hapticsOff = false;
     _musicVolume = _midway;
     _effectsVolume = _midway;
+    _noteFont = 'sistema';
+    _villageFont = 'sistema';
+    _noteScale = 1.0;
   }
 
   Future<void> load() async {
@@ -153,6 +194,12 @@ class Appearance extends ChangeNotifier {
           } else {
             _musicVolume = v.clamp(0.0, 1.0);
           }
+        case 'noteFont':
+          _noteFont = value;
+        case 'villageFont':
+          _villageFont = value;
+        case 'noteScale':
+          _noteScale = (double.tryParse(value) ?? 1.0).clamp(0.8, 1.4);
         case 'effectsVol':
           _effectsVolume = (double.tryParse(value) ?? _midway).clamp(0.0, 1.0);
       }
@@ -168,6 +215,9 @@ class Appearance extends ChangeNotifier {
     '$_volMark=$_volNow',
     'musicVol=$_musicVolume',
     'effectsVol=$_effectsVolume',
+    'noteFont=$_noteFont',
+    'villageFont=$_villageFont',
+    'noteScale=$_noteScale',
   ];
 
   Timer? _writeSoon;

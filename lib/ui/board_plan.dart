@@ -333,11 +333,22 @@ class BoardPaper {
 
   /// A qué distancia hay que ponerse para leerla descolgada.
   ///
-  /// Cuenta con las dos cosas que le pasan a la nota al abrirse: que crece y
-  /// que se viene [lift] hacia el ojo. Sin lo segundo la cámara se paraba
-  /// donde estaría la nota clavada, la nota ya se le había acercado medio
-  /// metro, y se salía de cuadro por arriba y por abajo.
-  double get closeUpDistance => h * grow / BoardPlan.tanHalfFovY * 1.2 + lift;
+  /// Cuenta con las tres cosas que deciden esto y no con una sola:
+  ///
+  /// - que la nota crece,
+  /// - que se viene [lift] hacia el ojo —sin eso la cámara se paraba donde
+  ///   estaría la nota clavada y la nota, ya adelantada, se salía de cuadro—,
+  /// - y **que la hoja es apaisada y el teléfono está de pie**. Esto último
+  ///   faltaba, y era el bulto: puesta a llenar el alto de la pantalla, una
+  ///   hoja de tres unidades de ancho por dos y pico de alto se salía dos
+  ///   veces y media por los costados. Lo que manda es el lado que peor entra.
+  double closeUpDistance(Size size) {
+    final tanX =
+        BoardPlan.tanHalfFovY * (size.width / math.max(size.height, 1));
+    final porAlto = h * grow / BoardPlan.tanHalfFovY;
+    final porAncho = w * grow / math.max(tanX, 0.06);
+    return math.max(porAlto, porAncho) * 1.14 + lift;
+  }
 
   /// Las cuatro esquinas, en el mundo, con [open] entre 0 y 1.
   List<V3> cornersAt(double open) {

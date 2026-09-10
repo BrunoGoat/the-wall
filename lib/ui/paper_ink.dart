@@ -3,7 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../model/findings.dart';
+import '../model/appearance.dart';
 import 'board_plan.dart';
+import 'note_font.dart';
 
 /// Lo que lleva escrito una hoja.
 ///
@@ -23,11 +25,36 @@ import 'board_plan.dart';
 /// El aire es de cartel de bando y no de nota adhesiva: un filete alrededor,
 /// el titular espaciado con su raya debajo, y tinta parda.
 class PaperInk {
-  PaperInk(this.notice) {
+  PaperInk(this.notice, {NoteFont? font, double? scale})
+    : font =
+          font ??
+          NoteFont.porNombre(
+            notice.kind == NoticeKind.pueblo
+                ? Appearance.instance.villageFont
+                : Appearance.instance.noteFont,
+          ) ??
+          NoteFont.sistema,
+      scale = scale ?? Appearance.instance.noteScale {
     _lay();
   }
 
   final Notice notice;
+
+  /// Con qué letra, y de qué cuerpo. Se leen de los ajustes al maquetar, así
+  /// que cambiar de letra pide rehacer las hojas — no hay nada que actualizar
+  /// en caliente aquí dentro.
+  final NoteFont font;
+  final double scale;
+
+  /// Un bando del pueblo se lee de corrido y no como un titular con su
+  /// remate.
+  ///
+  /// «Se perdió una cabra» y «atiende por Nube» no son una afirmación y su
+  /// prueba: son una sola frase que alguien escribió en un papel y partió en
+  /// dos porque cabía mejor. Las notas del tablón sí son lo otro —lo que el
+  /// pueblo dice de vos, y debajo las cuentas de las que lo sacó— y ahí la
+  /// raya separa dos cosas que de verdad son distintas.
+  bool get corrido => notice.kind == NoticeKind.pueblo;
 
   /// El rectángulo en el que se maqueta. Su proporción es la de la hoja
   /// ([BoardPlan.paperW] contra [BoardPlan.paperH]), o el texto saldría
@@ -44,17 +71,60 @@ class PaperInk {
   /// mano no hay manera de verlo a ojo.
   static const double saidSize = 15.5, becauseSize = 10.5;
   static const int saidLines = 4, becauseLines = 4;
+
+  /// Y el de corrido, que es todo el papel para una sola frase.
+  static const double plainSize = 13, plainLines = 8;
   static const double lineHeight = 1.26;
   static double get textWidth => box.width - pad * 2;
 
-  late final TextPainter _said, _because;
+  /// No son `final`: si el texto no entra se vuelve a maquetar más chico, y
+  /// eso es reasignarlas.
+  late TextPainter _said, _because;
   TextPainter? _more;
 
+  /// El alto del que dispone el texto dentro del papel.
+  static double get textHeight => box.height - pad * 2 - 4;
+
   void _lay() {
+    // Se maqueta, y si no entra se vuelve a maquetar más chico.
+    //
+    // Hace falta desde que la letra y el cuerpo los elige quien usa la app:
+    // una manuscrita de caja alta al máximo del deslizador puede pedir el
+    // doble de sitio que la de fábrica, y sin esto la mitad de los bandos
+    // saldrían cortados con puntos suspensivos. Un papel de un tablón se
+    // escribe más chico cuando hay mucho que decir, que es exactamente esto.
+    var k = 1.0;
+    for (var intento = 0; intento < 4; intento++) {
+      _layAt(k);
+      final alto = _alto;
+      if (alto <= textHeight || intento == 3) break;
+      // Un pelo por debajo de lo justo, porque al encoger cambian los cortes
+      // de línea y a veces se gana una línea entera.
+      k *= (textHeight / alto) * 0.97;
+    }
+  }
+
+  double get _alto => _said.height + (corrido ? 0 : 13 + _because.height);
+
+  void _layAt(double k) {
     final ancho = textWidth;
+    if (corrido) {
+      _said = _paint(
+        '${notice.said} ${notice.because}',
+        plainSize * k,
+        FontWeight.w500,
+        0.92,
+        plainLines.round(),
+        ancho,
+        0,
+      );
+      _because = _paint('', becauseSize, FontWeight.w400, 0, 1, ancho, 0);
+      _more = null;
+      return;
+    }
     _said = _paint(
       notice.said,
-      saidSize,
+      saidSize * k,
       FontWeight.w700,
       1.0,
       saidLines,
@@ -63,7 +133,7 @@ class PaperInk {
     );
     _because = _paint(
       notice.because,
-      becauseSize,
+      becauseSize * k,
       FontWeight.w400,
       0.74,
       becauseLines,
@@ -71,12 +141,12 @@ class PaperInk {
       0,
     );
     final more = notice.more;
-    if (more != null) {
-      _more = _paint(more, 8.4, FontWeight.w400, 0.6, 3, ancho, 0);
-    }
+    _more = more == null
+        ? null
+        : _paint(more, 8.4 * k, FontWeight.w400, 0.6, 3, ancho, 0);
   }
 
-  static TextPainter _paint(
+  TextPainter _paint(
     String text,
     double size,
     FontWeight weight,
@@ -88,8 +158,9 @@ class PaperInk {
     text: TextSpan(
       text: text,
       style: TextStyle(
+        fontFamily: font.family,
         color: BoardPlan.ink.withValues(alpha: alpha),
-        fontSize: size,
+        fontSize: size * font.scale * scale,
         height: lineHeight,
         letterSpacing: spacing,
         fontWeight: weight,
@@ -99,6 +170,12 @@ class PaperInk {
     maxLines: lines,
     ellipsis: '…',
   )..layout(maxWidth: width);
+
+  /// Si al papel no le cabe lo que lleva escrito, ni encogiéndolo.
+  bool get overflows =>
+      _said.didExceedMaxLines ||
+      _because.didExceedMaxLines ||
+      _alto > textHeight;
 
   /// Pinta la hoja. [open] va de 0 (clavada) a 1 (descolgada), y [detail] dice
   /// cuánto texto se gana a la distancia a la que está: de lejos una hoja es
@@ -123,23 +200,24 @@ class PaperInk {
         ..color = BoardPlan.ink.withValues(alpha: 0.2),
     );
 
-    // Sin chincheta dibujada: el papel se sostiene con su sombra y su
-    // filete, y un punto de color en la esquina de cada uno era lo único que
-    // quedaba del taco de pósits.
     var y = pad + 4;
     _said.paint(canvas, Offset(pad, y));
-    y += _said.height + 6;
-    // La raya bajo el titular, que es lo que separa un bando de una notita.
-    canvas.drawLine(
-      Offset(pad, y),
-      Offset(box.width - pad, y),
-      Paint()..color = BoardPlan.ink.withValues(alpha: 0.28),
-    );
-    y += 7;
-    _because.paint(canvas, Offset(pad, y));
-    y += _because.height;
+    y += _said.height;
 
-    if (abierta > 0.02) {
+    if (!corrido) {
+      y += 6;
+      // La raya bajo el titular, que es lo que separa un bando de una notita.
+      canvas.drawLine(
+        Offset(pad, y),
+        Offset(box.width - pad, y),
+        Paint()..color = BoardPlan.ink.withValues(alpha: 0.28),
+      );
+      y += 7;
+      _because.paint(canvas, Offset(pad, y));
+      y += _because.height;
+    }
+
+    if (abierta > 0.02 && !corrido) {
       // Lo de más abajo entra al descolgarla, y entra despacio: es lo que
       // hace que descolgar una nota sea ganar algo y no sólo acercarse.
       final gana = ((abierta - 0.25) / 0.6).clamp(0.0, 1.0);

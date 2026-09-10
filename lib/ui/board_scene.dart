@@ -38,7 +38,13 @@ class BoardScene extends StatefulWidget {
     required this.habit,
     required this.palette,
     required this.onLeave,
+    this.letra = 0,
   });
+
+  /// Cambia cuando cambia la letra o el cuerpo elegidos en los ajustes. La
+  /// escena no lee las preferencias: le basta con saber que algo cambió para
+  /// volver a maquetar.
+  final int letra;
 
   final BoardPlan plan;
   final Habit habit;
@@ -71,9 +77,28 @@ class _BoardSceneState extends State<BoardScene>
   static const double _umbralSalida = 0.5;
 
   Size _size = const Size(400, 800);
-  late final List<PaperInk> _ink = [
+
+  /// La tinta de cada hoja, maquetada. Se rehace cuando cambia el plano o la
+  /// letra elegida: maquetar es caro y la cámara se mueve sesenta veces por
+  /// segundo, así que no puede hacerse al pintar.
+  late List<PaperInk> _ink = _entintar();
+
+  List<PaperInk> _entintar() => [
     for (final p in widget.plan.papers) PaperInk(p.notice),
   ];
+
+  @override
+  void didUpdateWidget(BoardScene old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.plan, widget.plan) || old.letra != widget.letra) {
+      _ink = _entintar();
+      _open = null;
+      _openK = 0;
+      _cam.distanceTarget = widget.plan.readDistance(_size);
+      _clampCam();
+      _wake();
+    }
+  }
 
   @override
   void initState() {
@@ -154,6 +179,9 @@ class _BoardSceneState extends State<BoardScene>
     final plan = widget.plan;
     _cam.yawTarget = 0;
     _cam.pitchTarget = 0;
+    // Con una nota descolgada, nada de topes: los coloca la app y están fuera
+    // del alcance del dedo a propósito. Ver [_take].
+    if (_open != null) return;
     _cam.distanceTarget = clampD(_cam.distanceTarget, _near, _far);
     _cam.focusYTarget = plan.midY;
     final tope = plan.panLimit(_size, _cam.distanceTarget);
@@ -171,6 +199,13 @@ class _BoardSceneState extends State<BoardScene>
   }
 
   /// Descolgar una hoja: la cámara se va a ella y la hoja crece.
+  ///
+  /// Esto se salta los topes del dedo a propósito, y por eso no llama a
+  /// [_clampCam]: los topes existen para que nadie se pierda arrastrando, y
+  /// una nota descolgada la coloca la app, más cerca de lo que el dedo puede
+  /// llegar y centrada en ella y no en el tablón. Aplicarlos aquí —o al
+  /// terminar el gesto que la abrió, que es lo que pasaba— deshacía el
+  /// acercamiento entero, a veces sí y a veces no según qué llegara antes.
   void _take(int i) {
     final p = widget.plan.papers[i];
     setState(() => _open = i);
@@ -179,9 +214,9 @@ class _BoardSceneState extends State<BoardScene>
       ..pitchTarget = 0
       ..travelTarget = p.openCx
       ..focusYTarget = p.openCy
-      // Lo justo para que la hoja llene el alto de la pantalla con aire.
-      ..distanceTarget = p.h * BoardPaper.grown / BoardPlan.tanHalfFovY * 1.18;
-    _clampCam();
+      // Lo justo para que la hoja entre entera, por el lado que peor entre.
+      ..distanceTarget = p.closeUpDistance(_size);
+    _wake();
   }
 
   Projector _projector() => _cam.projector(_size.width, _size.height, 0);
@@ -270,6 +305,12 @@ class _BoardSceneState extends State<BoardScene>
       return;
     }
     _leaving = 0;
+    // Un toque también termina en un gesto de escala, así que si esto no
+    // respetara la nota descolgada, abrirla y cerrarla serían la misma cosa.
+    if (_open != null) {
+      _wake();
+      return;
+    }
     _cam.distanceTarget = clampD(_cam.distanceTarget, _near, _far);
     _clampCam();
     _wake();
@@ -681,8 +722,11 @@ class BoardPainter extends CustomPainter {
       // El texto entra cuando la hoja es bastante grande en pantalla para que
       // signifique algo. De lejos una hoja es papel claro sobre madera, que es
       // exactamente lo que es en la plaza.
+      // La descolgada se lee entera desde el primer fotograma. Se ganaba el
+      // desvanecido por ser pequeña en pantalla, y durante el vuelo hacia ella
+      // eso se veía como un papel translúcido.
       final ancho = (quad[1] - quad[0]).distance;
-      final detail = ((ancho - 54) / 90).clamp(0.0, 1.0);
+      final detail = i == open ? 1.0 : ((ancho - 54) / 90).clamp(0.0, 1.0);
       if (detail <= 0.02) continue;
       final m = paperTransform(PaperInk.box, quad);
       if (m == null) continue;

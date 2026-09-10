@@ -18,6 +18,7 @@ import 'package:la_muralla/model/board.dart';
 import 'package:la_muralla/model/habit.dart';
 import 'package:la_muralla/model/board_slots.dart';
 import 'package:la_muralla/ui/board_plan.dart';
+import 'package:la_muralla/ui/note_font.dart';
 import 'package:la_muralla/ui/paper_ink.dart';
 import 'package:la_muralla/ui/notice_board.dart';
 import 'package:la_muralla/ui/style.dart';
@@ -583,7 +584,7 @@ void main() {
           ..focusZ = 0
           ..yaw = 0
           ..pitch = 0
-          ..distance = hoja.closeUpDistance;
+          ..distance = hoja.closeUpDistance(size);
         final p = cam.projector(size.width, size.height, 0);
         final alto = (p.project(suelta[3])!.y - p.project(suelta[0])!.y).abs();
         expect(
@@ -591,9 +592,21 @@ void main() {
           lessThan(size.height),
           reason: 'la nota ${hoja.index} se sale de cuadro al descolgarla',
         );
+        // Y por los costados también, que es por donde se salía: la hoja es
+        // apaisada y el teléfono está de pie, así que llenar el alto la sacaba
+        // dos veces y media por los lados.
+        final ancho = (p.project(suelta[1])!.x - p.project(suelta[0])!.x).abs();
         expect(
-          alto,
-          greaterThan(size.height * 0.55),
+          ancho,
+          lessThan(size.width),
+          reason: 'la nota ${hoja.index} se sale por los costados',
+        );
+        // Y que llene la pantalla por el lado que le toque. Medirlo sólo por
+        // el alto era el error de antes: en un teléfono de pie una hoja
+        // apaisada nunca llena el alto, porque el ancho se acaba primero.
+        expect(
+          math.max(ancho / size.width, alto / size.height),
+          greaterThan(0.8),
           reason: 'descolgar la nota ${hoja.index} apenas se nota',
         );
       }
@@ -766,69 +779,55 @@ void main() {
       }
     });
 
-    testWidgets('y a todos les cabe lo que dicen en su papel', (tester) async {
-      // Un bando que no cabe sale recortado con puntos suspensivos, y con
-      // cuatrocientos escritos a mano no hay manera de verlo a ojo.
+    testWidgets('y a todos les cabe, con cualquier letra y cualquier cuerpo', (
+      tester,
+    ) async {
+      // Esto es el dado del tablón de mentira, pero hecho a máquina y entero:
+      // las diez letras, los cuatro cuerpos y los cuatrocientos treinta y seis
+      // bandos, más las notas de verdad de un pueblo con historia. A mano uno
+      // tira el dado diez veces, ve diez papeles y se queda tranquilo; el que
+      // se sale es el bando número trescientos doce con la letra que nadie
+      // probó.
       //
-      // Se mide con una fuente de verdad y no con la cuadrada de los tests,
-      // que da veinte caracteres por línea y diría que no cabe ni la mitad del
-      // catálogo. La del repositorio es más ancha que la que usa la app, así
-      // que lo que quepa aquí cabe allí de sobra.
+      // En un test de Flutter no hay fuentes hasta que se cargan, así que se
+      // cargan las diez del repositorio. La del sistema se queda fuera: ahí es
+      // la de los tests, que pinta cada letra como un cuadrado y no se parece
+      // a ninguna de verdad.
       await tester.runAsync(() async {
-        final bytes = await File('assets/fonts/RobotoSlab.ttf').readAsBytes();
-        await (FontLoader(
-          'Prueba',
-        )..addFont(Future.value(bytes.buffer.asByteData()))).load();
+        for (final f in NoteFont.values) {
+          final family = f.family;
+          if (family == null) continue;
+          final bytes = await File('assets/fonts/$family.ttf').readAsBytes();
+          await (FontLoader(
+            family,
+          )..addFont(Future.value(bytes.buffer.asByteData()))).load();
+        }
       });
-      TextPainter mide(String t, double size, FontWeight w, int lines) =>
-          TextPainter(
-            text: TextSpan(
-              text: t,
-              style: TextStyle(
-                fontFamily: 'Prueba',
-                fontSize: size,
-                height: PaperInk.lineHeight,
-                fontWeight: w,
-              ),
-            ),
-            textDirection: TextDirection.ltr,
-            maxLines: lines,
-            ellipsis: '…',
-          )..layout(maxWidth: PaperInk.textWidth);
 
-      var altoMax = 0.0;
-      for (final (dice, y) in bandos) {
-        final titular = mide(
-          dice,
-          PaperInk.saidSize,
-          FontWeight.w700,
-          PaperInk.saidLines,
-        );
-        final renglon = mide(
-          y,
-          PaperInk.becauseSize,
-          FontWeight.w400,
-          PaperInk.becauseLines,
-        );
-        expect(
-          titular.didExceedMaxLines,
-          isFalse,
-          reason: 'el titular no cabe: «$dice»',
-        );
-        expect(
-          renglon.didExceedMaxLines,
-          isFalse,
-          reason: 'el renglón no cabe: «$y»',
-        );
-        altoMax = math.max(altoMax, titular.height + renglon.height);
-      }
-      // Y que quede sitio debajo para las barras y el párrafo de pruebas, que
-      // es lo que aparece al descolgar una nota de verdad.
-      expect(
-        altoMax + PaperInk.pad * 2,
-        lessThan(PaperInk.box.height - 90),
-        reason: 'el papel se queda sin sitio para las barras',
+      final valleDemo = demoValley(DateTime(2026, 3, 12, 21));
+      final reales = boardNotices(
+        valleDemo.first,
+        valley: valleDemo,
+        at: DateTime(2026, 3, 12, 21),
       );
+      final todas = <Notice>[
+        ...reales,
+        for (final (dice, y) in bandos) Notice(NoticeKind.pueblo, dice, y),
+      ];
+      for (final f in NoteFont.values) {
+        if (f.family == null) continue;
+        for (final cuerpo in [0.8, 1.0, 1.2, 1.4]) {
+          for (final n in todas) {
+            expect(
+              PaperInk(n, font: f, scale: cuerpo).overflows,
+              isFalse,
+              reason:
+                  'con ${f.label} al ${(cuerpo * 100).round()}% no cabe: '
+                  '«${n.said}»',
+            );
+          }
+        }
+      }
     });
   });
 

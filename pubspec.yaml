@@ -67,6 +67,46 @@ flutter:
       fonts:
         - asset: assets/fonts/RobotoSlab.ttf
 
+    # Las letras de los papeles del tablón. Se eligen en los ajustes, y están
+    # aquí y no traídas de internet porque un tablón tiene que poder leerse en
+    # un tren sin cobertura.
+    - family: Caveat
+      fonts:
+        - asset: assets/fonts/Caveat.ttf
+    - family: Kalam
+      fonts:
+        - asset: assets/fonts/Kalam.ttf
+        - asset: assets/fonts/Kalam-Bold.ttf
+          weight: 700
+    - family: PatrickHand
+      fonts:
+        - asset: assets/fonts/PatrickHand.ttf
+    - family: ShadowsIntoLight
+      fonts:
+        - asset: assets/fonts/ShadowsIntoLight.ttf
+    - family: ArchitectsDaughter
+      fonts:
+        - asset: assets/fonts/ArchitectsDaughter.ttf
+    - family: AmaticSC
+      fonts:
+        - asset: assets/fonts/AmaticSC.ttf
+        - asset: assets/fonts/AmaticSC-Bold.ttf
+          weight: 700
+    - family: IMFellEnglish
+      fonts:
+        - asset: assets/fonts/IMFellEnglish.ttf
+    - family: EBGaramond
+      fonts:
+        - asset: assets/fonts/EBGaramond.ttf
+    - family: SpecialElite
+      fonts:
+        - asset: assets/fonts/SpecialElite.ttf
+    - family: CourierPrime
+      fonts:
+        - asset: assets/fonts/CourierPrime.ttf
+        - asset: assets/fonts/CourierPrime-Bold.ttf
+          weight: 700
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
