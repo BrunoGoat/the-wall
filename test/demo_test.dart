@@ -1163,17 +1163,33 @@ void _boton() {
 /// La estrella fugaz.
 void _fugaz() {
   group('la estrella fugaz', () {
-    setUp(() => ShootingStar.forcedUntil = null);
+    // Un teléfono de pie, que es donde se mira esto.
+    const w = 393.0, h = 852.0;
+
+    SkyView mirando({double pitch = 0.30, double yaw = 0.62}) {
+      final cam = OrbitCamera()
+        ..yaw = yaw
+        ..pitch = pitch
+        ..distance = 12
+        ..focusY = 1.15;
+      return SkyView.of(cam.projector(w, h, 0), w, h);
+    }
+
+    setUp(() {
+      ShootingStar.forcedUntil = null;
+      ShootingStar.forget();
+    });
 
     test('no sale de día ni a media tarde', () {
       // Antes bastaba con que el cielo estuviera oscuro, que en invierno es a
       // las seis. Una fugaz a las seis y media no es una fugaz: es una luz rara
       // mientras todavía se ve el campo.
+      final v = mirando();
       for (final hora in [6.0, 12.0, 17.0, 19.5]) {
         expect(ShootingStar.nightEnough(hora), isFalse, reason: 'a las $hora');
         var vistas = 0;
         for (var t = 0.0; t < 2400; t += 0.2) {
-          if (ShootingStar.at(t, hora) != null) vistas++;
+          if (ShootingStar.at(t, hora, v) != null) vistas++;
         }
         expect(vistas, 0, reason: 'a las $hora salieron $vistas');
       }
@@ -1183,49 +1199,151 @@ void _fugaz() {
     });
 
     test('sale a su ritmo, y en el tablón más a menudo', () {
-      double cuantas(double chance) {
+      double minutosEntre(double chance) {
         var n = 0;
         double? last;
-        for (var t = 0.0; t < 24000; t += 0.1) {
-          final s = ShootingStar.at(t, 22, chance: chance);
+        const hasta = 90000.0;
+        for (var t = 0.0; t < hasta; t += 0.25) {
+          ShootingStar.forget();
+          final s = ShootingStar.at(t, 22, mirando(), chance: chance);
           if (s != null && (last == null || t - last > ShootingStar.flight)) {
             n++;
             last = t;
           }
         }
-        return n / (24000 / 60);
+        return hasta / 60 / n;
       }
 
-      // Por minuto de noche, antes de contar hacia dónde se mira.
-      expect(cuantas(0.30), closeTo(0.75, 0.15));
-      expect(cuantas(0.55), greaterThan(cuantas(0.30)));
+      // Una cada cuatro minutos y medio de noche: ahora todas las que salen se
+      // ven, así que la cuenta ya no lleva el descuento de «y encima tenías que
+      // estar mirando para allá».
+      expect(minutosEntre(0.34), closeTo(4.4, 0.8));
+      expect(minutosEntre(0.55), lessThan(minutosEntre(0.34)));
     });
 
     test('y el botón de probarla saca una ya mismo', () {
       // A las tres de la tarde también: el botón está para ver si se ve, y
       // esperar a la noche para comprobarlo no es comprobar nada.
-      expect(ShootingStar.at(0, 15), isNull);
+      final v = mirando();
+      expect(ShootingStar.at(0, 15, v), isNull);
       ShootingStar.force();
-      final una = ShootingStar.at(0, 15);
+      final una = ShootingStar.at(0, 15, v);
       expect(una, isNotNull);
       // Y dos seguidas son dos y no una repetida, que es lo que decide si su
       // sonido vuelve a tocarse.
       ShootingStar.force();
-      expect(ShootingStar.at(0, 15)!.id, isNot(una!.id));
+      expect(ShootingStar.at(0, 15, v)!.id, isNot(una!.id));
     });
 
     test('cada fugaz tiene su nombre, para que suene una vez y no sesenta', () {
-      // El valle pregunta esto en cada fotograma y la fugaz dura segundo y
-      // pico: sin un nombre estable, su sonido sonaría sesenta veces.
-      final a = ShootingStar.at(100, 22, chance: 1);
-      final b = ShootingStar.at(100.3, 22, chance: 1);
+      // El valle pregunta esto en cada fotograma y la fugaz dura cinco
+      // segundos: sin un nombre estable, su sonido sonaría trescientas veces.
+      final v = mirando();
+      final a = ShootingStar.at(100, 22, v, chance: 1);
+      final b = ShootingStar.at(100.3, 22, v, chance: 1);
       if (a != null && b != null) expect(a.id, b.id);
     });
 
     test('la cuenta de cada cuánto se ve una es la que se dice', () {
-      // Lo que se le dijo a quien pregunta: una cada diecisiete minutos
-      // mirando el cielo. Si se cambia la probabilidad, esto lo canta.
-      expect(ShootingStar.minutesBetween(0.30, 0.42), closeTo(17, 2.5));
+      // Lo que dicen los ajustes: una cada cuatro minutos y medio. Si se cambia
+      // la probabilidad o la ventana, esto lo canta.
+      expect(ShootingStar.minutesBetween(0.34), closeTo(4.4, 0.2));
+    });
+
+    test('dura cinco segundos, y su luz se apaga después que ella', () {
+      final v = mirando();
+      expect(ShootingStar.flight, 5.0);
+      final s = _vuelo(v);
+      // Enciende deprisa y se queda encendida casi todo el vuelo: con la
+      // campana de antes sólo brillaba en mitad del recorrido, que sobre cinco
+      // segundos deja los dos extremos en nada.
+      final brillando = s.where((e) => e.glow > 0.9).length / s.length;
+      expect(brillando, greaterThan(0.6), reason: 'apenas luce $brillando');
+      // Y al final ella ya no está y su luz todavía sí, que es lo que deja la
+      // sensación de que algo pasó.
+      expect(s.last.glow, 0);
+      expect(s[(s.length * 0.96).floor()].light, greaterThan(0));
+      expect(s.last.light, lessThan(0.1));
+    });
+
+    test('sale siempre dentro de lo que se está mirando', () {
+      // Éste es el que faltaba. Salían repartidas por todo el cielo, a doce y
+      // treinta y un grados de elevación, y con esta cámara el borde de arriba
+      // de la pantalla está a cuatro: pasaban varias y no se veía ninguna.
+      for (final pitch in [0.06, 0.18, 0.30, 0.38]) {
+        for (final yaw in [0.0, 0.62, 2.1, -1.3, 4.4]) {
+          ShootingStar.forget();
+          final cam = OrbitCamera()
+            ..yaw = yaw
+            ..pitch = pitch
+            ..distance = 12
+            ..focusY = 1.15;
+          final p = cam.projector(w, h, 0);
+          final marco = Rect.fromLTWH(0, 0, w, h);
+          final vuelo = _vuelo(SkyView.of(p, w, h));
+          expect(vuelo, isNotEmpty, reason: 'ninguna con pitch $pitch');
+          var dentro = 0;
+          for (final s in vuelo) {
+            final a = s.aim(s.u);
+            expect(a, isNotNull, reason: 'se fue bajo el horizonte');
+            // Nunca por debajo del horizonte: una fugaz que se mete en el
+            // suelo no es una fugaz.
+            expect(a!.$2, greaterThan(0));
+            final at = TownPainter.skyPoint(p, a.$1, a.$2, minDen: 0.05);
+            if (at != null && marco.contains(at)) dentro++;
+          }
+          final parte = dentro / vuelo.length;
+          // Entra y sale por los lados a propósito, así que no es todo el
+          // vuelo; pero más de la mitad tiene que pasar por delante.
+          expect(
+            parte,
+            greaterThan(0.62),
+            reason:
+                'con pitch $pitch y yaw $yaw sólo se ve el '
+                '${(parte * 100).round()}% del vuelo',
+          );
+        }
+      }
+    });
+
+    test('mirando al suelo no sale ninguna, en vez de una que nadie ve', () {
+      // Con la cámara mirando desde arriba no queda franja de cielo. Antes
+      // salía igual, por encima del borde de la pantalla.
+      // Y no hace falta mirar del todo hacia abajo: pasada una inclinación de
+      // treinta y nueve centésimas el horizonte ya se sale por arriba de la
+      // pantalla y no queda cielo ninguno donde ponerla.
+      for (final pitch in [0.42, 0.9, 1.45]) {
+        ShootingStar.forget();
+        expect(mirando(pitch: pitch).hasSky, isFalse, reason: 'pitch $pitch');
+        expect(_vuelo(mirando(pitch: pitch)), isEmpty);
+      }
+    });
+
+    test('no se mueve con la cámara una vez que salió', () {
+      // Se pone donde estás mirando, pero se pone una vez. Si se recalculara en
+      // cada fotograma, girar la cámara la arrastraría con ella y no se podría
+      // perder de vista, que es lo contrario de lo que es una fugaz.
+      ShootingStar.forget();
+      final a = ShootingStar.at(100, 22, mirando(yaw: 0.0), chance: 1);
+      final b = ShootingStar.at(100.4, 22, mirando(yaw: 2.6), chance: 1);
+      if (a != null && b != null) {
+        expect(b.az0, closeTo(a.az0, 1e-9));
+        expect(b.el0, closeTo(a.el0, 1e-9));
+      }
     });
   });
+}
+
+/// Un vuelo entero de la primera fugaz que salga, muestreado de punta a punta.
+List<ShootingStar> _vuelo(SkyView v) {
+  final out = <ShootingStar>[];
+  for (var t = 0.0; t < ShootingStar.window * 2; t += 0.04) {
+    final s = ShootingStar.at(t, 22, v, chance: 1);
+    if (s == null) {
+      if (out.isNotEmpty) break;
+      continue;
+    }
+    out.add(s);
+  }
+  return out;
 }

@@ -8,6 +8,7 @@ import '../data/constellations.dart';
 import '../core/math3.dart';
 import '../core/rng.dart';
 import 'shooting_star.dart';
+import 'star_draw.dart';
 import '../fx/effects.dart';
 import '../ui/habit_sigil.dart';
 import 'bsp.dart';
@@ -317,6 +318,12 @@ class TownPainter extends CustomPainter {
     _drawSky(canvas, size, p, horizonY);
     _drawGround(canvas, size, horizonY);
     _drawRanges(canvas, p, size, horizonY);
+    // La fugaz va aquí y no dentro del cielo. Dentro del cielo la pintaban
+    // encima las tres cordilleras, que con el encuadre de siempre ocupan todo
+    // lo que hay por encima del horizonte menos una franja de cuarenta
+    // píxeles: aunque saliera donde se está mirando, se veía la mitad de una
+    // y a veces ninguna. Delante de los montes, además, su luz les cae encima.
+    _drawShootingStar(canvas, size, p, horizonY);
     for (final e in scene.towns) {
       _drawTownGround(canvas, p, e.layout);
     }
@@ -336,38 +343,21 @@ class TownPainter extends CustomPainter {
     _drawStarLight(canvas, size, p);
   }
 
-  /// La luz que echa una fugaz sobre el pueblo.
-  ///
-  /// No es realista y no pretende serlo: una fugaz de verdad no ilumina nada.
-  /// Es una luz que barre, que viene de donde viene ella y se mueve con ella, y
-  /// está para que uno levante la vista. Sin esto, lo que pasa en el cielo pasa
-  /// sólo en el cielo, y mirando al pueblo no te enterás nunca.
+  /// La luz que echa una fugaz sobre el pueblo. El dibujo está en [StarDraw],
+  /// que es el mismo que usa el tablón de la plaza.
   void _drawStarLight(Canvas canvas, Size size, Projector p) {
-    final star = ShootingStar.at(scene.time, scene.hourOfDay);
+    final star = ShootingStar.at(
+      scene.time,
+      scene.hourOfDay,
+      SkyView.of(p, size.width, size.height),
+    );
     if (star == null) return;
-    final glow = star.glow * scene.palette.starAlpha;
-    if (glow < 0.03) return;
-    final aim = star.aim(star.u);
-    if (aim == null) return;
-    final at = skyPoint(p, aim.$1, aim.$2, minDen: 0.02);
-    if (at == null) return;
-    // Desde donde está ella, abriéndose hacia abajo: el pueblo se enciende por
-    // el lado que le toca y no entero y por igual, que sería un flash.
-    final r = size.longestSide * 1.35;
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()
-        ..blendMode = BlendMode.plus
-        ..shader = ui.Gradient.radial(
-          at,
-          r,
-          [
-            const Color(0xFFBFD8FF).withValues(alpha: 0.30 * glow),
-            const Color(0xFF8FB4FF).withValues(alpha: 0.10 * glow),
-            const Color(0x00000000),
-          ],
-          const [0.0, 0.28, 1.0],
-        ),
+    StarDraw.land(
+      canvas,
+      size,
+      (az, el) => skyPoint(p, az, el, minDen: 0.02),
+      star,
+      scene.palette.starAlpha,
     );
   }
 
@@ -436,7 +426,6 @@ class TownPainter extends CustomPainter {
     if (pal.starAlpha > 0.02) {
       _drawStars(canvas, size, p, horizonY);
       _drawConstellation(canvas, size, p, horizonY);
-      _drawShootingStar(canvas, size, p, horizonY);
     }
     _drawSun(canvas, size, p);
 
@@ -572,51 +561,29 @@ class TownPainter extends CustomPainter {
 
   /// Una estrella fugaz, cada tanto, cuando hay noche.
   ///
-  /// Quién decide si hay una y por dónde va está en [ShootingStar], porque el
-  /// tablón de cerca dibuja su propio cielo y necesita la misma.
+  /// Quién decide si hay una y por dónde va está en [ShootingStar], y cómo se
+  /// pinta en [StarDraw], porque el tablón de cerca dibuja su propio cielo y
+  /// necesita las dos cosas iguales.
   void _drawShootingStar(
     Canvas canvas,
     Size size,
     Projector p,
     double horizonY,
   ) {
-    final star = ShootingStar.at(scene.time, scene.hourOfDay);
+    final star = ShootingStar.at(
+      scene.time,
+      scene.hourOfDay,
+      SkyView.of(p, size.width, size.height),
+    );
     if (star == null) return;
-    final glow = star.glow * scene.palette.starAlpha;
-    if (glow < 0.02) return;
-
-    Offset? at(double k) {
-      final aim = star.aim(k);
-      if (aim == null) return null;
-      return skyPoint(p, aim.$1, aim.$2, minDen: 0.08);
-    }
-
-    const tail = 0.13;
-    const bits = 7;
-    final u = star.u;
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    for (var i = 0; i < bits; i++) {
-      final a = at(u - tail * (i + 1) / bits);
-      final b = at(u - tail * i / bits);
-      if (a == null || b == null) continue;
-      if (b.dy > horizonY || a.dy > horizonY) continue;
-      // La cola se afina y se apaga hacia atrás, que es lo que la hace cola.
-      final k = 1 - i / bits;
-      paint
-        ..color = Colors.white.withValues(alpha: glow * k * k * 0.85)
-        ..strokeWidth = 0.5 + 1.3 * k;
-      canvas.drawLine(a, b, paint);
-    }
-    final head = at(u);
-    if (head != null && head.dy <= horizonY) {
-      canvas.drawCircle(
-        head,
-        1.7,
-        Paint()..color = Colors.white.withValues(alpha: glow),
-      );
-    }
+    StarDraw.sky(
+      canvas,
+      size,
+      (az, el) => skyPoint(p, az, el, minDen: 0.08),
+      horizonY,
+      star,
+      scene.palette.starAlpha,
+    );
   }
 
   /// The sun through the day, the moon through the night. Both ride the same

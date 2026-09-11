@@ -173,10 +173,11 @@ class _SettingsSheetState extends State<SettingsSheet> {
           icon: Icons.auto_awesome,
           title: 'Tirar una estrella fugaz',
           subtitle:
-              'Sale ya mismo, sin esperar. De noche se ve una cada diecisiete '
-              'minutos de media, y sólo si mirás hacia donde cae.',
+              'Sale ya mismo, sin esperar. Dura cinco segundos, cruza por donde '
+              'estés mirando y de noche pasa una cada cuatro minutos y medio '
+              'de media.',
           // Cierra los ajustes primero. Sin eso la fugaz cruzaba por detrás de
-          // esta misma hoja durante el segundo y pico que dura, que es la
+          // esta misma hoja durante los cinco segundos que dura, que es la
           // manera más tonta de que un botón de probar algo no pruebe nada. El
           // sonido no lo toca esto: lo toca el valle al verla, y así suena una
           // vez y no dos.

@@ -131,8 +131,9 @@ class _TownViewState extends State<TownView>
 
   double _time = 0;
 
-  /// Cuál fue la última fugaz que sonó, para no tocarla sesenta veces.
-  int _lastWish = 1 << 30;
+  /// Cuál fue la última fugaz que sonó, para no tocarla sesenta veces. Null
+  /// cuando no hay ninguna en el cielo, que es cuando hay que callar la suya.
+  int? _lastWish;
   Duration _last = Duration.zero;
 
   /// The building that has just been finished, and how long since.
@@ -365,12 +366,30 @@ class _TownViewState extends State<TownView>
 
     Sensory.instance.music(_hour, dt, _displayIntegrity);
     // Una sola vez por fugaz: esto corre en cada fotograma y la fugaz dura
-    // segundo y pico. Por su nombre y no por el reloj, porque las que se piden
+    // cinco segundos. Por su nombre y no por el reloj, porque las que se piden
     // a mano desde los ajustes no caen en ninguna ventana del reloj.
-    final fugaz = ShootingStar.at(_time, _hour);
+    //
+    // Y el sonido se corta con ella: dura lo mismo que el vuelo, así que si se
+    // pierde la estrella —se apaga la pantalla, se sale del pueblo— lo que no
+    // puede quedar es la música sonando en un cielo que ya no está.
+    final medida = context.size;
+    final fugaz = medida == null
+        ? null
+        : ShootingStar.at(
+            _time,
+            _hour,
+            SkyView.of(
+              _cam.projector(medida.width, medida.height, _time),
+              medida.width,
+              medida.height,
+            ),
+          );
     if (fugaz != null && fugaz.id != _lastWish) {
       _lastWish = fugaz.id;
       Sensory.instance.wish();
+    } else if (fugaz == null && _lastWish != null) {
+      _lastWish = null;
+      Sensory.instance.hushWish();
     }
 
     final pal = _buildPalette();

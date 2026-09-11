@@ -1,7 +1,5 @@
 import 'dart:math' as math;
 
-import 'dart:ui' as ui;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -10,6 +8,7 @@ import '../engine/camera.dart';
 import '../engine/palette.dart';
 import '../engine/renderer.dart';
 import '../engine/shooting_star.dart';
+import '../engine/star_draw.dart';
 import '../model/habit.dart';
 import 'board_plan.dart';
 import '../data/symbols.dart';
@@ -444,14 +443,30 @@ class BoardPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final p = cam.projector(size.width, size.height, 0);
     final horizon = TownPainter.horizonOf(p, size);
+    // La fugaz va en dos: la estrella con el cielo, detrás del tablón, y su
+    // luz al final del todo, porque es luz que cae sobre lo ya pintado. En una
+    // sola pasada al final, la estela cruzaba por delante de la plancha.
+    final fugaz = ShootingStar.at(
+      motion.clock,
+      hourOfDay,
+      SkyView.of(p, size.width, size.height),
+      chance: 0.55,
+    );
+    Offset? apunta(double az, double el) =>
+        TownPainter.skyPoint(p, az, el, minDen: 0.08);
     _sky(canvas, size, horizon);
     _ground(canvas, size, horizon);
+    if (fugaz != null) {
+      StarDraw.sky(canvas, size, apunta, horizon, fugaz, palette.starAlpha);
+    }
     _shadow(canvas, p);
     _posts(canvas, p);
     _plank(canvas, p);
     _roof(canvas, p);
     _papers(canvas, p, size);
-    _star(canvas, size, p, horizon);
+    if (fugaz != null) {
+      StarDraw.land(canvas, size, apunta, fugaz, palette.starAlpha);
+    }
   }
 
   // ------------------------------------------------------------ el escenario
@@ -751,56 +766,6 @@ class BoardPainter extends CustomPainter {
       ink[i].paint(canvas, detail);
       canvas.restore();
     }
-  }
-
-  /// Una fugaz por encima del tablón, si es de noche.
-  ///
-  /// Aquí salen mucho más a menudo que en el valle, y es a propósito: en el
-  /// valle uno deja el pueblo abierto y mira de vez en cuando, y la gracia es
-  /// que casi nunca pase nada. Al tablón se entra a leer y se sale, así que con
-  /// la probabilidad del valle no se vería una nunca.
-  void _star(Canvas canvas, Size size, Projector p, double horizonY) {
-    final star = ShootingStar.at(motion.clock, hourOfDay, chance: 0.55);
-    if (star == null) return;
-    final glow = star.glow * palette.starAlpha;
-    if (glow < 0.02) return;
-    Offset? at(double k) {
-      final aim = star.aim(k);
-      if (aim == null) return null;
-      return TownPainter.skyPoint(p, aim.$1, aim.$2, minDen: 0.08);
-    }
-
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    for (var i = 0; i < 7; i++) {
-      final a = at(star.u - 0.13 * (i + 1) / 7);
-      final b = at(star.u - 0.13 * i / 7);
-      if (a == null || b == null) continue;
-      if (b.dy > horizonY || a.dy > horizonY) continue;
-      final k = 1 - i / 7;
-      paint
-        ..color = Colors.white.withValues(alpha: glow * k * k * 0.85)
-        ..strokeWidth = 0.5 + 1.3 * k;
-      canvas.drawLine(a, b, paint);
-    }
-    final head = at(star.u);
-    if (head == null || head.dy > horizonY) return;
-    canvas.drawCircle(
-      head,
-      1.7,
-      Paint()..color = Colors.white.withValues(alpha: glow),
-    );
-    // Y el mismo barrido de luz que en el pueblo.
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()
-        ..blendMode = BlendMode.plus
-        ..shader = ui.Gradient.radial(head, size.longestSide * 1.35, [
-          const Color(0xFFBFD8FF).withValues(alpha: 0.26 * glow),
-          const Color(0x00000000),
-        ]),
-    );
   }
 
   static Path _path(List<Offset> q) {

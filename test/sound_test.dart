@@ -69,12 +69,18 @@ void main() {
       expect(Sensory.biteOf('no existe'), isNull);
     });
 
-    test('todo lo que suena es algo que hiciste vos', () {
+    test('lo que suena es algo que hiciste vos, salvo la fugaz', () {
       // Se fueron los cuatro que decía el pueblo por su cuenta —campana,
       // gallo, cuervo, gozne— y los tres bucles de aire del valle. Lo que
       // queda tiene que seguir siendo respuesta a un dedo, no relleno: un
       // sonido que sale solo cada tantos segundos no lo pidió nadie.
-      expect(Sensory.catalogue.length, 5);
+      //
+      // La fugaz es la excepción, y a propósito. No es relleno por lo mismo
+      // que aquéllos lo eran: no sale cada tantos segundos sino una vez cada
+      // cuatro minutos y medio de noche, dura lo que dura ella y se calla con
+      // ella. Es el sonido de que está pasando algo, no ruido de fondo.
+      expect(Sensory.catalogue.length, 6);
+      expect(Sensory.biteOf('wish'), isNotNull);
       for (final gone in [
         'bell',
         'cock',

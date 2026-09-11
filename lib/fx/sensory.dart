@@ -52,6 +52,7 @@ class Sensory {
     SoundBite('repair', 'repair.wav', 'Reparar', 0.70),
     SoundBite('milestone', 'milestone.wav', 'Obra terminada', 0.85),
     SoundBite('epic', 'epic.wav', 'Hito del pueblo', 0.90),
+    SoundBite('wish', 'wish.wav', 'Estrella fugaz', 0.80),
   ];
 
   static SoundBite? biteOf(String id) {
@@ -250,6 +251,9 @@ class Sensory {
   void sleep() {
     if (_asleep) return;
     _asleep = true;
+    // La fugaz dura cinco segundos: dejarla sonando con la pantalla apagada es
+    // exactamente lo que no puede pasar.
+    hushWish();
     settle();
   }
 
@@ -403,14 +407,42 @@ class Sensory {
     _haptic(HapticFeedback.lightImpact);
   }
 
-  /// Lo que suena cuando cruza una fugaz.
+  /// Lo que suena cuando cruza una fugaz: cinco segundos que entran, crecen y
+  /// se apagan a cero justo cuando ella se apaga.
   ///
-  /// Flojito y a lo lejos: es algo que pasa en el cielo, no algo que hiciste.
-  /// Comparte el sonido del hito porque es el que tiene esa campana larga, y un
-  /// archivo nuevo para segundo y pico de sonido no lo vale.
-  void wish() {
-    _say('epic', louder: 0.42);
+  /// Reproductor propio y no uno del montón, por dos motivos. Dura cinco
+  /// segundos, así que con el montón rotando se lo llevaría por delante
+  /// cualquier toque; y hay que poder callarlo cuando la estrella se va antes
+  /// de tiempo —salir del pueblo, apagar la pantalla—, porque música sonando
+  /// en un cielo vacío se oye como un fallo.
+  ///
+  /// Antes era el sonido del hito a media voz. No valía: es una campana de
+  /// obra terminada, dura dos segundos y suena a logro tuyo, y esto no es algo
+  /// que hiciste, es algo que pasa.
+  Future<void> wish() async {
+    if (!_wants.hears('wish')) return;
+    final bite = biteOf('wish');
+    if (bite == null || _asleep) return;
+    try {
+      final p = _wisher ??= AudioPlayer()..setReleaseMode(ReleaseMode.stop);
+      await p.stop();
+      await p.setVolume((bite.level * _effectsGain).clamp(0.0, 1.0));
+      await p.play(AssetSource('sfx/${bite.file}'));
+    } catch (_) {
+      // Audio is a bonus, never a requirement.
+    }
   }
+
+  /// Callar la fugaz. Vale llamarlo siempre: si no sonaba, no hace nada.
+  Future<void> hushWish() async {
+    try {
+      await _wisher?.stop();
+    } catch (_) {}
+  }
+
+  /// El reproductor de la fugaz. Se hace la primera vez que hace falta: la
+  /// mayoría de las sesiones no ven ninguna.
+  AudioPlayer? _wisher;
 
   void tick() {
     _say('tap');
@@ -418,9 +450,10 @@ class Sensory {
   }
 
   void dispose() {
-    for (final p in [..._pool, ..._mus]) {
+    for (final p in [..._pool, ..._mus, ?_wisher]) {
       p.dispose();
     }
+    _wisher = null;
     _pool.clear();
     _mus.clear();
     _ready = false;
