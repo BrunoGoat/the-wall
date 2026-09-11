@@ -152,24 +152,6 @@ flutter:
       fonts:
         - asset: assets/fonts/Zeyada.ttf
 
-    # Las cinco de prueba. NO SE PUEDEN PUBLICAR TAL CUAL: ver la tabla de
-    # licencias en lib/ui/note_font.dart. Están aquí para poder elegir, no
-    # para quedarse.
-    - family: MyTown
-      fonts:
-        - asset: assets/fonts/MyTown.otf
-    - family: GreenTown
-      fonts:
-        - asset: assets/fonts/GreenTown.ttf
-    - family: StraightTown
-      fonts:
-        - asset: assets/fonts/StraightTown.otf
-    - family: KBCrazyTown
-      fonts:
-        - asset: assets/fonts/KBCrazyTown.ttf
-    - family: KGSouthernGirl
-      fonts:
-        - asset: assets/fonts/KGSouthernGirl.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:

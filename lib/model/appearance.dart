@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../ui/note_font.dart';
+
 /// The handful of things about the app that are a preference rather than a
 /// record of what you did.
 ///
@@ -253,10 +255,18 @@ class Appearance extends ChangeNotifier {
           } else {
             _musicVolume = v.clamp(0.0, 1.0);
           }
+        // Una letra guardada puede ya no existir: las cinco de prueba se
+        // fueron de la app por no tener licencia, y quien las hubiera elegido
+        // tiene su nombre escrito en el disco. Si no está, vale la de siempre
+        // y no la del sistema.
         case 'noteFont':
-          _noteFont = value;
+          _noteFont = NoteFont.porNombre(value) == null
+              ? defaultNoteFont
+              : value;
         case 'villageFont':
-          _villageFont = value;
+          _villageFont = NoteFont.porNombre(value) == null
+              ? defaultVillageFont
+              : value;
         case 'villageScale':
           _villageScale = (double.tryParse(value) ?? defaultVillageScale).clamp(
             minScale,

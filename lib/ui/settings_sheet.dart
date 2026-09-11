@@ -565,30 +565,7 @@ class _Fonts extends StatelessWidget {
     final t = theme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _fila(t, [
-          for (final f in NoteFont.values)
-            if (f.libre) f,
-        ]),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Icon(Icons.warning_amber_rounded, size: 13, color: t.fgFaint),
-            const SizedBox(width: 5),
-            Expanded(
-              child: Text(
-                'Sin licencia para publicar. Para probar.',
-                style: t.bodySoft.copyWith(fontSize: 10.5),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 7),
-        _fila(t, [
-          for (final f in NoteFont.values)
-            if (!f.libre) f,
-        ]),
-      ],
+      children: [_fila(t, NoteFont.values)],
     );
   }
 
@@ -612,8 +589,7 @@ class _Fonts extends StatelessWidget {
               border: Border.all(
                 color: f.name == value
                     ? t.accent.withValues(alpha: 0.7)
-                    : t.fg.withValues(alpha: f.libre ? 0.12 : 0.2),
-                width: f.libre ? 1 : 1.4,
+                    : t.fg.withValues(alpha: 0.12),
               ),
             ),
             child: Text(

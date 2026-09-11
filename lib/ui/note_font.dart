@@ -14,17 +14,10 @@
 ///
 /// ## Licencias
 ///
-/// Todas las libres llevan licencia abierta de fuentes o Apache, y se pueden
-/// publicar. **Las cinco de prueba no**, y por eso están apartadas: son para
-/// comparar, no para quedarse.
-///
-/// | Letra     | Autor          | Qué dice su licencia                  |
-/// |-----------|----------------|---------------------------------------|
-/// | Mi pueblo | —              | No trae ninguna. Se desconoce.        |
-/// | Verde     | SKYTROOPAS     | No trae ninguna. Se desconoce.        |
-/// | Recta     | MJType         | Sólo uso personal. Comercial se paga. |
-/// | Torcida   | Khrys Bosland  | No trae ninguna. Se desconoce.        |
-/// | Sureña    | Kimberly Gesw. | Personal libre; comercial, 5 dólares. |
+/// Todas llevan licencia abierta de fuentes o Apache, así que todas se pueden
+/// publicar. Aquí no entra ninguna que no se pueda: hubo cinco de prueba —Mi
+/// pueblo, Verde, Recta, Torcida y Sureña— que sin licencia clara viajaban
+/// dentro de cada APK, y por eso se fueron del repositorio enteras.
 library;
 
 import '../core/rng.dart';
@@ -110,14 +103,7 @@ enum NoteFont {
 
   // ------------------------------------------------- de máquina de escribir
   elite('SpecialElite', 'SpecialElite.ttf', 'Elite', 0.91),
-  courier('CourierPrime', 'CourierPrime.ttf', 'Courier', 0.79),
-
-  // ------------------------------------------- de prueba, sin licencia clara
-  miPueblo('MyTown', 'MyTown.otf', 'Mi pueblo', 1.14, libre: false),
-  verde('GreenTown', 'GreenTown.ttf', 'Verde', 0.91, libre: false),
-  recta('StraightTown', 'StraightTown.otf', 'Recta', 1.36, libre: false),
-  torcida('KBCrazyTown', 'KBCrazyTown.ttf', 'Torcida', 1.14, libre: false),
-  surena('KGSouthernGirl', 'KGSouthernGirl.ttf', 'Sureña', 1.25, libre: false);
+  courier('CourierPrime', 'CourierPrime.ttf', 'Courier', 0.79);
 
   const NoteFont(
     this.family,
@@ -125,7 +111,6 @@ enum NoteFont {
     this.label,
     this.scale, {
     this.mano = false,
-    this.libre = true,
   });
 
   /// Null quiere decir la del sistema, o que hay que repartir manos.
@@ -149,13 +134,10 @@ enum NoteFont {
   /// Si vale como mano de vecino para [varias].
   final bool mano;
 
-  /// Si se puede publicar. Las de prueba no. Ver la tabla de arriba.
-  final bool libre;
-
-  /// Las manos que se reparten, sin las que no se pueden publicar.
+  /// Las manos que se reparten entre los papeles.
   static List<NoteFont> get manos => [
     for (final f in values)
-      if (f.mano && f.libre) f,
+      if (f.mano) f,
   ];
 
   /// Qué mano le toca a esta nota.

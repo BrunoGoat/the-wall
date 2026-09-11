@@ -846,7 +846,6 @@ void main() {
         final n = Notice(NoticeKind.pueblo, dice, y);
         final f = NoteFont.handFor(n);
         expect(f.mano, isTrue);
-        expect(f.libre, isTrue, reason: 'se repartió una letra sin licencia');
         manos[dice] = f.name;
         // Y la misma nota, la misma mano, siempre: la de la cabra la escribe
         // siempre la misma persona.
