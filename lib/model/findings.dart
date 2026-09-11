@@ -155,33 +155,88 @@ List<bool> _grid(Habit h, DateTime now) {
 ///
 /// The one notice that looks forward, and the only one that has any business
 /// doing so, because it says exactly what it is doing — carrying on at the
-/// pace of the last month — instead of pretending to know the future.
+/// pace so far — instead of pretending to know the future.
+///
+/// El ritmo se mide desde que existe el hábito y no siempre sobre treinta
+/// días. Dividir entre treinta cuando el pueblo tiene cuatro es repartir tus
+/// piezas entre veintiséis días en los que no había dónde ponerlas: nueve
+/// piezas en cuatro días salían a 0,3 al día en vez de 2,25, y una casa a la
+/// que le faltaban tres quedaba en pie dentro de diez días en vez de dentro
+/// de dos. Cuanto más nuevo el pueblo, peor la cuenta, que es justo cuando
+/// más se mira.
 Notice? ahead(Habit h, String? what, int left, DateTime now) {
   if (what == null || left <= 0) return null;
-  final since = now.subtract(const Duration(days: 30));
+  final today = dayStart(now);
+
+  // Desde cuándo hay hábito. Lo antes de las dos cosas: normalmente el día que
+  // se fundó, pero unas piezas anteriores a su propia fecha de creación —datos
+  // traídos de otra parte— no pueden dar una ventana negativa.
+  var nace = dayStart(h.createdAt);
+  if (h.pieces.isNotEmpty) {
+    final primera = dayStart(h.pieces.first.placedAt);
+    if (primera.isBefore(nace)) nace = primera;
+  }
+  final desde = nace.isAfter(today.subtract(const Duration(days: 29)))
+      ? nace
+      : today.subtract(const Duration(days: 29));
+
   var recent = 0;
   for (final p in h.pieces) {
-    if (p.placedAt.isAfter(since)) recent++;
+    if (!dayStart(p.placedAt).isBefore(desde)) recent++;
   }
   if (recent < 8) return null;
-  final perDay = recent / 30.0;
+
+  final ventana = today.difference(desde).inDays + 1;
+
+  // Un día de piezas no es un ritmo, es un día. Tres es lo menos que puede
+  // llamarse ritmo, así que por debajo de ahí la cuenta se reparte entre tres
+  // y una tarde entera de golpe no promete el pueblo para mañana. El reparto
+  // es sólo para la cuenta: los días que se cuentan son los que hubo, porque
+  // decir «llevás ocho en tres días» el primer día sería inventarse dos.
+  final perDay = recent / math.max(3, ventana);
   final days = (left / perDay).ceil();
   if (days > 400) return null; // too far off to mean anything
-  final when = dayStart(now).add(Duration(days: days));
+  final when = today.add(Duration(days: days));
+
+  // Las barras enseñan lo mismo que usó la cuenta. Con doce semanas en un
+  // pueblo de cuatro días, once salían vacías y la que sobrevivía se llevaba
+  // las nueve piezas: el dibujo decía «todo de una vez» cuando habían sido
+  // cuatro días seguidos.
+  final porDias = ventana <= 28;
   return Notice(
     NoticeKind.ahead,
     days <= 1
         ? 'A este ritmo, $what queda en pie mañana.'
         : 'A este ritmo, $what queda en pie el ${_date(when)}'
               '${when.year == now.year ? '' : ' de ${when.year}'}.',
-    'Le faltan $left ${_pieces(left)}, y llevás $recent en los últimos 30 días.',
-    bars: _weeks(h, now, 12),
-    mark: 11,
-    more:
-        'La fecha sale del ritmo de las últimas cuatro semanas y de nada '
-        'más. Si apretás se adelanta, y si aflojás se va. Las barras son las '
-        'últimas doce semanas, una por semana.',
+    'Le faltan $left ${_pieces(left)}, y llevás $recent en '
+    '${ventana == 1 ? 'un día' : '$ventana días'}.',
+    bars: porDias ? _daily(h, desde, today) : _weeks(h, now, 12),
+    mark: porDias ? today.difference(desde).inDays : 11,
+    more: porDias
+        ? 'La fecha sale del ritmo desde que empezaste y de nada más. Si '
+              'apretás se adelanta, y si aflojás se va. Las barras son esos '
+              'mismos días, uno cada una.'
+        : 'La fecha sale del ritmo del último mes y de nada más. Si apretás '
+              'se adelanta, y si aflojás se va. Las barras son las últimas '
+              'doce semanas, una por semana.',
   );
+}
+
+/// Un día por barra, de [from] a [today], contra el día más cargado.
+List<double> _daily(Habit h, DateTime from, DateTime today) {
+  final span = today.difference(from).inDays;
+  if (span < 0) return const [];
+  final counts = List<double>.filled(span + 1, 0);
+  for (final p in h.pieces) {
+    final at = dayStart(p.placedAt).difference(from).inDays;
+    if (at >= 0 && at <= span) counts[at] += 1;
+  }
+  var top = 1.0;
+  for (final c in counts) {
+    if (c > top) top = c;
+  }
+  return [for (final c in counts) c / top];
 }
 
 /// The last [n] weeks as a strip, each week its own bar against the busiest.

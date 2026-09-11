@@ -287,5 +287,68 @@ void main() {
     test('a town with nothing under way promises nothing', () {
       expect(ahead(_daily('Leer', 90), null, 0, _now), isNull);
     });
+
+    test('el ritmo se mide desde que hay pueblo, no sobre treinta días', () {
+      // El caso que se vio en el teléfono. Nueve piezas repartidas en cuatro
+      // días, tres para acabar la casa. Dividiendo entre treinta salían a 0,3
+      // al día y la casa quedaba en pie dentro de diez; el ritmo de verdad es
+      // 2,25 al día y son dos.
+      final cuando = <DateTime>[
+        for (final (atras, cuantas) in [(3, 2), (2, 2), (1, 3), (0, 2)])
+          for (var k = 0; k < cuantas; k++)
+            DateTime(_now.year, _now.month, _now.day - atras, 8 + k),
+      ];
+      final dice = ahead(_habit('Casa', cuando), 'Casa', 3, _now);
+      expect(dice, isNotNull);
+      expect(
+        dice!.because,
+        contains('9 en 4 días'),
+        reason: 'sigue repartiendo las piezas entre días que no existieron',
+      );
+      // Dos días, no diez.
+      expect(dice.said, contains('${_now.day + 2} de'));
+    });
+
+    test('y las barras son esos mismos días, uno cada una', () {
+      // Con doce semanas en un pueblo de cuatro días, once salían vacías y la
+      // que quedaba se llevaba las nueve piezas: el dibujo decía «todo de una
+      // vez» cuando habían sido cuatro días seguidos.
+      final cuando = <DateTime>[
+        for (final (atras, cuantas) in [(3, 2), (2, 2), (1, 3), (0, 2)])
+          for (var k = 0; k < cuantas; k++)
+            DateTime(_now.year, _now.month, _now.day - atras, 8 + k),
+      ];
+      final dice = ahead(_habit('Casa', cuando), 'Casa', 3, _now)!;
+      expect(dice.bars.length, 4);
+      for (final b in dice.bars) {
+        expect(b, greaterThan(0), reason: 'un día del hábito salió vacío');
+      }
+      expect(dice.mark, 3, reason: 'la marca no está en hoy');
+
+      // Y en un pueblo con historia siguen siendo semanas: doce barras de un
+      // día para medio año no dicen nada.
+      final viejo = ahead(_daily('Leer', 120), 'la Catedral', 20, _now)!;
+      expect(viejo.bars.length, 12);
+      expect(viejo.because, contains('en 30 días'));
+    });
+
+    test('una tarde entera de golpe no promete el pueblo para mañana', () {
+      // Ocho piezas el mismo día son ocho piezas ese día, no ocho al día. Sin
+      // suelo, la ventana valía uno y el ritmo salía disparado.
+      final dice = ahead(
+        _habit('Casa', [
+          for (var k = 0; k < 8; k++)
+            DateTime(_now.year, _now.month, _now.day, 9 + k),
+        ]),
+        'Casa',
+        6,
+        _now,
+      );
+      expect(dice, isNotNull);
+      expect(dice!.said, isNot(contains('mañana')));
+      // Y dice los días que hubo, no los tres del reparto: el reparto es para
+      // que la cuenta no se dispare, no para inventar dos días.
+      expect(dice.because, contains('8 en un día'));
+    });
   });
 }
