@@ -122,15 +122,12 @@ class _SettingsSheetState extends State<SettingsSheet> {
         const SizedBox(height: 26),
         _Head(theme: t, text: 'EL TABLÓN'),
         Text(
-          'Con qué letra están escritos los papeles. Las notas del tablón son '
-          'cuentas tuyas y los bandos los escribe alguien del pueblo, así que '
-          'van por separado; poniendo la misma en las dos, todo el tablón lo '
-          'escribe la misma mano.',
+          'Con qué letra están escritas tus notas del tablón. Los bandos no '
+          'entran aquí: los escribe gente del pueblo, y cada uno sale con la '
+          'mano del vecino que lo colgó.',
           style: t.bodySoft.copyWith(fontSize: 11.5, height: 1.4),
         ),
         const SizedBox(height: 12),
-        Text('LAS NOTAS DEL TABLÓN', style: t.label),
-        const SizedBox(height: 8),
         _Fonts(theme: t, value: wants.noteFont, onPick: wants.setNoteFont),
         _Slider(
           theme: t,
@@ -139,25 +136,6 @@ class _SettingsSheetState extends State<SettingsSheet> {
               (wants.noteScale - Appearance.minScale) /
               (Appearance.maxScale - Appearance.minScale),
           onChanged: (v) => wants.setNoteScale(
-            Appearance.minScale +
-                v * (Appearance.maxScale - Appearance.minScale),
-          ),
-        ),
-        const SizedBox(height: 14),
-        Text('LOS BANDOS DEL PUEBLO', style: t.label),
-        const SizedBox(height: 8),
-        _Fonts(
-          theme: t,
-          value: wants.villageFont,
-          onPick: wants.setVillageFont,
-        ),
-        _Slider(
-          theme: t,
-          title: 'Tamaño',
-          value:
-              (wants.villageScale - Appearance.minScale) /
-              (Appearance.maxScale - Appearance.minScale),
-          onChanged: (v) => wants.setVillageScale(
             Appearance.minScale +
                 v * (Appearance.maxScale - Appearance.minScale),
           ),
