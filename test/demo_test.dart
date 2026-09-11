@@ -13,6 +13,7 @@ import 'package:la_muralla/data/gossip.dart';
 import 'package:la_muralla/engine/town.dart';
 import 'package:la_muralla/model/findings.dart';
 import 'package:la_muralla/engine/palette.dart';
+import 'package:la_muralla/engine/renderer.dart';
 import 'package:la_muralla/core/math3.dart';
 import 'package:la_muralla/engine/camera.dart';
 import 'package:la_muralla/engine/solids.dart';
@@ -21,6 +22,7 @@ import 'package:la_muralla/model/board.dart';
 import 'package:la_muralla/model/habit.dart';
 import 'package:la_muralla/model/board_slots.dart';
 import 'package:la_muralla/ui/board_plan.dart';
+import 'package:la_muralla/ui/hold_button.dart';
 import 'package:la_muralla/ui/board_scene.dart';
 import 'package:la_muralla/ui/note_font.dart';
 import 'package:la_muralla/ui/paper_ink.dart';
@@ -1101,7 +1103,55 @@ void main() {
       );
     });
   });
+
+  _sierras();
+  _boton();
 }
 
 /// Huecos en fila, para los tests a los que el reparto les da igual.
 List<int> _enFila(int n) => [for (var i = 0; i < n; i++) i];
+
+/// Que las cordilleras se recorten contra el cielo a cualquier hora.
+void _sierras() {
+  group('las montañas', () {
+    test('se distinguen del cielo también de noche', () {
+      double luz(Color c) => 0.299 * c.r + 0.587 * c.g + 0.114 * c.b;
+      // Las horas en que el cielo está oscuro, que es cuando esto falla: de
+      // día la bruma lava lo lejano y todo se separa solo, y de noche la bruma
+      // y el suelo lejano son casi el color del cielo, así que una cordillera
+      // hecha de esos dos colores desaparece dentro de él.
+      for (final hora in [0.0, 2.0, 4.0, 21.0, 22.5, 23.0]) {
+        final pal = Palette.forMoment(hora, 1.0);
+        for (var li = 0; li < 3; li++) {
+          final (body, _) = TownPainter.rangeTone(pal, li, 3);
+          expect(
+            (luz(body) - luz(pal.skyHorizon)).abs(),
+            // El margen de verdad ronda el once por ciento. El listón va a la
+            // mitad para que quepa cambiar la paleta sin que salte por nada,
+            // pero muy por encima del dos y medio por ciento que tenía la de
+            // delante cuando esto se rompió.
+            greaterThan(0.055),
+            reason: 'a las $hora la cordillera $li se confunde con el cielo',
+          );
+        }
+      }
+    });
+  });
+}
+
+/// El botón de mantener.
+void _boton() {
+  test('la piedra del medio llena el aro al completarse', () {
+    // El aro y la piedra cuentan lo mismo —cuánto falta— y acababan en sitios
+    // distintos: el aro se cerraba del todo y la piedra se quedaba a dos
+    // tercios, así que el gesto no terminaba de terminar.
+    const r = 40.0;
+    expect(holdInnerRadius(1, r), closeTo(r - 0.7, 0.01));
+    expect(holdInnerRadius(0, r), lessThan(r * 0.2));
+    // Y deprisa al principio, que es donde hay que ver que algo pasa.
+    expect(holdInnerRadius(0.5, r), greaterThan(r * 0.6));
+    for (var k = 0.0; k < 1; k += 0.05) {
+      expect(holdInnerRadius(k + 0.05, r), greaterThan(holdInnerRadius(k, r)));
+    }
+  });
+}

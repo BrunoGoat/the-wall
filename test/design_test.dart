@@ -118,11 +118,17 @@ void main() {
     }
   });
 
-  testWidgets('lo que falta por escribir va en pardo, no en color de aviso', (
+  testWidgets('lo que falta por escribir no es un aviso, y es de esta hora', (
     tester,
   ) async {
     // Una leyenda que no está escrita no es una alerta. En el naranja de la
-    // hora lo parecía.
+    // hora lo parecía, y de ahí viene esto.
+    //
+    // Lo que se exige cambió: era «que tire a pardo», y un pardo de mediodía a
+    // las tres de la mañana es una mancha que no es de esa hora. Ahora sale de
+    // la paleta como todo lo demás, así que de noche puede ser fría. Lo que no
+    // puede es cantar: tiene que leerse como un texto apagado y no como el
+    // color con que la app avisa de algo.
     for (final hora in [13.0, 2.0]) {
       final t = UiTheme(Palette.forMoment(hora, 1.0));
       tester.view.physicalSize = _pantallas.last;
@@ -150,10 +156,19 @@ void main() {
         isNot(t.accent),
         reason: 'sigue siendo el color de la hora',
       );
+      double lejos(Color a, Color b) =>
+          (a.r - b.r).abs() + (a.g - b.g).abs() + (a.b - b.b).abs();
       expect(
-        color.r,
-        greaterThan(color.b),
-        reason: 'a las $hora no tira a pardo: el azul le gana al rojo',
+        lejos(color, t.fgSoft),
+        lessThan(lejos(color, t.accent)),
+        reason:
+            'a las $hora se parece más al color de aviso que al del texto: '
+            'una leyenda sin escribir es un hueco esperando, no una alerta',
+      );
+      expect(
+        lejos(color, t.fgSoft),
+        greaterThan(0.02),
+        reason: 'a las $hora es exactamente el texto normal y no se distingue',
       );
       await tester.pumpWidget(const SizedBox());
     }

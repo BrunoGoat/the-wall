@@ -245,6 +245,21 @@ class _HoldToPlaceState extends State<HoldToPlace>
   }
 }
 
+/// Lo que mide la piedra del medio mientras se aguanta.
+///
+/// Al completarse llega justo al filo de dentro del aro, no a dos tercios.
+/// La vuelta del aro y la piedra cuentan lo mismo —cuánto falta— y acababan
+/// en sitios distintos: el aro se cerraba del todo y la piedra se quedaba a
+/// medio camino, así que el gesto no terminaba de terminar.
+///
+/// Y crece deprisa al principio, que es donde hay que ver que algo pasa.
+double holdInnerRadius(double charge, double r) => lerpDouble(
+  r * 0.13,
+  // La mitad del grosor del aro, para que se toquen por dentro y no lo pise.
+  r - 0.7,
+  Curves.easeOutCubic.transform(charge.clamp(0.0, 1.0)),
+)!;
+
 class _HoldPainter extends CustomPainter {
   _HoldPainter({
     required this.theme,
@@ -317,11 +332,7 @@ class _HoldPainter extends CustomPainter {
 
     // The stone waiting in the middle: a small mark that swells as the hold
     // builds, so the gesture has something growing to watch.
-    final inner = lerpDouble(
-      r * 0.13,
-      r * 0.62,
-      Curves.easeOut.transform(charge),
-    )!;
+    final inner = holdInnerRadius(charge, r);
     canvas.drawCircle(
       c,
       inner,

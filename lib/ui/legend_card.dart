@@ -35,8 +35,14 @@ class LegendCard extends StatelessWidget {
   /// — es una frase que falta, y una frase que falta se escribe en tinta
   /// floja. De noche el mismo pardo pero aclarado, o sobre el bloque oscuro no
   /// se lee.
+  /// El color de la leyenda que todavía no escribiste.
+  ///
+  /// Sale de la paleta de la hora, como todo lo demás: era un marrón fijo, y a
+  /// las tres de la mañana un marrón de mediodía es una mancha que no es de
+  /// aquí. Un paso hacia el acento y nada más — el naranja de antes cantaba
+  /// demasiado para lo que es: un hueco esperando, no un aviso.
   static Color pending(UiTheme t) =>
-      t.dark ? const Color(0xFFB08A63) : const Color(0xFF7A5A3C);
+      Color.lerp(t.fgSoft, t.accent, 0.28)!.withValues(alpha: 0.85);
 
   @override
   Widget build(BuildContext context) {

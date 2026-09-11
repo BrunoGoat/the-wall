@@ -12,7 +12,6 @@ import '../model/store.dart';
 import 'habit_bar.dart';
 import 'habits_sheet.dart';
 import 'hold_button.dart';
-import 'journey_sheet.dart';
 import 'notice_board.dart';
 import 'overlays.dart';
 import 'settings_sheet.dart';
@@ -54,6 +53,14 @@ class _HomeScreenState extends State<HomeScreen> {
   static const Duration _signLife = Duration(milliseconds: 2600);
   Piece? _selected;
 
+  /// De qué pueblo es la pieza elegida.
+  ///
+  /// Una pieza se identifica por su número dentro de su pueblo, así que al
+  /// cambiar de pueblo la número uno de allá pasaba a ser la elegida sin que
+  /// nadie la tocara: uno se iba al pueblo de al lado y se encontraba abierta
+  /// la leyenda de su primera pieza.
+  String? _selectedTown;
+
   @override
   void initState() {
     super.initState();
@@ -75,7 +82,12 @@ class _HomeScreenState extends State<HomeScreen> {
     // Keep the open card in step with the store, so a note written now shows
     // up on the card straight away.
     if (_selected != null) {
-      _selected = widget.store.pieceAt(_selected!.index);
+      if (_selectedTown != widget.store.habit.id) {
+        _selected = null;
+        _selectedTown = null;
+      } else {
+        _selected = widget.store.pieceAt(_selected!.index);
+      }
     }
     setState(() {});
   }
@@ -117,15 +129,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _whisperTimer = Timer(duration, () {
       if (mounted) setState(() => _whisper = null);
     });
-  }
-
-  /// Abrir una pieza desde la bitácora: se cierra el cuaderno, la cámara va
-  /// hasta ella y se abre su tarjeta. Una sola manera de leer y escribir una
-  /// leyenda, y es la misma que tocar la pieza en el pueblo.
-  void _openPiece(Piece brick) {
-    Navigator.of(context).maybePop();
-    _wall.lookAtPiece(brick.index);
-    setState(() => _selected = brick);
   }
 
   /// Alguien reconoció la constelación de esta noche y la tocó.
@@ -176,7 +179,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (Appearance.instance.rapid) return;
                 setState(() {});
               },
-              onStoneTapped: (brick) => setState(() => _selected = brick),
+              onStoneTapped: (brick) => setState(() {
+                _selected = brick;
+                _selectedTown = widget.store.habit.id;
+              }),
               onNothingTapped: () {
                 if (_selected != null) setState(() => _selected = null);
               },
@@ -224,12 +230,7 @@ class _HomeScreenState extends State<HomeScreen> {
             top: media.padding.top + 12,
             left: 22,
             right: 14,
-            child: _TopBar(
-              theme: t,
-              store: store,
-              onJourney: _openJourney,
-              onSettings: _openSettings,
-            ),
+            child: _TopBar(theme: t, store: store, onSettings: _openSettings),
           ),
 
           // --- right: two ways of looking, and no more than that
@@ -395,35 +396,17 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (_) => SettingsSheet(store: widget.store, theme: _theme),
     );
   }
-
-  void _openJourney() {
-    Sensory.instance.tick();
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: sheetScrim(_theme.dark),
-      builder: (_) => JourneySheet(
-        store: widget.store,
-        theme: _theme,
-        onGoTo: _wall.goTo,
-        onOpenPiece: _openPiece,
-      ),
-    );
-  }
 }
 
 class _TopBar extends StatelessWidget {
   const _TopBar({
     required this.theme,
     required this.store,
-    required this.onJourney,
     required this.onSettings,
   });
 
   final UiTheme theme;
   final Store store;
-  final VoidCallback onJourney;
   final VoidCallback onSettings;
 
   @override
@@ -437,63 +420,62 @@ class _TopBar extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // La cuenta no lleva a ninguna parte. Llevaba a una hoja con el pueblo,
+        // los hitos y las leyendas, y lo del pueblo lo cuenta ya su tablón —que
+        // es donde tiene que estar, escrito en un papel y no en una lista.
         Expanded(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onJourney,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    Text(
-                      '${store.total}',
-                      style: t.number.copyWith(shadows: t.halo),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    '${store.total}',
+                    style: t.number.copyWith(shadows: t.halo),
+                  ),
+                  const SizedBox(width: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      'PIEZAS',
+                      style: t.label.copyWith(shadows: t.halo),
                     ),
-                    const SizedBox(width: 8),
+                  ),
+                  if (days > 0) ...[
+                    const SizedBox(width: 14),
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 2),
+                      padding: const EdgeInsets.only(bottom: 1),
                       child: Text(
-                        'PIEZAS',
-                        style: t.label.copyWith(shadows: t.halo),
-                      ),
-                    ),
-                    if (days > 0) ...[
-                      const SizedBox(width: 14),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 1),
-                        child: Text(
-                          '$days ${days == 1 ? 'DÍA' : 'DÍAS'}',
-                          style: t.label.copyWith(
-                            shadows: t.halo,
-                            color: t.fg.withValues(alpha: 0.44),
-                          ),
+                        '$days ${days == 1 ? 'DÍA' : 'DÍAS'}',
+                        style: t.label.copyWith(
+                          shadows: t.halo,
+                          color: t.fg.withValues(alpha: 0.44),
                         ),
                       ),
-                    ],
+                    ),
                   ],
+                ],
+              ),
+              const SizedBox(height: 5),
+              Text(
+                decaying
+                    ? 'Se están apagando las ventanas · una pieza las enciende'
+                    : store.nextEventLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: decaying
+                      ? const Color(0xFFE0A055)
+                      : t.fg.withValues(alpha: 0.50),
+                  fontSize: 12,
+                  letterSpacing: 0.1,
+                  shadows: t.halo,
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  decaying
-                      ? 'Se están apagando las ventanas · una pieza las enciende'
-                      : store.nextEventLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: decaying
-                        ? const Color(0xFFE0A055)
-                        : t.fg.withValues(alpha: 0.50),
-                    fontSize: 12,
-                    letterSpacing: 0.1,
-                    shadows: t.halo,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
         GestureDetector(

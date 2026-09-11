@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -42,13 +44,20 @@ void main() {
       // En proporción y no en diferencia: de noche el valle entero es oscuro,
       // y ahí «se ve más oscura» quiere decir una fracción de lo otro, no una
       // cantidad fija que sólo tiene sentido a mediodía.
+      //
+      // Y sin decir cuál de las dos es la oscura, que es lo que cambió. De día
+      // manda la perspectiva aérea y lo lejano se lava contra el cielo; de
+      // noche lo cercano es una silueta negra contra un cielo que todavía
+      // tiene algo de luz. Las dos cosas son ciertas a su hora, y lo que hay
+      // que exigir es que no sean el mismo color.
       for (final hour in everyHour) {
         final pal = Palette.forMoment(hour, 1.0);
         final (near, _) = TownPainter.rangeTone(pal, 0, howMany);
         final (far, _) = TownPainter.rangeTone(pal, howMany - 1, howMany);
+        final a = near.computeLuminance(), b = far.computeLuminance();
         expect(
-          far.computeLuminance(),
-          lessThan(near.computeLuminance() * 0.62),
+          (a - b).abs(),
+          greaterThan(math.max(a, b) * 0.30),
           reason:
               'a las ${hour.toStringAsFixed(1)} la más lejana y la más cercana '
               'son prácticamente del mismo color',

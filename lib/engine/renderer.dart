@@ -743,10 +743,39 @@ class TownPainter extends CustomPainter {
     // near ground and the haze sits between them, so a rule written as a blend
     // of those came out in a different order at four in the morning than at
     // noon. Toward black it holds at every hour by construction.
+    // Y de noche, la de más cerca se oscurece aparte.
+    //
+    // La regla de arriba oscurece con la distancia, que es lo que hace la
+    // perspectiva aérea de día: lo lejano se lava contra el cielo. De noche
+    // pasa lo contrario —lo cercano es una silueta negra contra un cielo que
+    // todavía tiene algo de luz— y como la bruma y el suelo lejano son casi el
+    // color del cielo a esa hora, la cordillera de delante se quedaba sin
+    // oscurecer nada y desaparecía dentro del cielo. Justo la que más cerca
+    // está y más debería recortarse.
+    // De noche se oscurecen todas, sin juntarse entre ellas.
+    //
+    // De día manda la perspectiva aérea: lo lejano se lava contra el cielo y lo
+    // cercano se queda con su color, así que la de delante no necesita nada. De
+    // noche pasa lo contrario —lo cercano es una silueta contra un cielo que
+    // todavía tiene algo de luz— y como a esa hora la bruma y el suelo lejano
+    // son casi el color del cielo, la de delante se quedaba sin oscurecer nada
+    // y desaparecía dentro de él. Justo la que más cerca está.
+    //
+    // Oscurecer sólo a la de delante la dejaba pegada a la del fondo, que es
+    // otra manera de perder una cordillera. Lo que se hace es correr el tramo
+    // entero: de noche va de un cincuenta y dos a un ochenta por ciento en vez
+    // de un cero a un cincuenta y cuatro. Así se separan del cielo, siguen
+    // separándose entre ellas, y la de delante sigue sin confundirse con el
+    // prado —que a esa hora también es oscuro—, que son las tres cosas a la
+    // vez y por eso los números salen de barrer las veinticuatro horas y no de
+    // elegirlos a ojo. Con el tramo viejo, la de delante quedaba a dos
+    // centésimas de luz del cielo: literalmente invisible.
+    final noche = 1 - pal.daylight;
+    final lejos = 1 - near01;
     final body = Color.lerp(
       hill,
       const Color(0xFF000000),
-      0.54 * (1 - near01),
+      lerpD(0.54 * lejos, 0.52 + 0.28 * lejos, noche),
     )!;
     return (body, Color.lerp(body, pal.haze, 0.30 + 0.15 * near01)!);
   }
