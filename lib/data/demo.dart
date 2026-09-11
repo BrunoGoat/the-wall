@@ -61,16 +61,21 @@ bool _enHueco(int back) {
 /// Las de fuerza son de tarde y las de calle de mañana, que es la manera en
 /// que la gente entrena de verdad: la bici y la carrera antes de trabajar, el
 /// gimnasio al salir.
+/// Y se repiten: nadie escribe diez cosas distintas. Lo que hay son dos o tres
+/// que vuelven —correr, el gimnasio— cada una hecha de varias maneras, que es
+/// lo que el tablón junta cuando busca lo que repetís. Con diez leyendas
+/// sueltas y equitativas esa nota no salía nunca, y el tablón de mentira está
+/// para poder verlas todas.
 const List<(String, bool)> _entrenos = [
-  ('Andar en bici', true),
   ('Correr 5k', true),
-  ('Saltar cuerda', true),
-  ('Nadar', true),
+  ('Correr 10k', true),
+  ('Correr suave', true),
+  ('Andar en bici', true),
   ('Caminata larga', true),
-  ('Gimnasio', false),
+  ('Gimnasio de piernas', false),
+  ('Gimnasio de espalda', false),
+  ('Gimnasio de pecho', false),
   ('Pesas', false),
-  ('Espalda y hombros', false),
-  ('Piernas', false),
   ('Estiramientos', false),
 ];
 

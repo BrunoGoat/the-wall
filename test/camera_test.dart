@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:la_muralla/data/character.dart';
+import 'package:la_muralla/core/math3.dart';
 import 'package:la_muralla/engine/camera.dart';
 import 'package:la_muralla/engine/town.dart';
 import 'package:la_muralla/model/habit.dart';
@@ -122,6 +123,72 @@ void main() {
       }
       final cam = OrbitCamera()..wallLength = far * 2;
       expect(cam.usefulDistance, greaterThanOrEqualTo(far * 2.4));
+    });
+
+    test('y sale por encima del pueblo del que venís, con todos a la vista', () {
+      // El botón del valle dejaba siempre la cámara en el mismo sitio: el foco
+      // va al centro del anillo —tiene que ir, es el único punto desde el que
+      // caben los seis— y el giro se quedaba donde estuviera, así que uno
+      // salía siempre mirando igual. Y como el pueblo uno está justo en ese
+      // centro, lo que se veía era siempre él.
+      //
+      // Ahora lo que se mueve es el giro: el ojo se pone en la dirección de tu
+      // pueblo. Lo que hay que comprobar es que eso no deje a ninguno fuera,
+      // así que se proyectan los seis enteros desde cada uno de los seis.
+      const w = 393.0, h = 852.0;
+      final towns = valleyOf(Habit.maxSlots, 200);
+      final puntos = <V3>[
+        for (final t in towns)
+          for (final (dx, dz) in [
+            (0.0, 0.0),
+            (-t.radius, 0.0),
+            (t.radius, 0.0),
+            (0.0, -t.radius),
+            (0.0, t.radius),
+          ])
+            V3(t.cx + dx, 0, t.cz + dz),
+      ];
+      for (final desde in towns) {
+        final propio = math.sqrt(desde.cx * desde.cx + desde.cz * desde.cz);
+        final cam = OrbitCamera()
+          ..focusY = 2.0
+          ..pitch = 0.40
+          ..yaw = propio > 1 ? math.atan2(desde.cx, desde.cz) : 0.62;
+        cam.distance = clampD(
+          cam.distanceToFit(puntos, w, h),
+          20,
+          OrbitCamera.maxDistance,
+        );
+        expect(
+          cam.distance,
+          lessThan(OrbitCamera.maxDistance),
+          reason:
+              'desde (${desde.cx.round()}, ${desde.cz.round()}) hubo que '
+              'irse al tope y aun así no cabían',
+        );
+        // Y el ojo queda del lado de tu pueblo, que es lo que se pidió.
+        if (propio > 1) {
+          final ojo = cam.eye;
+          final largo = math.sqrt(ojo.x * ojo.x + ojo.z * ojo.z);
+          final coseno =
+              (ojo.x * desde.cx + ojo.z * desde.cz) / (largo * propio);
+          expect(
+            coseno,
+            greaterThan(0.99),
+            reason:
+                'la cámara no salió por encima de (${desde.cx.round()}, '
+                '${desde.cz.round()})',
+          );
+        }
+
+        final p = cam.projector(w, h, 0);
+        for (final v in puntos) {
+          final c = p.cameraOf(v);
+          expect(c.z, greaterThan(p.near), reason: 'quedó detrás del ojo');
+          expect(p.screenX(c.x, c.z), inInclusiveRange(0, w));
+          expect(p.screenY(c.y, c.z), inInclusiveRange(0, h));
+        }
+      }
     });
   });
 }

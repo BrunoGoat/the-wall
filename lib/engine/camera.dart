@@ -141,6 +141,55 @@ class OrbitCamera {
     if (shake < 0.0005) shake = 0;
   }
 
+  /// La distancia más corta desde la que [points] caben en la pantalla.
+  ///
+  /// Con los ángulos y el foco que la cámara tiene puestos ahora mismo, así
+  /// que quien la llame tiene que ponérselos antes —normalmente sobre una
+  /// cámara de mentira, para no mover la de verdad mientras se prueba.
+  ///
+  /// Se busca a tientas sobre la proyección de verdad y no con una fórmula
+  /// porque no hay fórmula corta: la lente abre distinto a lo ancho que a lo
+  /// alto, la cámara mira hacia abajo, y lo que hay que encuadrar es un suelo
+  /// en perspectiva y no una pared de frente. Multiplicar el radio por dos
+  /// coma cuatro valía mirando al centro del anillo y dejaba el pueblo de
+  /// enfrente a ciento treinta píxeles fuera de la pantalla en cuanto el foco
+  /// se movía al borde.
+  double distanceToFit(
+    List<V3> points,
+    double width,
+    double height, {
+    double margin = 0.92,
+  }) {
+    if (points.isEmpty) return distance;
+    final mx = width * (1 - margin) / 2, my = height * (1 - margin) / 2;
+    bool fits(double d) {
+      final keep = distance;
+      distance = d;
+      final p = projector(width, height, 0);
+      distance = keep;
+      for (final v in points) {
+        final c = p.cameraOf(v);
+        if (c.z <= p.near) return false;
+        final x = p.screenX(c.x, c.z), y = p.screenY(c.y, c.z);
+        if (x < mx || x > width - mx) return false;
+        if (y < my || y > height - my) return false;
+      }
+      return true;
+    }
+
+    if (!fits(maxDistance)) return maxDistance;
+    var lo = minDistance, hi = maxDistance;
+    for (var i = 0; i < 26; i++) {
+      final mid = (lo + hi) / 2;
+      if (fits(mid)) {
+        hi = mid;
+      } else {
+        lo = mid;
+      }
+    }
+    return hi;
+  }
+
   V3 get target => V3(travel, focusY, focusZ);
 
   V3 get eye {

@@ -27,6 +27,9 @@ enum NoticeKind {
   /// How long this has been going on.
   life,
 
+  /// Lo que escribís una y otra vez en las leyendas.
+  chore,
+
   /// Who is ahead in the valley.
   crown,
 
@@ -108,6 +111,7 @@ List<Notice> noticesFor(
   add(relapse(h, now));
   add(comeback(h));
   add(crownOf(h, others));
+  add(chore(h));
   add(lifetime(h, now));
   return out;
 }
@@ -661,6 +665,220 @@ const List<String> _weekdays = [
 ];
 
 String _weekday(int w) => _weekdays[(w - 1).clamp(0, 6)];
+
+// --------------------------------------------------------- lo que repetís
+
+/// Palabras que no dicen de qué va una leyenda.
+///
+/// Sin esto, lo que más se repite en cualquier hábito es «de», y el pueblo
+/// anunciaría muy serio que la palabra «de» está en ciento cuarenta de tus
+/// leyendas.
+const Set<String> _filler = {
+  'a',
+  'al',
+  'ante',
+  'con',
+  'de',
+  'del',
+  'e',
+  'el',
+  'en',
+  'entre',
+  'es',
+  'esta',
+  'este',
+  'hoy',
+  'la',
+  'las',
+  'le',
+  'lo',
+  'los',
+  'me',
+  'mi',
+  'mis',
+  'o',
+  'para',
+  'pero',
+  'por',
+  'que',
+  'se',
+  'si',
+  'sin',
+  'sobre',
+  'su',
+  'sus',
+  'un',
+  'una',
+  'unas',
+  'unos',
+  'y',
+  'ya',
+};
+
+final RegExp _notWord = RegExp(r'[^a-z0-9áéíóúüñ]+');
+
+/// Una leyenda reducida a sus palabras, para poder compararla con otra.
+///
+/// «Lavarse los dientes.» y «lavarse  los  Dientes» son la misma cosa escrita
+/// dos noches distintas, y quien las escribió no estaba distinguiéndolas.
+List<String> _words(String s) => s
+    .toLowerCase()
+    .replaceAll(_notWord, ' ')
+    .trim()
+    .split(' ')
+    .where((w) => w.isNotEmpty)
+    .toList();
+
+/// Lo mismo que escribís una y otra vez.
+///
+/// Un hábito de verdad no son cien cosas distintas: son tres o cuatro que
+/// vuelven. Esto las busca sin que nadie tenga que declararlas, juntando las
+/// leyendas por lo que tienen en común — «lavarse los dientes al despertar»,
+/// «lavarse los dientes después de comer» y «lavarse los dientes por la
+/// noche» son una sola cosa hecha de tres maneras, y eso es lo que hay que
+/// decir, no que hay tres leyendas distintas.
+///
+/// El trozo común se busca probando todas las tiras de palabras seguidas de
+/// cada leyenda y quedándose con la que más piezas abarca; a igualdad de
+/// piezas, la más larga, que es la más concreta. Las tiras que son sólo
+/// relleno no cuentan.
+Notice? chore(Habit h) {
+  // Cuántas piezas lleva escrita cada leyenda, y cómo se escribió la primera
+  // vez, que es como se va a enseñar.
+  final veces = <String, int>{};
+  final tal = <String, String>{};
+  var conLetra = 0;
+  for (final p in h.pieces) {
+    if (!p.hasLabel) continue;
+    final palabras = _words(p.label!);
+    if (palabras.isEmpty) continue;
+    final clave = palabras.join(' ');
+    veces[clave] = (veces[clave] ?? 0) + 1;
+    tal[clave] ??= p.label!.trim();
+    conLetra++;
+  }
+  // Doce leyendas es lo menos con lo que se puede hablar de lo que repetís.
+  // Con menos, cualquier cosa escrita dos veces parece una costumbre.
+  if (conLetra < 12 || veces.length < 2) return null;
+
+  // Cada tira de palabras seguidas: qué leyendas la llevan y cuántas piezas.
+  final cubre = <String, int>{};
+  final deCuantas = <String, int>{};
+  for (final MapEntry(key: clave, value: n) in veces.entries) {
+    final w = clave.split(' ');
+    final vistas = <String>{};
+    for (var i = 0; i < w.length; i++) {
+      for (var j = i + 1; j <= math.min(w.length, i + 5); j++) {
+        final tira = w.sublist(i, j).join(' ');
+        if (!vistas.add(tira)) continue;
+        cubre[tira] = (cubre[tira] ?? 0) + n;
+        deCuantas[tira] = (deCuantas[tira] ?? 0) + 1;
+      }
+    }
+  }
+
+  String? mejor;
+  var mejorCubre = 0, mejorLargo = 0;
+  for (final MapEntry(key: tira, value: n) in cubre.entries) {
+    if (deCuantas[tira]! < 2) continue;
+    final w = tira.split(' ');
+    // Tiene que decir algo: «por la» no es una costumbre.
+    if (w.every((x) => _filler.contains(x) || x.length < 4)) continue;
+    // Y no puede empezar ni acabar en relleno. Sin esto, «corrí por la mañana»
+    // y «corrí por la tarde» daban «corrí por la», que abarca exactamente lo
+    // mismo que «corrí» y se lee como una frase cortada por la mitad.
+    if (_filler.contains(w.first) || _filler.contains(w.last)) continue;
+    final largo = w.length;
+    if (n > mejorCubre || (n == mejorCubre && largo > mejorLargo)) {
+      mejor = tira;
+      mejorCubre = n;
+      mejorLargo = largo;
+    }
+  }
+
+  // Y la leyenda suelta más repetida, por si no hay familia que valga.
+  var sola = veces.keys.first;
+  for (final k in veces.keys) {
+    if (veces[k]! > veces[sola]!) sola = k;
+  }
+
+  // Lo que se dice tiene que valer para la mayor parte de lo escrito. Una
+  // costumbre que aparece en una de cada diez piezas no es una costumbre.
+  // Y una costumbre tiene unas pocas formas, no una por pieza: si ninguna de
+  // las maneras se repite, lo que hay son veinte leyendas distintas que se
+  // parecen, y de eso no hay nada que decir.
+  final repetida =
+      mejor != null &&
+      veces.entries
+          .where((e) => (' ${e.key} ').contains(' $mejor '))
+          .any((e) => e.value >= 3);
+  final familia = repetida && mejorCubre >= 8 && mejorCubre >= conLetra * 0.35;
+  final estribillo = veces[sola]! >= 8 && veces[sola]! >= conLetra * 0.35;
+  if (!familia && !estribillo) return null;
+
+  if (!familia || mejorCubre <= veces[sola]!) {
+    // Una sola cosa, escrita igual una y otra vez.
+    final n = veces[sola]!;
+    final otras = veces.keys.where((k) => k != sola).toList()
+      ..sort((a, b) => veces[b]!.compareTo(veces[a]!));
+    final top = [sola, ...otras.take(3)];
+    return Notice(
+      NoticeKind.chore,
+      '«${tal[sola]}» es lo que más escribís: $n ${_pieces(n)} de $conLetra.',
+      'Lo demás lo escribiste de ${veces.length - 1} '
+          '${veces.length == 2 ? 'manera' : 'maneras'} distintas.',
+      bars: [for (final k in top) veces[k]! / n],
+      ticks: [for (final k in top) _short(tal[k]!)],
+      mark: 0,
+    );
+  }
+
+  // Una cosa hecha de varias maneras. Se enseñan las maneras, que es lo que
+  // no se ve mirando la lista de leyendas una por una.
+  final nucleo = mejor;
+  final suyas = veces.keys.where((k) => (' $k ').contains(' $nucleo ')).toList()
+    ..sort((a, b) => veces[b]!.compareTo(veces[a]!));
+  final top = suyas.take(4).toList();
+  final cima = veces[top.first]!;
+  return Notice(
+    NoticeKind.chore,
+    // Corta a propósito. El titular de una hoja del tablón tiene dos renglones
+    // y medio, y «está en 51 de tus 103 piezas con leyenda, de tres maneras»
+    // no entraba: el papel lo recortaba. Las maneras van abajo, que es donde
+    // va el detalle en todas las demás notas.
+    mejorCubre == conLetra
+        ? '«${_capital(nucleo)}» está en tus $conLetra leyendas.'
+        : '«${_capital(nucleo)}» son $mejorCubre de tus $conLetra leyendas.',
+    'De ${_howMany(suyas.length)}: '
+    '${[for (final k in top) '${_rest(k, nucleo)} (${veces[k]})'].join(' · ')}.',
+    bars: [for (final k in top) veces[k]! / cima],
+    ticks: [for (final k in top) _short(_rest(k, nucleo))],
+    mark: 0,
+    more:
+        'Sale de las leyendas y de nada más: lo que tienen en común, dicho una '
+        'vez en lugar de ${suyas.length} veces por separado.',
+  );
+}
+
+/// Lo que le queda a una leyenda al quitarle el trozo común.
+String _rest(String clave, String nucleo) {
+  final fuera = (' $clave ').replaceFirst(' $nucleo ', ' ').trim();
+  return fuera.isEmpty ? 'a secas' : fuera;
+}
+
+/// Para los pies de las barras, donde no cabe una frase.
+String _short(String s) => s.length <= 14 ? s : '${s.substring(0, 13)}…';
+
+String _capital(String s) =>
+    s.isEmpty ? s : s[0].toUpperCase() + s.substring(1);
+
+String _howMany(int n) => switch (n) {
+  2 => 'dos maneras',
+  3 => 'tres maneras',
+  4 => 'cuatro maneras',
+  5 => 'cinco maneras',
+  _ => '$n maneras',
+};
 
 String _date(DateTime d) => '${d.day} de ${_months[d.month - 1]}';
 

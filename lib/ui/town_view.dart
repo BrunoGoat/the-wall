@@ -44,6 +44,9 @@ class TownViewController {
 
   /// Lleva la cámara hasta una pieza concreta, para abrirla desde la bitácora.
   void lookAtPiece(int index) => _state?.lookAtPiece(index);
+
+  /// Lleva la cámara al hueco donde va a caer la que viene.
+  void lookAtNext() => _state?.lookAtNext();
   double get travel => _state?._cam.travelTarget ?? 0;
 
   /// How wide the town in front of you reaches, for framing.
@@ -592,14 +595,66 @@ class _TownViewState extends State<TownView>
     _cam.focusYTarget = 2.0;
     _cam.wallLength = far * 2;
     _tellCameraTheWorld();
-    // Three times the reach: the towns sit on a wide ring, and the lens is
-    // narrow enough that fitting them all needs real distance.
-    _cam.distanceTarget = clampD(far * 2.4, 20, OrbitCamera.maxDistance);
     // Low enough to keep the sky and the hills in it. Straight down is a map;
     // the point of the valley is that it is a place.
     _cam.pitchTarget = 0.40;
+
+    // Salís por encima del pueblo del que venís.
+    //
+    // Antes no: el foco va al centro del anillo —tiene que ir, es el único
+    // sitio desde el que caben los seis— y el giro se quedaba donde estuviera,
+    // así que uno acababa mirando desde donde mirara siempre. Y como el pueblo
+    // uno está justo en ese centro, lo que se veía era siempre él.
+    //
+    // Lo que se mueve es el giro, no el foco: el ojo se pone en la dirección
+    // en la que está tu pueblo, así que subís desde el tuyo y mirás al valle
+    // por encima de él. El del medio no tiene dirección, y desde ése el giro
+    // se queda como esté.
+    final propio = math.sqrt(_town.cx * _town.cx + _town.cz * _town.cz);
+    if (propio > 1) {
+      _cam.yawTarget += angleDelta(
+        _cam.yawTarget,
+        math.atan2(_town.cx, _town.cz),
+      );
+    }
+
+    // Y a la distancia que haga falta para que quepan todos, medida sobre la
+    // proyección de verdad. El radio por dos coma cuatro era de cuando el
+    // valle eran dos pueblos: con seis y el giro puesto, se queda corto o se
+    // pasa según de dónde salgas.
+    _cam.distanceTarget = clampD(
+      _valleyDistance(far),
+      20,
+      OrbitCamera.maxDistance,
+    );
     _cam.follow = false;
     Sensory.instance.tick();
+  }
+
+  /// Desde dónde se ven los seis pueblos enteros. Se prueba sobre una cámara
+  /// de mentira con los ángulos a los que va a llegar la de verdad, porque la
+  /// de verdad todavía está donde estaba.
+  double _valleyDistance(double far) {
+    final size = context.size;
+    if (size == null || size.isEmpty) return far * 2.4;
+    final puntos = <V3>[];
+    for (final e in _entries) {
+      final r = e.layout.radius;
+      for (final (dx, dz) in [
+        (0.0, 0.0),
+        (-r, 0.0),
+        (r, 0.0),
+        (0.0, -r),
+        (0.0, r),
+      ]) {
+        puntos.add(V3(e.layout.cx + dx, 0, e.layout.cz + dz));
+      }
+    }
+    final prueba = OrbitCamera()
+      ..focusY = 2.0
+      ..yaw = _cam.yawTarget
+      ..pitch = 0.40;
+    return prueba.distanceToFit(puntos, size.width, size.height);
   }
 
   /// The whole of this town, from its own plaza.
@@ -617,6 +672,19 @@ class _TownViewState extends State<TownView>
   /// Looks at a spot on the valley floor, for the map and the landmark list.
   void lookAtPiece(int index) {
     final p = _town.pieceFor(index);
+    if (p != null) goTo(p.cx, p.cz);
+  }
+
+  /// El hueco donde va a caer la siguiente, que es el que interesa mirar.
+  ///
+  /// El pueblo tiene siempre una pieza más que las puestas —la del fantasma—,
+  /// así que el hueco que viene es el de índice [TownLayout.placed]. Antes
+  /// este botón llevaba a la última puesta, y las dos cosas coinciden casi
+  /// siempre menos cuando importa: al terminar un edificio, la siguiente
+  /// empieza otro en la otra punta del pueblo, y lo que uno quiere ver es
+  /// dónde va a caer y no dónde cayó.
+  void lookAtNext() {
+    final p = _town.pieceFor(_town.placed) ?? _town.pieceFor(_town.placed - 1);
     if (p != null) goTo(p.cx, p.cz);
   }
 

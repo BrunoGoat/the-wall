@@ -291,13 +291,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   tooltip: 'Ver todo el pueblo',
                   onTap: _wall.frameAll,
                 ),
-                if (store.habit.total > 0)
-                  GhostButton(
-                    icon: Icons.center_focus_strong,
-                    theme: t,
-                    tooltip: 'Ir a la última pieza',
-                    onTap: () => _wall.lookAtPiece(store.habit.total - 1),
-                  ),
+                GhostButton(
+                  icon: Icons.center_focus_strong,
+                  theme: t,
+                  tooltip: 'Ir a donde cae la siguiente',
+                  onTap: _wall.lookAtNext,
+                ),
                 if (store.habits.length > 1)
                   GhostButton(
                     icon: Icons.travel_explore,

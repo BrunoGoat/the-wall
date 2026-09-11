@@ -268,6 +268,101 @@ void main() {
     });
   });
 
+  group('lo que escribís una y otra vez', () {
+    Habit conLeyendas(Map<String, int> cuantas) {
+      final piezas = <Piece>[];
+      var i = 0;
+      cuantas.forEach((texto, n) {
+        for (var k = 0; k < n; k++) {
+          piezas.add(
+            Piece(
+              index: i,
+              placedAt: _now.subtract(Duration(days: i ~/ 2, hours: i % 5)),
+              label: texto,
+            ),
+          );
+          i++;
+        }
+      });
+      return Habit(
+        id: 'h',
+        name: 'Higiene',
+        symbol: 'libro',
+        slot: 0,
+        createdAt: _now.subtract(const Duration(days: 200)),
+        pieces: piezas,
+      );
+    }
+
+    test('junta las leyendas por lo que tienen en común', () {
+      // El encargo, con sus números: un hábito de higiene con las mismas tres
+      // cosas escritas de tres maneras. Lo que hay que decir no es que hay
+      // tres leyendas distintas, es que hay una sola cosa hecha de tres
+      // maneras — y cuántas veces cada una.
+      final dice = chore(
+        conLeyendas({
+          'Lavarse los dientes al despertar': 60,
+          'Lavarse los dientes después de comer': 50,
+          'Lavarse los dientes por la noche': 30,
+        }),
+      );
+      expect(dice, isNotNull);
+      expect(dice!.said, contains('Lavarse los dientes'));
+      expect(dice.said, contains('140'));
+      // Y el reparto, que es lo que no se ve leyendo las leyendas una por una.
+      expect(dice.because, contains('tres maneras'));
+      expect(dice.because, contains('al despertar (60)'));
+      expect(dice.because, contains('después de comer (50)'));
+      expect(dice.because, contains('por la noche (30)'));
+      expect(dice.bars.length, 3);
+      expect(dice.ticks.length, 3);
+    });
+
+    test('el trozo común no empieza ni acaba en relleno', () {
+      // «corrí por la mañana» y «corrí por la tarde» daban «corrí por la»,
+      // que abarca exactamente lo mismo que «corrí» y se lee como una frase
+      // cortada por la mitad.
+      final dice = chore(
+        conLeyendas({
+          'Corrí por la mañana': 20,
+          'Corrí por la tarde': 18,
+          'Fui al gimnasio': 12,
+        }),
+      );
+      expect(dice, isNotNull);
+      expect(dice!.said, contains('«Corrí»'));
+      expect(dice.because, contains('por la mañana (20)'));
+    });
+
+    test('una sola cosa repetida se dice como lo que es', () {
+      final dice = chore(
+        conLeyendas({'Leí': 80, 'Leí en el tren': 3, 'Nada': 2}),
+      );
+      expect(dice, isNotNull);
+      expect(dice!.said, contains('«Leí»'));
+      expect(dice.said, contains('80'));
+    });
+
+    test('y donde no hay costumbre no se inventa una', () {
+      // Veinte leyendas distintas que se parecen no son una costumbre: son
+      // veinte leyendas distintas. Sin esto salía «de veinte maneras», con
+      // veinte barras de una pieza cada una.
+      expect(
+        chore(
+          conLeyendas({
+            for (var i = 0; i < 20; i++) 'cosa distinta número $i': 1,
+          }),
+        ),
+        isNull,
+      );
+      // Y con poco escrito tampoco: dos leyendas repetidas cuatro veces no
+      // dicen nada de nadie.
+      expect(chore(conLeyendas({'Corrí': 4, 'Corrí lento': 3})), isNull);
+      // Ni sin leyendas ningunas.
+      expect(chore(_daily('Leer', 90)), isNull);
+    });
+  });
+
   group('what the town will have finished', () {
     test('a rate becomes a date', () {
       final said = ahead(_daily('Leer', 90), 'la Catedral', 20, _now);
