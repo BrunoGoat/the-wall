@@ -779,6 +779,34 @@ void main() {
       }
     });
 
+    test('«varias manos» reparte manos distintas y siempre las mismas', () {
+      // Un tablón de plaza lo escriben veinte vecinos. Con una sola letra se
+      // lee como veinte copias de la misma nota.
+      final manos = <String, String>{};
+      for (final (dice, y) in bandos) {
+        final n = Notice(NoticeKind.pueblo, dice, y);
+        final f = NoteFont.handFor(n);
+        expect(f.mano, isTrue);
+        expect(f.libre, isTrue, reason: 'se repartió una letra sin licencia');
+        manos[dice] = f.name;
+        // Y la misma nota, la misma mano, siempre: la de la cabra la escribe
+        // siempre la misma persona.
+        expect(NoteFont.handFor(n).name, f.name);
+      }
+      // Todas las manos disponibles salen, y ninguna se lleva el tablón.
+      final cuenta = <String, int>{};
+      for (final m in manos.values) {
+        cuenta[m] = (cuenta[m] ?? 0) + 1;
+      }
+      expect(cuenta.length, NoteFont.manos.length);
+      final mayor = cuenta.values.reduce((a, b) => a > b ? a : b);
+      expect(
+        mayor,
+        lessThan(bandos.length ~/ 3),
+        reason: 'una sola mano escribió un tercio del pueblo',
+      );
+    });
+
     testWidgets('y a todos les cabe, con cualquier letra y cualquier cuerpo', (
       tester,
     ) async {

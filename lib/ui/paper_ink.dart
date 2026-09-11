@@ -26,17 +26,28 @@ import 'note_font.dart';
 /// el titular espaciado con su raya debajo, y tinta parda.
 class PaperInk {
   PaperInk(this.notice, {NoteFont? font, double? scale})
-    : font =
-          font ??
-          NoteFont.porNombre(
-            notice.kind == NoticeKind.pueblo
-                ? Appearance.instance.villageFont
-                : Appearance.instance.noteFont,
-          ) ??
-          NoteFont.sistema,
+    : font = _resolve(
+        notice,
+        font ??
+            NoteFont.porNombre(
+              notice.kind == NoticeKind.pueblo
+                  ? Appearance.instance.villageFont
+                  : Appearance.instance.noteFont,
+            ) ??
+            NoteFont.sistema,
+      ),
       scale = scale ?? Appearance.instance.noteScale {
     _lay();
   }
+
+  /// «Varias manos» no es una letra: es que a cada papel le toque la suya.
+  ///
+  /// Un tablón de plaza lo escriben veinte vecinos, y con una sola letra para
+  /// todo se lee como veinte copias de la misma nota. La mano sale del nombre
+  /// del papel, igual que su hueco y su inclinación, así que la de la cabra
+  /// está siempre escrita por la misma persona.
+  static NoteFont _resolve(Notice n, NoteFont pedida) =>
+      pedida == NoteFont.varias ? NoteFont.handFor(n) : pedida;
 
   final Notice notice;
 

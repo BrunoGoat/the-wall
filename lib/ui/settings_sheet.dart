@@ -568,7 +568,6 @@ class _Fonts extends StatelessWidget {
                 color: f.name == value
                     ? t.accent.withValues(alpha: 0.7)
                     : t.fg.withValues(alpha: f.libre ? 0.12 : 0.2),
-                style: f.libre ? BorderStyle.solid : BorderStyle.solid,
                 width: f.libre ? 1 : 1.4,
               ),
             ),

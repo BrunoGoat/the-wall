@@ -107,6 +107,51 @@ flutter:
         - asset: assets/fonts/CourierPrime-Bold.ttf
           weight: 700
 
+
+    # Las manos del pueblo: catorce letras desprolijas más, todas libres.
+    - family: GloriaHallelujah
+      fonts:
+        - asset: assets/fonts/GloriaHallelujah.ttf
+    - family: RockSalt
+      fonts:
+        - asset: assets/fonts/RockSalt.ttf
+    - family: JustAnotherHand
+      fonts:
+        - asset: assets/fonts/JustAnotherHand.ttf
+    - family: ReenieBeanie
+      fonts:
+        - asset: assets/fonts/ReenieBeanie.ttf
+    - family: NothingYouCouldDo
+      fonts:
+        - asset: assets/fonts/NothingYouCouldDo.ttf
+    - family: ComingSoon
+      fonts:
+        - asset: assets/fonts/ComingSoon.ttf
+    - family: Schoolbell
+      fonts:
+        - asset: assets/fonts/Schoolbell.ttf
+    - family: WalterTurncoat
+      fonts:
+        - asset: assets/fonts/WalterTurncoat.ttf
+    - family: CoveredByYourGrace
+      fonts:
+        - asset: assets/fonts/CoveredByYourGrace.ttf
+    - family: CraftyGirls
+      fonts:
+        - asset: assets/fonts/CraftyGirls.ttf
+    - family: SueEllenFrancisco
+      fonts:
+        - asset: assets/fonts/SueEllenFrancisco.ttf
+    - family: AnnieUseYourTelescope
+      fonts:
+        - asset: assets/fonts/AnnieUseYourTelescope.ttf
+    - family: PermanentMarker
+      fonts:
+        - asset: assets/fonts/PermanentMarker.ttf
+    - family: Zeyada
+      fonts:
+        - asset: assets/fonts/Zeyada.ttf
+
     # Las cinco de prueba. NO SE PUEDEN PUBLICAR TAL CUAL: ver la tabla de
     # licencias en lib/ui/note_font.dart. Están aquí para poder elegir, no
     # para quedarse.
