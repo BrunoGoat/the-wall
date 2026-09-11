@@ -252,12 +252,16 @@ class _HoldToPlaceState extends State<HoldToPlace>
 /// en sitios distintos: el aro se cerraba del todo y la piedra se quedaba a
 /// medio camino, así que el gesto no terminaba de terminar.
 ///
-/// Y crece deprisa al principio, que es donde hay que ver que algo pasa.
+/// Y crece en línea recta, no de golpe al principio.
+///
+/// Con una curva de salida rápida la piedra estaba casi llena a mitad del
+/// gesto y la otra mitad no se movía: parecía que ya estaba y aún faltaba. En
+/// línea recta, lo que crece la piedra es lo que llevás aguantado.
 double holdInnerRadius(double charge, double r) => lerpDouble(
   r * 0.13,
   // La mitad del grosor del aro, para que se toquen por dentro y no lo pise.
   r - 0.7,
-  Curves.easeOutCubic.transform(charge.clamp(0.0, 1.0)),
+  charge.clamp(0.0, 1.0),
 )!;
 
 class _HoldPainter extends CustomPainter {

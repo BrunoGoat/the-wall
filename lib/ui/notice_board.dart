@@ -58,11 +58,21 @@ class NoticeBoardScreen extends StatefulWidget {
     opaque: false,
     barrierColor: sheetScrim(theme.dark),
     transitionDuration: const Duration(milliseconds: 240),
-    reverseTransitionDuration: const Duration(milliseconds: 180),
+    // La vuelta dura algo más que antes porque ya no es un corte al final del
+    // tirón hacia atrás: se pide a mitad, y lo que se ve es el tablón
+    // alejándose mientras se abre el pueblo debajo.
+    reverseTransitionDuration: const Duration(milliseconds: 260),
     pageBuilder: (_, _, _) =>
         NoticeBoardScreen(valley: valley, habit: habit, theme: theme),
     transitionsBuilder: (_, a, _, child) => FadeTransition(
-      opacity: CurvedAnimation(parent: a, curve: Curves.easeOutCubic),
+      opacity: CurvedAnimation(
+        parent: a,
+        curve: Curves.easeOutCubic,
+        // Al irse, tarda en empezar a borrarse y luego se va de golpe: así el
+        // tablón se lee todavía durante el primer trozo del tirón, que es
+        // cuando la cámara aún no ha ganado velocidad.
+        reverseCurve: Curves.easeInCubic,
+      ),
       child: child,
     ),
   );

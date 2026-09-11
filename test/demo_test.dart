@@ -1150,8 +1150,10 @@ void _boton() {
     const r = 40.0;
     expect(holdInnerRadius(1, r), closeTo(r - 0.7, 0.01));
     expect(holdInnerRadius(0, r), lessThan(r * 0.2));
-    // Y deprisa al principio, que es donde hay que ver que algo pasa.
-    expect(holdInnerRadius(0.5, r), greaterThan(r * 0.6));
+    // Y en línea recta: a mitad del gesto, la piedra está a mitad de camino.
+    // Antes salía de una curva rápida y a mitad ya estaba casi llena, así que
+    // la segunda mitad del gesto no se veía avanzar.
+    expect(holdInnerRadius(0.5, r), closeTo((r * 0.13 + (r - 0.7)) / 2, 0.01));
     for (var k = 0.0; k < 1; k += 0.05) {
       expect(holdInnerRadius(k + 0.05, r), greaterThan(holdInnerRadius(k, r)));
     }

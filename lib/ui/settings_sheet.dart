@@ -11,7 +11,6 @@ import 'backup_sheet.dart';
 import 'debug_sheet.dart';
 import 'gallery_screen.dart';
 import '../engine/shooting_star.dart';
-import 'note_font.dart';
 import 'notice_board.dart';
 import 'overlays.dart';
 import 'style.dart';
@@ -122,33 +121,21 @@ class _SettingsSheetState extends State<SettingsSheet> {
         const SizedBox(height: 26),
         _Head(theme: t, text: 'EL TABLÓN'),
         Text(
-          'Con qué letra están escritas tus notas del tablón. Los bandos no '
-          'entran aquí: los escribe gente del pueblo, y cada uno sale con la '
-          'mano del vecino que lo colgó.',
+          'Las letras del tablón ya no se eligen: tus cuentas van todas de la '
+          'misma mano y cada bando sale con la del vecino que lo colgó. Un '
+          'tablón de plaza se lee así, no con una letra que se elige en un '
+          'menú.',
           style: t.bodySoft.copyWith(fontSize: 11.5, height: 1.4),
         ),
         const SizedBox(height: 12),
-        _Fonts(theme: t, value: wants.noteFont, onPick: wants.setNoteFont),
-        _Slider(
-          theme: t,
-          title: 'Tamaño',
-          value:
-              (wants.noteScale - Appearance.minScale) /
-              (Appearance.maxScale - Appearance.minScale),
-          onChanged: (v) => wants.setNoteScale(
-            Appearance.minScale +
-                v * (Appearance.maxScale - Appearance.minScale),
-          ),
-        ),
-        const SizedBox(height: 6),
         _Row(
           theme: t,
           icon: Icons.auto_stories_outlined,
           title: 'Ver el tablón con un pueblo lleno',
           subtitle:
               'Un valle de mentira: entrenar durante 300 días. Trae un dado '
-              'que vuelve a repartirlo con notas al azar, para ver si la letra '
-              'que elegiste cabe también en las que no salen nunca.',
+              'que vuelve a repartirlo con notas al azar, para ver si el texto '
+              'cabe también en las que no salen nunca.',
           page: () {
             final valle = demoValley();
             return NoticeBoardScreen(
@@ -538,71 +525,4 @@ class _Row extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Las letras que puede llevar un papel, para ir probándolas.
-///
-/// Cada botón está escrito con su propia letra, que es lo único que hace falta
-/// para elegir: una lista de nombres en la letra del sistema no dice nada de
-/// cómo se va a ver el tablón.
-///
-/// Las de prueba van aparte y avisadas. No es un detalle de orden: son cinco
-/// letras que no se pueden publicar tal cual, y quien elija una tiene que
-/// saberlo aquí y no al preparar la tienda.
-class _Fonts extends StatelessWidget {
-  const _Fonts({
-    required this.theme,
-    required this.value,
-    required this.onPick,
-  });
-
-  final UiTheme theme;
-  final String value;
-  final void Function(String name) onPick;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = theme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [_fila(t, NoteFont.values)],
-    );
-  }
-
-  Widget _fila(UiTheme t, List<NoteFont> fuentes) => Wrap(
-    spacing: 8,
-    runSpacing: 8,
-    children: [
-      for (final f in fuentes)
-        GestureDetector(
-          onTap: () {
-            Sensory.instance.tick();
-            onPick(f.name);
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              color: f.name == value
-                  ? t.accent.withValues(alpha: 0.18)
-                  : t.fg.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(9),
-              border: Border.all(
-                color: f.name == value
-                    ? t.accent.withValues(alpha: 0.7)
-                    : t.fg.withValues(alpha: 0.12),
-              ),
-            ),
-            child: Text(
-              f.label,
-              style: TextStyle(
-                fontFamily: f.family,
-                fontSize: 13.5 * f.scale,
-                color: f.name == value ? t.accent : t.fgSoft,
-                fontWeight: f.name == value ? FontWeight.w700 : FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
-    ],
-  );
 }

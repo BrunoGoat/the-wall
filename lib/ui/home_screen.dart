@@ -9,6 +9,7 @@ import '../model/appearance.dart';
 import '../model/piece.dart';
 import '../data/landmarks.dart';
 import '../model/store.dart';
+import 'board_glyph.dart';
 import 'habit_bar.dart';
 import 'habits_sheet.dart';
 import 'hold_button.dart';
@@ -46,16 +47,20 @@ class _HomeScreenState extends State<HomeScreen> {
   (String, String, int)? _sign;
   Timer? _signTimer;
 
+  /// Si el cartel está yéndose porque alguien movió la cámara.
+  bool _signOut = false;
+
   /// El cartel del pueblo se quita en cuanto alguien mueve la cámara.
   ///
   /// Dura lo que dura por si uno se queda quieto leyendo, pero mover la cámara
   /// es decir «ya sé dónde estoy, quiero mirar»: a partir de ahí el cartel es
-  /// algo en medio. Se va desvaneciendo igual que si se le hubiera acabado el
-  /// tiempo, no de un tirón.
+  /// algo en medio. Y se va desvaneciendo, no de un tirón: quitarlo del árbol
+  /// en el primer dedo lo hacía desaparecer entre dos cuadros, que se lee como
+  /// un fallo y no como que se aparta.
   void _dismissSign() {
-    if (_sign == null) return;
+    if (_sign == null || _signOut) return;
     _signTimer?.cancel();
-    setState(() => _sign = null);
+    setState(() => _signOut = true);
   }
 
   int _signNonce = 0;
@@ -127,7 +132,10 @@ class _HomeScreenState extends State<HomeScreen> {
   void _announceTown() {
     final h = widget.store.habit;
     _signTimer?.cancel();
-    setState(() => _sign = (h.name, h.symbol, ++_signNonce));
+    setState(() {
+      _sign = (h.name, h.symbol, ++_signNonce);
+      _signOut = false;
+    });
     _signTimer = Timer(_signLife, () {
       if (mounted) setState(() => _sign = null);
     });
@@ -304,7 +312,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   color: t.fg.withValues(alpha: 0.18),
                 ),
                 GhostButton(
-                  icon: Icons.push_pin_outlined,
+                  // El tablón mismo y no una chincheta: lo que se abre tiene
+                  // esa forma, con sus postes y su tejadito, y así el botón se
+                  // parece a donde lleva.
+                  glyph: (c) => BoardGlyph(color: c, shadows: t.halo),
                   theme: t,
                   tooltip: 'El tablón del pueblo',
                   onTap: _readOwnBoard,
@@ -366,6 +377,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 symbol: _sign!.$2,
                 theme: t,
                 life: _signLife,
+                leaving: _signOut,
+                onGone: () {
+                  if (mounted) setState(() => _sign = null);
+                },
               ),
             ),
 

@@ -176,13 +176,19 @@ class Frosted extends StatelessWidget {
 class GhostButton extends StatefulWidget {
   const GhostButton({
     super.key,
-    required this.icon,
+    this.icon,
+    this.glyph,
     required this.theme,
     required this.onTap,
     this.tooltip,
-  });
+  }) : assert(icon != null || glyph != null, 'un botón sin nada dentro');
 
-  final IconData icon;
+  final IconData? icon;
+
+  /// Un dibujo propio en lugar de un icono de la tipografía, para cuando lo
+  /// que hay al otro lado tiene una forma que ningún icono suelto se parece.
+  /// Recibe el color, que cambia al apretar.
+  final Widget Function(Color color)? glyph;
   final UiTheme theme;
   final VoidCallback onTap;
   final String? tooltip;
@@ -210,12 +216,14 @@ class _GhostButtonState extends State<GhostButton> {
           width: 44,
           height: 44,
           child: Center(
-            child: Icon(
-              widget.icon,
-              size: 20,
-              color: t.fg.withValues(alpha: _down ? 0.95 : 0.62),
-              shadows: t.halo,
-            ),
+            child: widget.glyph != null
+                ? widget.glyph!(t.fg.withValues(alpha: _down ? 0.95 : 0.62))
+                : Icon(
+                    widget.icon,
+                    size: 20,
+                    color: t.fg.withValues(alpha: _down ? 0.95 : 0.62),
+                    shadows: t.halo,
+                  ),
           ),
         ),
       ),

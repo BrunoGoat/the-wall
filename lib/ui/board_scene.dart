@@ -179,12 +179,26 @@ class _BoardSceneState extends State<BoardScene>
       _m.open = null;
     }
     if (_m.leaves > 0) {
-      // Irse del tablón: la cámara se va para atrás y la pantalla se apaga.
-      _m.leaves = math.min(1, _m.leaves + dt * 2.6);
-      _cam.distanceTarget = _far * (1 + 2.2 * _m.leaves);
-      if (_m.leaves >= 1) {
+      // Irse del tablón.
+      //
+      // Tres cosas hacían que se notara la costura. La cámara iba por el
+      // amortiguador —se le daba un destino lejos y ella se acercaba cada vez
+      // más despacio—, así que el alejarse frenaba justo cuando tenía que
+      // acabar. Encima se apagaba a negro sobre un pueblo que sigue ahí
+      // detrás, un negro que no es de nadie. Y el salto de vuelta esperaba a
+      // que todo eso terminara, uno detrás de otro.
+      //
+      // Ahora la distancia se escribe a mano y crece al cuadrado, que es
+      // acelerar en vez de frenar; no hay negro ninguno, se ve el pueblo a
+      // través; y la vuelta se pide a mitad del tirón, así que el tablón se
+      // desvanece mientras sigue yéndose para atrás en vez de después.
+      _m.leaves = math.min(1, _m.leaves + dt * 3.6);
+      final d = _far * (1 + 2.9 * _m.leaves * _m.leaves);
+      _cam.distance = d;
+      _cam.distanceTarget = d;
+      if (_m.leaves >= 0.42 && !_fuera) {
+        _fuera = true;
         widget.onLeave();
-        return;
       }
     }
     _m.clock += dt;
@@ -315,6 +329,10 @@ class _BoardSceneState extends State<BoardScene>
     _wake();
   }
 
+  /// Si ya se pidió la vuelta. La escena sigue viva y moviéndose mientras el
+  /// tablón se funde, así que hay que pedirla una sola vez.
+  bool _fuera = false;
+
   void _drag(ScaleUpdateDetails d) {
     if (_m.leaves > 0) return;
     _m.hint = 0;
@@ -434,15 +452,6 @@ class BoardPainter extends CustomPainter {
     _roof(canvas, p);
     _papers(canvas, p, size);
     _star(canvas, size, p, horizon);
-    if (motion.leaves > 0.01) {
-      // Se va apagando conforme se tira hacia atrás, para que soltar y salir
-      // no sea una sorpresa: cuando la pantalla ya está medio ida, soltar es
-      // lo que uno espera que pase.
-      canvas.drawRect(
-        Offset.zero & size,
-        Paint()..color = Colors.black.withValues(alpha: 0.8 * motion.leaves),
-      );
-    }
   }
 
   // ------------------------------------------------------------ el escenario
@@ -604,8 +613,9 @@ class BoardPainter extends CustomPainter {
   /// marca del sitio, como el escudo tallado en la viga.
   void _name(Canvas canvas, Projector p) {
     const alto = BoardPlan.headHeight * 1.25;
-    // Un poco más abajo del filo: pegado arriba, el tejado le comía la cabeza.
-    final y = plan.headY - alto * 0.45;
+    // Un poco más abajo del filo: pegado arriba, el tejado le comía la cabeza,
+    // y a la altura de antes seguía respirando contra el alero.
+    final y = plan.headY - alto * 0.66;
     final ancho = alto * 1.05;
     final quad = projectQuad(p, [
       V3(-ancho / 2, y + alto, BoardPlan.plankDepth + 0.002),
