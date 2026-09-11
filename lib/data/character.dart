@@ -206,18 +206,23 @@ class TownCharacter {
       region: 'Coloso',
       symbol: 'torre',
       blurb: 'Pocas piezas y enormes: para lo que hacés poco y pesa mucho.',
-      storey: 3.30,
+      storey: 6.00,
       spread: 1.45,
-      pitch: 1.05,
-      roofMix: (0.22, 0.64, 0.14),
+      pitch: 1.35,
+      roofMix: (0.18, 0.68, 0.14),
       wash: Color(0xFFA9A093),
       washShare: 0.90,
-      plotPitch: 3.15,
+      plotPitch: 3.20,
       order: 0xC01A,
       wallThick: 0.85,
-      windowGap: 1.45,
-      gardens: 0.10,
-      trees: 0.06,
+      windowGap: 1.10,
+      // Los árboles no crecen con el pueblo: un roble mide lo que mide un
+      // roble. Por eso hay tantos acá y no en ningún otro sitio salvo el
+      // Robledal — son lo único de tamaño conocido al pie de la casa, y sin
+      // algo así un pueblo de gigantes se ve igual que un pueblo normal
+      // fotografiado de cerca.
+      gardens: 0.22,
+      trees: 0.62,
       grand: true,
     ),
   ];

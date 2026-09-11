@@ -1031,7 +1031,21 @@ void _hangWindows(
   if (h < 0.5) return;
   final thick = place?.wallThick ?? 0.0;
   final gap = place?.windowGap ?? 1.0;
-  final wy0 = y0 + h * 0.34, wy1 = y0 + h * 0.74;
+
+  // Cuántas filas de ventanas lleva este cuerpo.
+  //
+  // Una por cuerpo mientras el cuerpo mida lo que mide una planta, que es como
+  // está construido casi todo. Pero en el Coloso una planta mide cinco metros
+  // y pico, y una sola fila de ventanas ahí dentro sale de dos metros de alto:
+  // el muro deja de leerse como alto y pasa a leerse como un muro normal visto
+  // de cerca, que es justo lo contrario de lo que se quiere. Un edificio se ve
+  // grande porque tiene muchas filas de ventanas chicas, no una grande.
+  //
+  // El umbral está donde está para no tocar nada de lo que ya estaba: una
+  // planta corriente mide entre uno y uno y medio, así que nada de las seis
+  // regiones llega a dos filas.
+  final filas = math.max(1, (h / 2.6).floor());
+  final alto = h / filas;
   final hw = 0.15 * (1 - 0.28 * thick);
   // How far the opening is set back into the wall, as the width of the shadow
   // it throws around itself.
@@ -1053,39 +1067,43 @@ void _hangWindows(
     if (span < 0.5) continue;
     final n = math.max(1, (span / (0.62 * gap)).floor());
     final decals = <Facet>[];
-    for (var i = 0; i < n; i++) {
-      final c = lo + span * (i + 0.5) / n;
-      List<V3> rect(double a, double b, double p0, double p1) => onZ
-          ? [V3(a, p0, out), V3(b, p0, out), V3(b, p1, out), V3(a, p1, out)]
-          : [V3(out, p0, a), V3(out, p0, b), V3(out, p1, b), V3(out, p1, a)];
-      // The reveal first, so the opening is painted inside it: unlit, because
-      // the inside of a hole in a thick wall is a shadow and not a surface.
-      if (jamb > 0.002) {
+    for (var fila = 0; fila < filas; fila++) {
+      final base = y0 + alto * fila;
+      final wy0 = base + alto * 0.34, wy1 = base + alto * 0.74;
+      for (var i = 0; i < n; i++) {
+        final c = lo + span * (i + 0.5) / n;
+        List<V3> rect(double a, double b, double p0, double p1) => onZ
+            ? [V3(a, p0, out), V3(b, p0, out), V3(b, p1, out), V3(a, p1, out)]
+            : [V3(out, p0, a), V3(out, p0, b), V3(out, p1, b), V3(out, p1, a)];
+        // The reveal first, so the opening is painted inside it: unlit, because
+        // the inside of a hole in a thick wall is a shadow and not a surface.
+        if (jamb > 0.002) {
+          decals.add(
+            Facet(
+              rect(c - hw - jamb, c + hw + jamb, wy0 - jamb, wy1 + jamb),
+              f.n,
+              Surface.hollow,
+            )..data = i,
+          );
+        }
         decals.add(
-          Facet(
-            rect(c - hw - jamb, c + hw + jamb, wy0 - jamb, wy1 + jamb),
-            f.n,
-            Surface.hollow,
-          )..data = i,
+          Facet(rect(c - hw, c + hw, wy0, wy1), f.n, Surface.window)..data = i,
         );
-      }
-      decals.add(
-        Facet(rect(c - hw, c + hw, wy0, wy1), f.n, Surface.window)..data = i,
-      );
-      // Two planks nailed across it, drawn only once the place has been empty
-      // a while. The geometry is always here; whether it is painted is the
-      // renderer's business, because neglect changes by the day and stone
-      // does not.
-      for (var k = 0; k < 2; k++) {
-        final py = wy0 + (wy1 - wy0) * (k == 0 ? 0.28 : 0.66);
-        final th = (wy1 - wy0) * 0.13;
-        decals.add(
-          Facet(
-            rect(c - hw * 1.25, c + hw * 1.25, py - th, py + th),
-            f.n,
-            Surface.plank,
-          )..data = i,
-        );
+        // Two planks nailed across it, drawn only once the place has been empty
+        // a while. The geometry is always here; whether it is painted is the
+        // renderer's business, because neglect changes by the day and stone
+        // does not.
+        for (var k = 0; k < 2; k++) {
+          final py = wy0 + (wy1 - wy0) * (k == 0 ? 0.28 : 0.66);
+          final th = (wy1 - wy0) * 0.13;
+          decals.add(
+            Facet(
+              rect(c - hw * 1.25, c + hw * 1.25, py - th, py + th),
+              f.n,
+              Surface.plank,
+            )..data = i,
+          );
+        }
       }
     }
     if (decals.isEmpty) continue;

@@ -663,10 +663,42 @@ class _TownViewState extends State<TownView>
     _cam.travelTarget = _town.cx;
     _cam.focusZTarget = _town.cz;
     _cam.focusYTarget = 1.8;
-    _cam.distanceTarget = clampD(_town.radius * 2.4, 9, 90);
     _cam.pitchTarget = 0.52;
+    // El radio por dos coma cuatro encuadraba el suelo que ocupa el pueblo, y
+    // eso valía mientras lo más alto de un pueblo midiera dos o tres. En el
+    // Coloso mide dieciséis: «ver todo el pueblo» dejaba las torres cortadas
+    // por arriba, que es exactamente lo que el botón promete que no pasa. Se
+    // mide sobre la proyección de verdad, con las cumbres dentro.
+    _cam.distanceTarget = clampD(_townDistance(), 9, 90);
     _cam.follow = false;
     Sensory.instance.tick();
+  }
+
+  /// Desde dónde se ve este pueblo entero, cumbres incluidas.
+  double _townDistance() {
+    final size = context.size;
+    if (size == null || size.isEmpty) return clampD(_town.radius * 2.4, 9, 90);
+    final r = _town.radius;
+    final puntos = <V3>[
+      for (final (dx, dz) in [
+        (0.0, 0.0),
+        (-r, 0.0),
+        (r, 0.0),
+        (0.0, -r),
+        (0.0, r),
+      ])
+        V3(_town.cx + dx, 0, _town.cz + dz),
+      // Y lo que sobresale: la punta de cada edificio sobre su propio sitio.
+      for (final b in _town.buildings)
+        if (b.peakY > 0) V3(b.cx, b.peakY, b.cz),
+    ];
+    final prueba = OrbitCamera()
+      ..travel = _town.cx
+      ..focusZ = _town.cz
+      ..focusY = 1.8
+      ..yaw = _cam.yawTarget
+      ..pitch = 0.52;
+    return prueba.distanceToFit(puntos, size.width, size.height);
   }
 
   /// Looks at a spot on the valley floor, for the map and the landmark list.

@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:la_muralla/core/rng.dart';
 import 'package:la_muralla/data/character.dart';
 import 'package:la_muralla/engine/palette.dart';
+import 'package:la_muralla/engine/solid.dart';
+import 'package:la_muralla/engine/solids.dart';
 import 'package:la_muralla/engine/town.dart';
 
 /// What one region's town actually comes out as, measured off the pieces.
@@ -199,7 +201,7 @@ void main() {
       for (final r in regions.values) {
         expect(
           coloso.height / r.height,
-          greaterThan(1.35),
+          greaterThan(1.9),
           reason:
               'el Coloso mide ${coloso.height.toStringAsFixed(1)} y '
               '${r.place.region} ${r.height.toStringAsFixed(1)}',
@@ -211,6 +213,58 @@ void main() {
               'el Coloso no llega a ser más ancho que ${r.place.region} '
               '(${coloso.footprint.toStringAsFixed(2)} contra '
               '${r.footprint.toStringAsFixed(2)})',
+        );
+      }
+    });
+
+    test('y sus muros llevan varias filas de ventanas', () {
+      // Lo que hace que un edificio se lea como alto. Una planta del Coloso
+      // mide seis, y una sola fila de ventanas ahí dentro sale de dos metros y
+      // medio de alto: el muro deja de leerse como alto y pasa a leerse como
+      // un muro normal visto de cerca, que es lo contrario de lo que se busca.
+      //
+      // Se cuenta sobre la geometría de verdad: cuántas alturas distintas de
+      // ventana hay en una misma fachada.
+      int filasDe(TownCharacter c) {
+        final t = TownLayout(30, c);
+        final caseros = {
+          for (final b in t.buildings)
+            if (!b.isLandmark) b.index,
+        };
+        var mas = 0;
+        for (final p in t.pieces) {
+          if (!caseros.contains(p.building)) continue;
+          for (final s in solidsOf(p, place: c)) {
+            for (final f in s.faces) {
+              final alturas = <int>{};
+              for (final d in f.decals ?? const <Facet>[]) {
+                if (d.surface != Surface.window) continue;
+                var lo = 1e9;
+                for (final v in d.v) {
+                  if (v.y < lo) lo = v.y;
+                }
+                alturas.add((lo * 20).round());
+              }
+              if (alturas.length > mas) mas = alturas.length;
+            }
+          }
+        }
+        return mas;
+      }
+
+      final suyas = filasDe(towns['Coloso']!.place);
+      expect(
+        suyas,
+        greaterThanOrEqualTo(2),
+        reason: 'la fachada más poblada del Coloso tiene $suyas fila',
+      );
+      // Y las seis regiones se quedan con una, que es lo que tenían: una
+      // planta corriente mide entre uno y uno y medio y no llega al umbral.
+      for (final r in regions.values) {
+        expect(
+          filasDe(r.place),
+          lessThanOrEqualTo(1),
+          reason: '${r.place.region} ganó filas de ventanas sin pedirlo',
         );
       }
     });
