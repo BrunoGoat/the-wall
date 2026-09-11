@@ -13,11 +13,13 @@ import '../data/landmarks.dart';
 import '../engine/solids.dart';
 import '../engine/town.dart';
 import '../engine/palette.dart';
+import '../engine/shooting_star.dart';
 import '../engine/renderer.dart';
 import '../fx/effects.dart';
 import '../fx/sensory.dart';
 import '../model/piece.dart';
 
+import '../model/appearance.dart';
 import '../model/board.dart';
 import '../model/board_slots.dart';
 import '../model/habit.dart';
@@ -58,6 +60,7 @@ class TownView extends StatefulWidget {
     required this.onPlaced,
     required this.onStoneTapped,
     required this.onNothingTapped,
+    required this.onCameraMoved,
     required this.onSkyTapped,
     required this.onDomeTapped,
     required this.onTownTapped,
@@ -85,6 +88,9 @@ class TownView extends StatefulWidget {
   /// Un toque en el aire. Cerrar la leyenda que estuviera abierta es lo mismo
   /// que dejar de mirar la pieza, así que lo hace el mismo gesto y no un aspa.
   final VoidCallback onNothingTapped;
+
+  /// Alguien movió la cámara a mano. Lo que hubiera puesto encima sobra.
+  final VoidCallback onCameraMoved;
 
   /// The sign over another town was tapped: go and live there.
   final void Function(int index) onTownTapped;
@@ -124,6 +130,9 @@ class _TownViewState extends State<TownView>
   PlaceResult? _pendingResult;
 
   double _time = 0;
+
+  /// De qué fugaz fue el último deseo, para no pedirlo sesenta veces.
+  double _lastWish = -1;
   Duration _last = Duration.zero;
 
   /// The building that has just been finished, and how long since.
@@ -308,6 +317,7 @@ class _TownViewState extends State<TownView>
   /// así que la luz y lo que suena cambian a la vez.
   double get _hour {
     if (_hourOverride >= 0) return _hourOverride.toDouble();
+    if (Appearance.instance.fakeHour) return Appearance.instance.fakeHourAt;
     final now = DateTime.now();
     return now.hour + now.minute / 60.0;
   }
@@ -354,6 +364,16 @@ class _TownViewState extends State<TownView>
     _spawnAmbient(dt);
 
     Sensory.instance.music(_hour, dt, _displayIntegrity);
+    // Una sola vez por fugaz: esto corre en cada fotograma y la fugaz dura
+    // segundo y pico.
+    final fugaz = ShootingStar.at(_time, _hour);
+    final ahora = fugaz == null
+        ? -1.0
+        : (_time / ShootingStar.window).floor().toDouble();
+    if (fugaz != null && ahora != _lastWish) {
+      _lastWish = ahora;
+      Sensory.instance.wish();
+    }
 
     final pal = _buildPalette();
     _palette = pal;
@@ -601,6 +621,12 @@ class _TownViewState extends State<TownView>
 
   void _onScaleUpdate(ScaleUpdateDetails d) {
     _touched();
+    // Mover la cámara es decir «ya sé dónde estoy»: lo que hubiera puesto
+    // encima —el cartel del pueblo al que se acaba de llegar— sobra desde ese
+    // momento y no cuando se le acabe el tiempo.
+    if (d.focalPointDelta.distanceSquared > 1 || d.scale != 1) {
+      widget.onCameraMoved();
+    }
     if (d.pointerCount >= 2) {
       final f = d.scale / (_lastScale == 0 ? 1 : _lastScale);
       _lastScale = d.scale;
@@ -733,6 +759,7 @@ class _TownViewState extends State<TownView>
       camera: _cam,
       integrity: _displayIntegrity,
       time: _time,
+      hourOfDay: _hour,
       effects: _fx,
       labelledBricks: {
         for (final p in store.pieces)

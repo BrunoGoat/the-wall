@@ -35,6 +35,7 @@ const Size _screen = Size(420, 860);
     camera: cam,
     integrity: 1,
     time: 0,
+    hourOfDay: 12,
     effects: EffectSystem(),
     labelledBricks: const {},
     budget: 22000,

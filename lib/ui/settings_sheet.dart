@@ -10,6 +10,7 @@ import '../model/store.dart';
 import 'backup_sheet.dart';
 import 'debug_sheet.dart';
 import 'gallery_screen.dart';
+import '../engine/shooting_star.dart';
 import 'note_font.dart';
 import 'notice_board.dart';
 import 'overlays.dart';
@@ -178,6 +179,40 @@ class _SettingsSheetState extends State<SettingsSheet> {
               theme: t,
               dice: true,
             );
+          },
+        ),
+
+        const SizedBox(height: 26),
+        _Head(theme: t, text: 'LA HORA'),
+        _Switch(
+          theme: t,
+          title: 'Fingir la hora',
+          subtitle:
+              'Para mirar el pueblo a cualquier hora sin esperarla. Cambia el '
+              'cielo, la música, las ventanas y las fugaces, porque las cuatro '
+              'salen de la misma hora.',
+          on: wants.fakeHour,
+          onChanged: wants.setFakeHour,
+        ),
+        if (wants.fakeHour)
+          _Slider(
+            theme: t,
+            title:
+                'Son las ${wants.fakeHourAt.floor().toString().padLeft(2, '0')}'
+                ':${((wants.fakeHourAt % 1) * 60).floor().toString().padLeft(2, '0')}',
+            value: wants.fakeHourAt / 24,
+            onChanged: (v) => wants.setFakeHourAt(v * 24),
+          ),
+        _Row(
+          theme: t,
+          icon: Icons.auto_awesome,
+          title: 'Tirar una estrella fugaz',
+          subtitle:
+              'Sale ya mismo, sin esperar. De noche se ve una cada diecisiete '
+              'minutos de media, y sólo si mirás hacia donde cae.',
+          act: () {
+            ShootingStar.force();
+            Sensory.instance.wish();
           },
         ),
 
@@ -451,6 +486,7 @@ class _Row extends StatelessWidget {
     required this.subtitle,
     this.open,
     this.page,
+    this.act,
   });
 
   final UiTheme theme;
@@ -464,6 +500,9 @@ class _Row extends StatelessWidget {
   /// A whole screen that replaces it.
   final Widget Function()? page;
 
+  /// O nada de eso: algo que pasa y ya, sin salir de aquí.
+  final VoidCallback? act;
+
   @override
   Widget build(BuildContext context) {
     final t = theme;
@@ -471,6 +510,11 @@ class _Row extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       onTap: () {
         Sensory.instance.tick();
+        final hacer = act;
+        if (hacer != null) {
+          hacer();
+          return;
+        }
         final nav = Navigator.of(context);
         nav.pop();
         if (page != null) {

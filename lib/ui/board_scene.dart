@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
@@ -7,6 +9,7 @@ import '../core/math3.dart';
 import '../engine/camera.dart';
 import '../engine/palette.dart';
 import '../engine/renderer.dart';
+import '../engine/shooting_star.dart';
 import '../model/habit.dart';
 import 'board_plan.dart';
 import '../data/symbols.dart';
@@ -36,6 +39,9 @@ class BoardMotion {
 
   /// Cuánto se lleva ido del tablón, de 0 a 1. Al llegar a 1 se sale.
   double leaves = 0;
+
+  /// El reloj de la escena, para que el cielo tenga tiempo propio.
+  double clock = 0;
 
   /// Cuánta ayuda se está enseñando. Se apaga sola en cuanto alguien toca.
   double hint = 1;
@@ -67,6 +73,7 @@ class BoardScene extends StatefulWidget {
     required this.plan,
     required this.habit,
     required this.palette,
+    required this.hourOfDay,
     required this.onLeave,
     this.letra = 0,
     this.motion,
@@ -83,6 +90,9 @@ class BoardScene extends StatefulWidget {
   final BoardPlan plan;
   final Habit habit;
   final Palette palette;
+
+  /// La hora que se está pintando. De ella sale si puede haber una fugaz.
+  final double hourOfDay;
   final VoidCallback onLeave;
 
   @override
@@ -177,6 +187,7 @@ class _BoardSceneState extends State<BoardScene>
         return;
       }
     }
+    _m.clock += dt;
     if (_m.hint > 0) _m.hint = math.max(0, _m.hint - dt * 0.32);
     _frame.value++;
     // Un tablón quieto no tiene por qué pintarse sesenta veces por segundo.
@@ -360,6 +371,7 @@ class _BoardSceneState extends State<BoardScene>
               cam: _cam,
               palette: widget.palette,
               habit: widget.habit,
+              hourOfDay: widget.hourOfDay,
               motion: _m,
               repaint: _frame,
             ),
@@ -390,15 +402,20 @@ class BoardPainter extends CustomPainter {
     required this.cam,
     required this.palette,
     required this.habit,
+    required this.hourOfDay,
     required this.motion,
     required Listenable repaint,
   }) : super(repaint: repaint);
 
   final BoardPlan plan;
   final List<PaperInk> ink;
+
   final OrbitCamera cam;
   final Palette palette;
   final Habit habit;
+
+  /// La hora que se está pintando. De ella sale si puede haber una fugaz.
+  final double hourOfDay;
 
   /// Lo que se mueve. Se lee al pintar y no al construirse: el pintor se
   /// construye una vez por `build` y se pinta en cada fotograma, así que un
@@ -416,6 +433,7 @@ class BoardPainter extends CustomPainter {
     _plank(canvas, p);
     _roof(canvas, p);
     _papers(canvas, p, size);
+    _star(canvas, size, p, horizon);
     if (motion.leaves > 0.01) {
       // Se va apagando conforme se tira hacia atrás, para que soltar y salir
       // no sea una sorpresa: cuando la pantalla ya está medio ida, soltar es
@@ -723,6 +741,56 @@ class BoardPainter extends CustomPainter {
       ink[i].paint(canvas, detail);
       canvas.restore();
     }
+  }
+
+  /// Una fugaz por encima del tablón, si es de noche.
+  ///
+  /// Aquí salen mucho más a menudo que en el valle, y es a propósito: en el
+  /// valle uno deja el pueblo abierto y mira de vez en cuando, y la gracia es
+  /// que casi nunca pase nada. Al tablón se entra a leer y se sale, así que con
+  /// la probabilidad del valle no se vería una nunca.
+  void _star(Canvas canvas, Size size, Projector p, double horizonY) {
+    final star = ShootingStar.at(motion.clock, hourOfDay, chance: 0.55);
+    if (star == null) return;
+    final glow = star.glow * palette.starAlpha;
+    if (glow < 0.02) return;
+    Offset? at(double k) {
+      final aim = star.aim(k);
+      if (aim == null) return null;
+      return TownPainter.skyPoint(p, aim.$1, aim.$2, minDen: 0.08);
+    }
+
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    for (var i = 0; i < 7; i++) {
+      final a = at(star.u - 0.13 * (i + 1) / 7);
+      final b = at(star.u - 0.13 * i / 7);
+      if (a == null || b == null) continue;
+      if (b.dy > horizonY || a.dy > horizonY) continue;
+      final k = 1 - i / 7;
+      paint
+        ..color = Colors.white.withValues(alpha: glow * k * k * 0.85)
+        ..strokeWidth = 0.5 + 1.3 * k;
+      canvas.drawLine(a, b, paint);
+    }
+    final head = at(star.u);
+    if (head == null || head.dy > horizonY) return;
+    canvas.drawCircle(
+      head,
+      1.7,
+      Paint()..color = Colors.white.withValues(alpha: glow),
+    );
+    // Y el mismo barrido de luz que en el pueblo.
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()
+        ..blendMode = BlendMode.plus
+        ..shader = ui.Gradient.radial(head, size.longestSide * 1.35, [
+          const Color(0xFFBFD8FF).withValues(alpha: 0.26 * glow),
+          const Color(0x00000000),
+        ]),
+    );
   }
 
   static Path _path(List<Offset> q) {

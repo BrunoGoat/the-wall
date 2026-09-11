@@ -72,6 +72,14 @@ class NoticeBoardScreen extends StatefulWidget {
 }
 
 class _NoticeBoardScreenState extends State<NoticeBoardScreen> {
+  /// La hora con la que se pinta el cielo del tablón. La misma que el valle,
+  /// hora fingida incluida: si no, se entra al tablón y amanece de golpe.
+  double get _hora {
+    if (Appearance.instance.fakeHour) return Appearance.instance.fakeHourAt;
+    final now = DateTime.now();
+    return now.hour + now.minute / 60.0;
+  }
+
   late BoardPlan _plan;
 
   /// Qué tirada del dado va. Cero es el tablón de verdad.
@@ -154,6 +162,7 @@ class _NoticeBoardScreenState extends State<NoticeBoardScreen> {
                 plan: _plan,
                 habit: widget.habit,
                 palette: widget.theme.palette,
+                hourOfDay: _hora,
                 onLeave: () => Navigator.of(context).maybePop(),
               ),
             ),

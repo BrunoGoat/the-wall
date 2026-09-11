@@ -397,6 +397,18 @@ class TownPlan {
     }
   }
 
+  /// Si este pueblo ya terminó el hito [id] con [placed] piezas puestas.
+  ///
+  /// Terminado, no empezado: un observatorio a medio construir no tiene todavía
+  /// una cúpula desde la que mirar.
+  bool hasFinished(String id, int placed, [List<String> chronicle = const []]) {
+    for (final w in walk(chronicle)) {
+      if (w.from >= placed) return false;
+      if (w.id == id) return w.from + w.cost <= placed;
+    }
+    return false;
+  }
+
   /// Hasta dónde llega la crónica que hace falta para `placed` piezas.
   ///
   /// Se anota todo edificio que ya se pueda ver o leer: el que tiene piezas

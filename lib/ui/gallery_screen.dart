@@ -217,6 +217,7 @@ class _GalleryScreenState extends State<GalleryScreen>
       camera: _cam,
       integrity: 1,
       time: _time,
+      hourOfDay: 11,
       effects: _fx,
       labelledBricks: const {},
       fx: null,

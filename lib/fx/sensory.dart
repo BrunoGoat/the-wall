@@ -403,6 +403,15 @@ class Sensory {
     _haptic(HapticFeedback.lightImpact);
   }
 
+  /// Lo que suena cuando cruza una fugaz.
+  ///
+  /// Flojito y a lo lejos: es algo que pasa en el cielo, no algo que hiciste.
+  /// Comparte el sonido del hito porque es el que tiene esa campana larga, y un
+  /// archivo nuevo para segundo y pico de sonido no lo vale.
+  void wish() {
+    _say('epic', louder: 0.42);
+  }
+
   void tick() {
     _say('tap');
     _haptic(HapticFeedback.selectionClick);

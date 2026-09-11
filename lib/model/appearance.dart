@@ -27,6 +27,34 @@ class Appearance extends ChangeNotifier {
   /// and this is the one place in the app where that is not true.
   bool get rapid => _rapid;
 
+  // ------------------------------------------------------------- la hora
+
+  /// Fingir una hora para poder mirar el pueblo a cualquiera de las
+  /// veinticuatro sin esperarlas.
+  ///
+  /// No es sólo el color del cielo: la música, las ventanas encendidas y las
+  /// fugaces salen todas de la misma hora, así que con esto se juega con el
+  /// pueblo entero a las cuatro de la mañana a las once de la mañana. Al
+  /// apagarlo vuelve el reloj de verdad.
+  bool _fakeHour = false;
+  double _fakeHourAt = 22.0;
+
+  bool get fakeHour => _fakeHour;
+  double get fakeHourAt => _fakeHourAt;
+
+  Future<void> setFakeHour(bool v) async {
+    if (v == _fakeHour) return;
+    _fakeHour = v;
+    await _keep();
+  }
+
+  Future<void> setFakeHourAt(double v) async {
+    final want = v.clamp(0.0, 23.99);
+    if (want == _fakeHourAt) return;
+    _fakeHourAt = want;
+    await _keep();
+  }
+
   // ------------------------------------------------------- la letra del papel
 
   /// Con qué letra están escritas las notas del tablón y los bandos del
@@ -165,6 +193,8 @@ class Appearance extends ChangeNotifier {
     _villageFont = defaultVillageFont;
     _noteScale = defaultNoteScale;
     _villageScale = defaultVillageScale;
+    _fakeHour = false;
+    _fakeHourAt = 22.0;
   }
 
   Future<void> load() async {
@@ -232,6 +262,10 @@ class Appearance extends ChangeNotifier {
             minScale,
             maxScale,
           );
+        case 'fakeHour':
+          _fakeHour = value == '1';
+        case 'fakeHourAt':
+          _fakeHourAt = (double.tryParse(value) ?? 22.0).clamp(0.0, 23.99);
         case 'noteScale':
           _noteScale = (double.tryParse(value) ?? 1.0).clamp(
             minScale,
@@ -256,6 +290,8 @@ class Appearance extends ChangeNotifier {
     'villageFont=$_villageFont',
     'noteScale=$_noteScale',
     'villageScale=$_villageScale',
+    'fakeHour=${_fakeHour ? 1 : 0}',
+    'fakeHourAt=$_fakeHourAt',
   ];
 
   Timer? _writeSoon;

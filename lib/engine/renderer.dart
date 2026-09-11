@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../data/constellations.dart';
 import '../core/math3.dart';
 import '../core/rng.dart';
+import 'shooting_star.dart';
 import '../fx/effects.dart';
 import '../ui/habit_sigil.dart';
 import 'bsp.dart';
@@ -137,6 +138,7 @@ class TownScene {
     required this.camera,
     required this.integrity,
     required this.time,
+    required this.hourOfDay,
     required this.effects,
     required this.labelledBricks,
     this.fx,
@@ -159,6 +161,11 @@ class TownScene {
   final OrbitCamera camera;
   final double integrity;
   final double time;
+
+  /// La hora que se está pintando, de 0 a 24. La paleta ya sale de ella, pero
+  /// hay cosas que necesitan el número y no el color: una fugaz no sale a las
+  /// siete de la tarde aunque en invierno a esa hora ya esté oscuro.
+  final double hourOfDay;
   final EffectSystem effects;
 
   /// How many faces are worth drawing this frame, trimmed to hold the frame
@@ -326,6 +333,42 @@ class TownPainter extends CustomPainter {
     _findDomes(p, size);
     _drawParticles(canvas, p);
     _drawAtmosphere(canvas, size, horizonY);
+    _drawStarLight(canvas, size, p);
+  }
+
+  /// La luz que echa una fugaz sobre el pueblo.
+  ///
+  /// No es realista y no pretende serlo: una fugaz de verdad no ilumina nada.
+  /// Es una luz que barre, que viene de donde viene ella y se mueve con ella, y
+  /// está para que uno levante la vista. Sin esto, lo que pasa en el cielo pasa
+  /// sólo en el cielo, y mirando al pueblo no te enterás nunca.
+  void _drawStarLight(Canvas canvas, Size size, Projector p) {
+    final star = ShootingStar.at(scene.time, scene.hourOfDay);
+    if (star == null) return;
+    final glow = star.glow * scene.palette.starAlpha;
+    if (glow < 0.03) return;
+    final aim = star.aim(star.u);
+    if (aim == null) return;
+    final at = skyPoint(p, aim.$1, aim.$2, minDen: 0.02);
+    if (at == null) return;
+    // Desde donde está ella, abriéndose hacia abajo: el pueblo se enciende por
+    // el lado que le toca y no entero y por igual, que sería un flash.
+    final r = size.longestSide * 1.35;
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()
+        ..blendMode = BlendMode.plus
+        ..shader = ui.Gradient.radial(
+          at,
+          r,
+          [
+            const Color(0xFFBFD8FF).withValues(alpha: 0.30 * glow),
+            const Color(0xFF8FB4FF).withValues(alpha: 0.10 * glow),
+            const Color(0x00000000),
+          ],
+          const [0.0, 0.28, 1.0],
+        ),
+    );
   }
 
   // ------------------------------------------------------------------- sky
@@ -360,7 +403,6 @@ class TownPainter extends CustomPainter {
   /// cero cae exactamente en la línea del horizonte, que es donde el suelo
   /// empieza a dibujarse. Un pie de montaña no puede quedar por debajo del
   /// prado.
-  @visibleForTesting
   static Offset? skyPoint(
     Projector p,
     double az,
@@ -530,51 +572,28 @@ class TownPainter extends CustomPainter {
 
   /// Una estrella fugaz, cada tanto, cuando hay noche.
   ///
-  /// Sin nada que guardar: el tiempo se parte en ventanas, y de qué ventana es
-  /// éste decide —siempre igual— si hay una, cuándo dentro de la ventana y por
-  /// dónde. Un estado más en la escena para algo que dura segundo y pico sería
-  /// un estado más que mantener sincronizado con la pausa, con el rebobinado
-  /// del expositor y con la hora fingida de los ajustes.
-  ///
-  /// Y no en todas las ventanas. Una que se puede esperar deja de ser un
-  /// hallazgo: la gracia de mirar al cielo es que casi nunca pasa nada.
+  /// Quién decide si hay una y por dónde va está en [ShootingStar], porque el
+  /// tablón de cerca dibuja su propio cielo y necesita la misma.
   void _drawShootingStar(
     Canvas canvas,
     Size size,
     Projector p,
     double horizonY,
   ) {
-    const window = 24.0;
-    const flight = 1.15;
-    final epoch = (scene.time / window).floor();
-    if (hash01(epoch, 401) > 0.30) return;
-    final began = epoch * window + hash01(epoch, 403) * (window - flight);
-    final u = (scene.time - began) / flight;
-    if (u < 0 || u > 1) return;
-
-    // De donde sale y hacia dónde va. Bajas y en diagonal, que es como se ven:
-    // una raya en mitad del cielo parece un avión.
-    final az0 = hash01(epoch, 405) * math.pi * 2;
-    final el0 = 0.22 + hash01(epoch, 407) * 0.55;
-    final sweep =
-        (hash01(epoch, 409) < 0.5 ? -1 : 1) *
-        (0.20 + hash01(epoch, 411) * 0.22);
-    final drop = 0.10 + hash01(epoch, 413) * 0.16;
+    final star = ShootingStar.at(scene.time, scene.hourOfDay);
+    if (star == null) return;
+    final glow = star.glow * scene.palette.starAlpha;
+    if (glow < 0.02) return;
 
     Offset? at(double k) {
-      final el = el0 - drop * k;
-      if (el <= 0.01) return null;
-      return skyPoint(p, az0 + sweep * k, el, minDen: 0.08);
+      final aim = star.aim(k);
+      if (aim == null) return null;
+      return skyPoint(p, aim.$1, aim.$2, minDen: 0.08);
     }
-
-    // Entra y se apaga: nunca aparece ni desaparece de golpe.
-    final glow =
-        math.pow(math.sin(math.pi * u), 0.65).toDouble() *
-        scene.palette.starAlpha;
-    if (glow < 0.02) return;
 
     const tail = 0.13;
     const bits = 7;
+    final u = star.u;
     final paint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -1364,15 +1383,18 @@ class TownPainter extends CustomPainter {
   ///
   /// Worked out from the plank's own four corners rather than from a marker
   /// hung over the town: the thing you tap is the thing you can see, and from
-  /// behind it or from far enough away that it is a smudge, there is nothing
-  /// to tap at all.
+  /// far enough away that it is a smudge there is nothing to tap at all.
+  ///
+  /// Desde cualquier lado, eso sí. Antes sólo se podía tocar desde delante,
+  /// porque por detrás la plancha es una plancha; pero uno orbita el pueblo
+  /// mirando cosas y al llegar al tablón quiere entrar, no dar media vuelta
+  /// primero. De canto sigue sin poder tocarse, y eso lo resuelve solo el
+  /// mínimo de doce píxeles: de canto no hay nada a lo que apuntar.
   void _findBoards(Projector p, Size size) {
     for (var i = 0; i < scene.towns.length; i++) {
       final e = scene.towns[i];
       if (e.placed <= 0) continue;
       final l = e.layout;
-      // The plank faces one way. From behind it, it is a plank.
-      if (p.eye.z <= l.cz + 0.3) continue;
       var x0 = double.infinity, y0 = double.infinity;
       var x1 = -double.infinity, y1 = -double.infinity;
       var whole = true;

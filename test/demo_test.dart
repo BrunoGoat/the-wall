@@ -14,6 +14,7 @@ import 'package:la_muralla/engine/town.dart';
 import 'package:la_muralla/model/findings.dart';
 import 'package:la_muralla/engine/palette.dart';
 import 'package:la_muralla/engine/renderer.dart';
+import 'package:la_muralla/engine/shooting_star.dart';
 import 'package:la_muralla/core/math3.dart';
 import 'package:la_muralla/engine/camera.dart';
 import 'package:la_muralla/engine/solids.dart';
@@ -660,6 +661,7 @@ void main() {
           ..distance = plan.readDistance(const Size(400, 860)),
         palette: Palette.forMoment(13, 1.0),
         habit: entrenar,
+        hourOfDay: 13,
         motion: motion,
         repaint: ValueNotifier(0),
       );
@@ -1106,6 +1108,7 @@ void main() {
 
   _sierras();
   _boton();
+  _fugaz();
 }
 
 /// Huecos en fila, para los tests a los que el reparto les da igual.
@@ -1153,5 +1156,62 @@ void _boton() {
     for (var k = 0.0; k < 1; k += 0.05) {
       expect(holdInnerRadius(k + 0.05, r), greaterThan(holdInnerRadius(k, r)));
     }
+  });
+}
+
+/// La estrella fugaz.
+void _fugaz() {
+  group('la estrella fugaz', () {
+    setUp(() => ShootingStar.forcedUntil = null);
+
+    test('no sale de día ni a media tarde', () {
+      // Antes bastaba con que el cielo estuviera oscuro, que en invierno es a
+      // las seis. Una fugaz a las seis y media no es una fugaz: es una luz rara
+      // mientras todavía se ve el campo.
+      for (final hora in [6.0, 12.0, 17.0, 19.5]) {
+        expect(ShootingStar.nightEnough(hora), isFalse, reason: 'a las $hora');
+        var vistas = 0;
+        for (var t = 0.0; t < 2400; t += 0.2) {
+          if (ShootingStar.at(t, hora) != null) vistas++;
+        }
+        expect(vistas, 0, reason: 'a las $hora salieron $vistas');
+      }
+      for (final hora in [20.0, 23.0, 2.0, 4.9]) {
+        expect(ShootingStar.nightEnough(hora), isTrue, reason: 'a las $hora');
+      }
+    });
+
+    test('sale a su ritmo, y en el tablón más a menudo', () {
+      double cuantas(double chance) {
+        var n = 0;
+        double? last;
+        for (var t = 0.0; t < 24000; t += 0.1) {
+          final s = ShootingStar.at(t, 22, chance: chance);
+          if (s != null && (last == null || t - last > ShootingStar.flight)) {
+            n++;
+            last = t;
+          }
+        }
+        return n / (24000 / 60);
+      }
+
+      // Por minuto de noche, antes de contar hacia dónde se mira.
+      expect(cuantas(0.30), closeTo(0.75, 0.15));
+      expect(cuantas(0.55), greaterThan(cuantas(0.30)));
+    });
+
+    test('y el botón de probarla saca una ya mismo', () {
+      // A las tres de la tarde también: el botón está para ver si se ve, y
+      // esperar a la noche para comprobarlo no es comprobar nada.
+      expect(ShootingStar.at(0, 15), isNull);
+      ShootingStar.force();
+      expect(ShootingStar.at(0, 15), isNotNull);
+    });
+
+    test('la cuenta de cada cuánto se ve una es la que se dice', () {
+      // Lo que se le dijo a quien pregunta: una cada diecisiete minutos
+      // mirando el cielo. Si se cambia la probabilidad, esto lo canta.
+      expect(ShootingStar.minutesBetween(0.30, 0.42), closeTo(17, 2.5));
+    });
   });
 }

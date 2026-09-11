@@ -45,6 +45,19 @@ class _HomeScreenState extends State<HomeScreen> {
   /// vuelva a empezar aunque el pueblo sea el mismo.
   (String, String, int)? _sign;
   Timer? _signTimer;
+
+  /// El cartel del pueblo se quita en cuanto alguien mueve la cámara.
+  ///
+  /// Dura lo que dura por si uno se queda quieto leyendo, pero mover la cámara
+  /// es decir «ya sé dónde estoy, quiero mirar»: a partir de ahí el cartel es
+  /// algo en medio. Se va desvaneciendo igual que si se le hubiera acabado el
+  /// tiempo, no de un tirón.
+  void _dismissSign() {
+    if (_sign == null) return;
+    _signTimer?.cancel();
+    setState(() => _sign = null);
+  }
+
   int _signNonce = 0;
 
   /// Cuál de las cinco maneras de anunciar la pieza le tocó a ésta. Se sortea
@@ -144,6 +157,24 @@ class _HomeScreenState extends State<HomeScreen> {
     _openSky(justFound: c);
   }
 
+  /// Si en el valle hay ya un observatorio terminado, sea de qué pueblo sea.
+  bool get _hayObservatorio => widget.store.habits.any(
+    (h) =>
+        TownPlan.of(h.place).hasFinished('observatorio', h.total, h.chronicle),
+  );
+
+  /// El tablón de este pueblo, desde el botón.
+  void _readOwnBoard() {
+    final store = widget.store;
+    Navigator.of(context).push(
+      NoticeBoardScreen.route(
+        valley: store.habits,
+        habit: store.habit,
+        theme: _theme,
+      ),
+    );
+  }
+
   void _openSky({Constellation? justFound}) {
     Sensory.instance.tick();
     showModalBottomSheet<void>(
@@ -183,6 +214,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 _selected = brick;
                 _selectedTown = widget.store.habit.id;
               }),
+              onCameraMoved: _dismissSign,
               onNothingTapped: () {
                 if (_selected != null) setState(() => _selected = null);
               },
@@ -233,13 +265,13 @@ class _HomeScreenState extends State<HomeScreen> {
             child: _TopBar(theme: t, store: store, onSettings: _openSettings),
           ),
 
-          // --- right: two ways of looking, and no more than that
+          // --- right: mirar, y entrar
           //
-          // There were four. The other two —volver a la última pieza, enderezar
-          // la vista— hacían lo mismo que un dedo sobre el pueblo, y una
-          // columna de cuatro iconos sobre un valle es una barra de
-          // herramientas encima de un paisaje. Quedan los dos que llevan a un
-          // sitio donde no estabas: este pueblo entero, y el valle entero.
+          // Arriba, las tres maneras de mirar: este pueblo entero, la última
+          // pieza que pusiste, y el valle entero. Debajo de una raya, las
+          // puertas: sitios donde se entra y de los que se sale, que es otra
+          // cosa. La raya está porque sin ella son cinco iconos en fila y
+          // ninguno dice a cuál de las dos familias pertenece.
           Positioned(
             right: 10,
             top: media.padding.top + 92,
@@ -251,12 +283,41 @@ class _HomeScreenState extends State<HomeScreen> {
                   tooltip: 'Ver todo el pueblo',
                   onTap: _wall.frameAll,
                 ),
+                if (store.habit.total > 0)
+                  GhostButton(
+                    icon: Icons.center_focus_strong,
+                    theme: t,
+                    tooltip: 'Ir a la última pieza',
+                    onTap: () => _wall.lookAtPiece(store.habit.total - 1),
+                  ),
                 if (store.habits.length > 1)
                   GhostButton(
                     icon: Icons.travel_explore,
                     theme: t,
                     tooltip: 'Ver todo el valle',
                     onTap: _wall.frameValley,
+                  ),
+                Container(
+                  width: 18,
+                  height: 1,
+                  margin: const EdgeInsets.symmetric(vertical: 7),
+                  color: t.fg.withValues(alpha: 0.18),
+                ),
+                GhostButton(
+                  icon: Icons.push_pin_outlined,
+                  theme: t,
+                  tooltip: 'El tablón del pueblo',
+                  onTap: _readOwnBoard,
+                ),
+                // El observatorio es uno para todo el valle: lo que se anota
+                // allí son las constelaciones, y el cielo es el mismo desde
+                // los seis pueblos. Con que un pueblo tenga el suyo, se entra.
+                if (_hayObservatorio)
+                  GhostButton(
+                    icon: Icons.auto_awesome,
+                    theme: t,
+                    tooltip: 'El observatorio',
+                    onTap: _openSky,
                   ),
               ],
             ),
