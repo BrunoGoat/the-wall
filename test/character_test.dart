@@ -98,10 +98,22 @@ int _windowsPerWall(TownCharacter place) {
 void main() {
   final towns = {for (final c in TownCharacter.all) c.region: Measured(c, 400)};
 
+  /// Las seis regiones, sin el Coloso.
+  ///
+  /// El Coloso no es un sitio, es una escala: está pensado para ganar en todos
+  /// los ejes a la vez, así que metiéndolo en la comparación se lleva todos
+  /// los superlativos y las seis regiones podrían haberse ido pareciendo entre
+  /// ellas sin que nada fallara — que es justo lo que este archivo existe para
+  /// impedir. Se le exige lo suyo aparte, más abajo.
+  final regions = {
+    for (final MapEntry(key: k, value: v) in towns.entries)
+      if (!v.place.grand) k: v,
+  };
+
   ({String most, String least, double ratio}) rank(
     double Function(Measured) of,
   ) {
-    final rows = towns.entries.toList()
+    final rows = regions.entries.toList()
       ..sort((a, b) => of(a.value).compareTo(of(b.value)));
     final lo = of(rows.first.value), hi = of(rows.last.value);
     return (
@@ -171,6 +183,101 @@ void main() {
     });
   });
 
+  group('el Coloso', () {
+    final coloso = towns['Coloso']!;
+
+    test('gana en tamaño a las seis regiones, no por poco', () {
+      // Lo que promete su descripción: enorme. Si no le saca de largo a la más
+      // alta, es una región más y no hacía falta.
+      //
+      // Donde gana de calle es a lo alto, y es a propósito: a lo ancho el
+      // límite no es el gusto sino el valle. Los pueblos están en un anillo de
+      // setenta y ocho con uno en el centro, así que ninguno puede pasar de un
+      // radio de treinta y nueve sin meterse dentro del vecino, y ese anillo
+      // no se ensancha sin mover pueblos que ya están puestos. Subir no cuesta
+      // nada, así que sube.
+      for (final r in regions.values) {
+        expect(
+          coloso.height / r.height,
+          greaterThan(1.35),
+          reason:
+              'el Coloso mide ${coloso.height.toStringAsFixed(1)} y '
+              '${r.place.region} ${r.height.toStringAsFixed(1)}',
+        );
+        expect(
+          coloso.footprint / r.footprint,
+          greaterThan(1.05),
+          reason:
+              'el Coloso no llega a ser más ancho que ${r.place.region} '
+              '(${coloso.footprint.toStringAsFixed(2)} contra '
+              '${r.footprint.toStringAsFixed(2)})',
+        );
+      }
+    });
+
+    test('y con pocas piezas por edificio, que es de lo que se trata', () {
+      // Para un hábito que hacés poco: diez piezas al mes no levantan nada si
+      // cada casa cuesta cinco. Acá cuestan dos o tres.
+      double porEdificio(TownCharacter c) {
+        final t = TownLayout(200, c);
+        var suma = 0;
+        var n = 0;
+        for (final b in t.buildings) {
+          if (b.isLandmark) continue;
+          suma += b.cost;
+          n++;
+        }
+        return suma / n;
+      }
+
+      final suyo = porEdificio(towns['Coloso']!.place);
+      expect(suyo, lessThan(3.2), reason: 'sale a $suyo piezas por edificio');
+      for (final r in regions.values) {
+        expect(
+          suyo,
+          lessThan(porEdificio(r.place)),
+          reason: 'en ${r.place.region} cuesta menos que en el Coloso',
+        );
+      }
+    });
+
+    test('pero sigue siendo una pieza por logro, y entera', () {
+      // La regla que no se negocia. Y la geometría completa: abaratar un
+      // edificio habría sido recortarlo por arriba, porque el mason lo corta
+      // en tantas piezas como cuesta y lo que sobra se tira.
+      // Ciento veinte puestas más la que está por caer, que el pueblo siempre
+      // tiene lista para enseñar dónde va.
+      final t = TownLayout(120, TownCharacter.byOrder(0xC01A));
+      expect(t.pieces.length, 121);
+      for (final b in t.buildings) {
+        if (b.firstPiece + b.cost > 120) continue;
+        final suyas = t.pieces.where((p) => p.building == b.index).length;
+        expect(suyas, b.cost, reason: '${b.name} se quedó a medias');
+      }
+    });
+
+    test('y dos pueblos de gigantes no se pisan en el valle', () {
+      // El anillo mide setenta y ocho, con el pueblo uno en su centro. Si el
+      // radio de dos colosos sumara más que eso, un pueblo se metería dentro
+      // de otro — y las posiciones son para siempre, así que no habría vuelta.
+      //
+      // Cuatrocientas piezas es lo que se mira, que para un hábito de los que
+      // van en un Coloso son muchos años. Más allá el anillo se queda corto
+      // para cualquier pueblo grande y no sólo para éste: el Valle llega a
+      // cuarenta y uno con ochocientas, y dos Valles ya no caben. Eso es de
+      // antes y se arregla ensanchando el anillo, que es mover de sitio
+      // pueblos que ya están puestos, así que se anota y no se toca.
+      final r = TownLayout(400, towns['Coloso']!.place).radius;
+      expect(
+        r * 2,
+        lessThan(78),
+        reason:
+            'dos colosos de radio ${r.toStringAsFixed(1)} se tocan: el del '
+            'centro llega hasta los del anillo',
+      );
+    });
+  });
+
   group('cada uno cumple lo que su descripción dice', () {
     test('Sierra es la más alta y la más apretada', () {
       expect(rank((m) => m.height).most, 'Sierra');
@@ -189,7 +296,7 @@ void main() {
     test('Marca tiene los muros más gruesos y las menos ventanas', () {
       expect(rank((m) => m.place.wallThick).most, 'Marca');
       for (final c in TownCharacter.all) {
-        if (c.region == 'Marca') continue;
+        if (c.region == 'Marca' || c.grand) continue;
         expect(
           _windowsPerWall(c),
           greaterThanOrEqualTo(_windowsPerWall(towns['Marca']!.place)),
@@ -213,7 +320,7 @@ void main() {
       // Añil: el azul le gana al rojo. En ningún otro pueblo pasa.
       final w = towns['Costa']!.wall;
       expect(w.b, greaterThan(w.r));
-      for (final t in towns.values) {
+      for (final t in regions.values) {
         if (t.place.region == 'Costa') continue;
         expect(t.wall.b, lessThan(t.wall.r), reason: t.place.region);
       }
@@ -223,7 +330,7 @@ void main() {
       expect(rank((m) => m.slope).most, 'Robledal');
       expect(towns['Robledal']!.treeShare, greaterThan(0.75));
       expect(towns['Robledal']!.strawShare, greaterThan(0.5));
-      for (final t in towns.values) {
+      for (final t in regions.values) {
         if (t.place.region == 'Robledal') continue;
         expect(
           t.treeShare,

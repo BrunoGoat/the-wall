@@ -307,11 +307,24 @@ class TownPlan {
     return order[no % order.length];
   }
 
-  static BuildingKind kindFor(int b) {
+  BuildingKind kindFor(int b) {
     // Ordinary houses get grander as the town does, but never so much that a
     // small one stops appearing: a town of nothing but mansions is a suburb.
     final List<BuildingKind> pool;
-    if (b < 7) {
+    if (character.grand) {
+      // Un pueblo de gigantes se hace de masas simples y no de casonas con
+      // buhardilla: lo que lo hace enorme es el tamaño, no el número de
+      // cuerpos. Y de paso cada edificio cuesta dos o tres piezas en lugar de
+      // cinco o seis, que es lo que hace que diez piezas al mes levanten algo.
+      pool = const [
+        BuildingKind.cottage,
+        BuildingKind.shed,
+        BuildingKind.cottage,
+        BuildingKind.workshop,
+        BuildingKind.cottage,
+        BuildingKind.shed,
+      ];
+    } else if (b < 7) {
       pool = const [
         BuildingKind.shed,
         BuildingKind.cottage,
