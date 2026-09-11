@@ -157,17 +157,6 @@ class _NoticeBoardScreenState extends State<NoticeBoardScreen> {
                 onLeave: () => Navigator.of(context).maybePop(),
               ),
             ),
-            SafeArea(
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: IconButton(
-                  onPressed: () => Navigator.of(context).maybePop(),
-                  icon: const Icon(Icons.arrow_back, size: 20),
-                  color: Colors.white.withValues(alpha: 0.92),
-                  tooltip: 'Volver al pueblo',
-                ),
-              ),
-            ),
             if (widget.dice)
               SafeArea(
                 child: Align(

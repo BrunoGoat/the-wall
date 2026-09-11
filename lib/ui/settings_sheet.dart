@@ -131,6 +131,17 @@ class _SettingsSheetState extends State<SettingsSheet> {
         Text('LAS NOTAS DEL TABLÓN', style: t.label),
         const SizedBox(height: 8),
         _Fonts(theme: t, value: wants.noteFont, onPick: wants.setNoteFont),
+        _Slider(
+          theme: t,
+          title: 'Tamaño',
+          value:
+              (wants.noteScale - Appearance.minScale) /
+              (Appearance.maxScale - Appearance.minScale),
+          onChanged: (v) => wants.setNoteScale(
+            Appearance.minScale +
+                v * (Appearance.maxScale - Appearance.minScale),
+          ),
+        ),
         const SizedBox(height: 14),
         Text('LOS BANDOS DEL PUEBLO', style: t.label),
         const SizedBox(height: 8),
@@ -139,14 +150,13 @@ class _SettingsSheetState extends State<SettingsSheet> {
           value: wants.villageFont,
           onPick: wants.setVillageFont,
         ),
-        const SizedBox(height: 6),
         _Slider(
           theme: t,
-          title: 'Tamaño de la letra',
+          title: 'Tamaño',
           value:
-              (wants.noteScale - Appearance.minScale) /
+              (wants.villageScale - Appearance.minScale) /
               (Appearance.maxScale - Appearance.minScale),
-          onChanged: (v) => wants.setNoteScale(
+          onChanged: (v) => wants.setVillageScale(
             Appearance.minScale +
                 v * (Appearance.maxScale - Appearance.minScale),
           ),

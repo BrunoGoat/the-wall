@@ -39,46 +39,17 @@ enum NoteFont {
   varias(null, null, 'Varias manos', 1.0),
 
   // ------------------------------------------------- las manos del pueblo
-  torcida2(
-    'WalterTurncoat',
-    'WalterTurncoat.ttf',
-    'Turncoat',
-    0.95,
-    mano: true,
-  ),
-  gloria(
-    'GloriaHallelujah',
-    'GloriaHallelujah.ttf',
-    'Gloria',
-    0.94,
-    mano: true,
-  ),
+  //
+  // Las nueve que se reparten entre los papeles. Salen de probarlas una a una
+  // en el tablón y no de la medida: la medida dice cuánto texto cabe por
+  // línea, y eso no es lo mismo que cuál se lee bien escrita a mano.
   sal('RockSalt', 'RockSalt.ttf', 'Sal', 0.76, mano: true),
-  otraMano(
-    'JustAnotherHand',
-    'JustAnotherHand.ttf',
-    'Otra mano',
-    2.21,
-    mano: true,
-  ),
-  reenie('ReenieBeanie', 'ReenieBeanie.ttf', 'Reenie', 1.33, mano: true),
-  nada('NothingYouCouldDo', 'NothingYouCouldDo.ttf', 'Nada', 0.95, mano: true),
-  pronto('ComingSoon', 'ComingSoon.ttf', 'Pronto', 1.02, mano: true),
   campana('Schoolbell', 'Schoolbell.ttf', 'Campana', 1.16, mano: true),
   gracia(
     'CoveredByYourGrace',
     'CoveredByYourGrace.ttf',
     'Gracia',
     1.27,
-    mano: true,
-  ),
-  manitas('CraftyGirls', 'CraftyGirls.ttf', 'Manitas', 0.91, mano: true),
-  sue('SueEllenFrancisco', 'SueEllenFrancisco.ttf', 'Sue', 1.70, mano: true),
-  catalejo(
-    'AnnieUseYourTelescope',
-    'AnnieUseYourTelescope.ttf',
-    'Catalejo',
-    1.37,
     mano: true,
   ),
   rotulador(
@@ -88,25 +59,50 @@ enum NoteFont {
     0.93,
     mano: true,
   ),
-  zeyada('Zeyada', 'Zeyada.ttf', 'Zeyada', 1.33, mano: true),
-  caveat('Caveat', 'Caveat.ttf', 'Caveat', 1.41, mano: true),
-  kalam('Kalam', 'Kalam.ttf', 'Kalam', 1.09, mano: true),
-  patrick('PatrickHand', 'PatrickHand.ttf', 'Patrick', 1.31, mano: true),
-  sombras(
-    'ShadowsIntoLight',
-    'ShadowsIntoLight.ttf',
-    'Sombras',
-    1.25,
+  catalejo(
+    'AnnieUseYourTelescope',
+    'AnnieUseYourTelescope.ttf',
+    'Catalejo',
+    1.37,
     mano: true,
   ),
+  sue('SueEllenFrancisco', 'SueEllenFrancisco.ttf', 'Sue', 1.70, mano: true),
+  gloria(
+    'GloriaHallelujah',
+    'GloriaHallelujah.ttf',
+    'Gloria',
+    0.94,
+    mano: true,
+  ),
+  amatic('AmaticSC', 'AmaticSC.ttf', 'Amatic', 1.63, mano: true),
+  // Su medida decía 2,21 y era demasiado: puesta junto a las otras había que
+  // bajarle el deslizador a menos de la mitad para que pareciera la misma
+  // letra. Lo que se corrige es la medida, no el deslizador.
+  otraMano(
+    'JustAnotherHand',
+    'JustAnotherHand.ttf',
+    'Otra mano',
+    0.98,
+    mano: true,
+  ),
+
+  // Y las demás, que siguen estando para elegirlas a mano.
+  turncoat('WalterTurncoat', 'WalterTurncoat.ttf', 'Turncoat', 0.95),
+  reenie('ReenieBeanie', 'ReenieBeanie.ttf', 'Reenie', 1.33),
+  nada('NothingYouCouldDo', 'NothingYouCouldDo.ttf', 'Nada', 0.95),
+  pronto('ComingSoon', 'ComingSoon.ttf', 'Pronto', 1.02),
+  manitas('CraftyGirls', 'CraftyGirls.ttf', 'Manitas', 0.91),
+  zeyada('Zeyada', 'Zeyada.ttf', 'Zeyada', 1.33),
+  caveat('Caveat', 'Caveat.ttf', 'Caveat', 1.41),
+  kalam('Kalam', 'Kalam.ttf', 'Kalam', 1.09),
+  patrick('PatrickHand', 'PatrickHand.ttf', 'Patrick', 1.31),
+  sombras('ShadowsIntoLight', 'ShadowsIntoLight.ttf', 'Sombras', 1.25),
   arquitecta(
     'ArchitectsDaughter',
     'ArchitectsDaughter.ttf',
     'Arquitecta',
     1.01,
-    mano: true,
   ),
-  amatic('AmaticSC', 'AmaticSC.ttf', 'Amatic', 1.63, mano: true),
 
   // -------------------------------------------------- de imprenta vieja
   fell('IMFellEnglish', 'IMFellEnglish.ttf', 'Fell', 1.17),

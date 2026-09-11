@@ -36,12 +36,33 @@ class Appearance extends ChangeNotifier {
   /// cuentas tuyas y un bando es alguien del pueblo escribiendo un papel.
   /// Poner la misma en las dos es elegir que todo el tablón esté escrito por
   /// la misma mano, que también es una respuesta.
-  String _noteFont = 'sistema';
-  String _villageFont = 'sistema';
-  double _noteScale = 1.0;
+  /// Lo que quedó elegido tras probarlas una a una en el tablón: las notas en
+  /// Arquitecta a media altura del deslizador, y los bandos repartidos entre
+  /// las nueve manos, casi arriba del todo.
+  static const String defaultNoteFont = 'arquitecta';
+  static const String defaultVillageFont = 'varias';
+  static const double defaultNoteScale = 1.5;
+  static const double defaultVillageScale = 2.06;
+
+  String _noteFont = defaultNoteFont;
+  String _villageFont = defaultVillageFont;
+  double _noteScale = defaultNoteScale;
+  double _villageScale = defaultVillageScale;
 
   String get noteFont => _noteFont;
   String get villageFont => _villageFont;
+
+  /// Y cada uno con su tamaño: una letra de imprenta y una escrita a mano no
+  /// se leen igual al mismo cuerpo, así que un solo deslizador para las dos
+  /// obligaba a elegir a cuál de las dos dejar mal.
+  double get villageScale => _villageScale;
+
+  Future<void> setVillageScale(double v) async {
+    final want = v.clamp(minScale, maxScale);
+    if (want == _villageScale) return;
+    _villageScale = want;
+    await _keep();
+  }
 
   /// Multiplica el cuerpo de todo lo que va escrito en un papel.
   ///
@@ -140,9 +161,10 @@ class Appearance extends ChangeNotifier {
     _hapticsOff = false;
     _musicVolume = _midway;
     _effectsVolume = _midway;
-    _noteFont = 'sistema';
-    _villageFont = 'sistema';
-    _noteScale = 1.0;
+    _noteFont = defaultNoteFont;
+    _villageFont = defaultVillageFont;
+    _noteScale = defaultNoteScale;
+    _villageScale = defaultVillageScale;
   }
 
   Future<void> load() async {
@@ -205,6 +227,11 @@ class Appearance extends ChangeNotifier {
           _noteFont = value;
         case 'villageFont':
           _villageFont = value;
+        case 'villageScale':
+          _villageScale = (double.tryParse(value) ?? defaultVillageScale).clamp(
+            minScale,
+            maxScale,
+          );
         case 'noteScale':
           _noteScale = (double.tryParse(value) ?? 1.0).clamp(
             minScale,
@@ -228,6 +255,7 @@ class Appearance extends ChangeNotifier {
     'noteFont=$_noteFont',
     'villageFont=$_villageFont',
     'noteScale=$_noteScale',
+    'villageScale=$_villageScale',
   ];
 
   Timer? _writeSoon;

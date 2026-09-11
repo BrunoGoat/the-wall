@@ -1,7 +1,12 @@
+import 'dart:math' as math;
+
+import '../core/rng.dart';
 import '../data/gossip.dart';
+import '../ui/board_plan.dart';
 import '../engine/town.dart';
 import 'findings.dart';
 import 'habit.dart';
+import 'piece.dart';
 
 /// Lo que hay clavado en el tablón de un pueblo.
 ///
@@ -29,10 +34,19 @@ List<Notice> boardNotices(
     left: work?.$2 ?? 0,
     at: at,
   );
+  // Cuántos bandos toca clavar hoy: entre dos y cuatro, sorteado por la fecha
+  // y por el pueblo. Que sea distinto cada día es lo que hace que el tablón
+  // tenga días con más vida del pueblo y días con menos.
+  final quiere = 2 + hashInt(3, dayKey(dayStart(now)), h.slot, 61);
+  // Pero lo que el pueblo sabe de vos va primero y no se recorta nunca: si hay
+  // ocho notas de verdad, caben dos bandos y se clavan dos. Un bando sobre una
+  // cabra no puede dejar fuera lo que el tablón averiguó.
+  final hueco = BoardPlan.capacity - said.length - (said.isEmpty ? 1 : 0);
+  final cuantos = quiere.clamp(0, math.max(0, hueco)).toInt();
   return [
     if (said.isEmpty) emptyNotice(h),
     ...said,
-    ...villageNotices(now, town: h.slot, count: said.isEmpty ? 3 : 2),
+    ...villageNotices(now, town: h.slot, count: cuantos),
   ];
 }
 

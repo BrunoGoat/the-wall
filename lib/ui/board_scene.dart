@@ -9,6 +9,8 @@ import '../engine/palette.dart';
 import '../engine/renderer.dart';
 import '../model/habit.dart';
 import 'board_plan.dart';
+import '../data/symbols.dart';
+import 'habit_sigil.dart';
 import 'paper_ink.dart';
 
 /// Lo que cambia entre un fotograma y el siguiente.
@@ -22,15 +24,21 @@ import 'paper_ink.dart';
 /// cuándo hubiera ocurrido el último `build` por cualquier otro motivo. De ahí
 /// que pareciera que a veces se acercaba y a veces no.
 class BoardMotion {
-  /// Qué hoja está descolgada, y cuánto lo está.
+  /// Qué hoja es la de la animación, si está sujeta, y cuánto lleva.
+  ///
+  /// Sujeta y descolgada no son lo mismo, y por eso son dos cosas: al soltarla
+  /// hay que seguir sabiendo cuál era para poder devolverla a su sitio. Antes
+  /// se ponía a null al soltar, y el pintor pasaba a dibujarla clavada de
+  /// golpe: la animación de volver existía y no se veía nunca.
   int? open;
+  bool held = false;
   double openK = 0;
+
+  /// Cuánto se lleva ido del tablón, de 0 a 1. Al llegar a 1 se sale.
+  double leaves = 0;
 
   /// Cuánta ayuda se está enseñando. Se apaga sola en cuanto alguien toca.
   double hint = 1;
-
-  /// Cuánto se ha tirado hacia atrás más allá del tope, de 0 a 1.
-  double leaving = 0;
 }
 
 /// El tablón de la plaza, de cerca y en tres dimensiones.
@@ -92,7 +100,6 @@ class _BoardSceneState extends State<BoardScene>
 
   /// Lo que se mueve. Lo lee el pintor en cada fotograma, no al construirse.
   late final BoardMotion _m = widget.motion ?? BoardMotion();
-  static const double _umbralSalida = 0.5;
 
   Size _size = const Size(400, 800);
 
@@ -155,8 +162,21 @@ class _BoardSceneState extends State<BoardScene>
     _last = now;
     if (dt <= 0) return;
     _cam.step(dt);
-    final quiere = _m.open == null ? 0.0 : 1.0;
-    _m.openK += (quiere - _m.openK) * (1 - math.exp(-dt * 7.0));
+    final quiere = _m.held ? 1.0 : 0.0;
+    _m.openK += (quiere - _m.openK) * (1 - math.exp(-dt * 9.0));
+    if (!_m.held && _m.openK < 0.004) {
+      _m.openK = 0;
+      _m.open = null;
+    }
+    if (_m.leaves > 0) {
+      // Irse del tablón: la cámara se va para atrás y la pantalla se apaga.
+      _m.leaves = math.min(1, _m.leaves + dt * 2.6);
+      _cam.distanceTarget = _far * (1 + 2.2 * _m.leaves);
+      if (_m.leaves >= 1) {
+        widget.onLeave();
+        return;
+      }
+    }
     if (_m.hint > 0) _m.hint = math.max(0, _m.hint - dt * 0.32);
     _frame.value++;
     // Un tablón quieto no tiene por qué pintarse sesenta veces por segundo.
@@ -172,7 +192,8 @@ class _BoardSceneState extends State<BoardScene>
         (c.yaw - c.yawTarget).abs() < 1e-4 &&
         (c.pitch - c.pitchTarget).abs() < 1e-4 &&
         (c.distance - c.distanceTarget).abs() < 1e-4 &&
-        ((_m.open == null ? 0.0 : 1.0) - _m.openK).abs() < 1e-3 &&
+        ((_m.held ? 1.0 : 0.0) - _m.openK).abs() < 1e-3 &&
+        _m.leaves <= 0 &&
         _m.hint <= 0;
   }
 
@@ -199,7 +220,7 @@ class _BoardSceneState extends State<BoardScene>
     _cam.pitchTarget = 0;
     // Con una nota descolgada, nada de topes: los coloca la app y están fuera
     // del alcance del dedo a propósito. Ver [_take].
-    if (_m.open != null) return;
+    if (_m.held) return;
     _cam.distanceTarget = clampD(_cam.distanceTarget, _near, _far);
     _cam.focusYTarget = plan.midY;
     final tope = plan.panLimit(_size, _cam.distanceTarget);
@@ -210,7 +231,8 @@ class _BoardSceneState extends State<BoardScene>
   /// tablón a los lados: uno vuelve de una nota al sitio del tablón en el que
   /// estaba, no al principio.
   void _front() {
-    setState(() => _m.open = null);
+    if (!_m.held) return;
+    setState(() => _m.held = false);
     _cam.distanceTarget = widget.plan.readDistance(_size);
     _clampCam();
     _wake();
@@ -226,7 +248,10 @@ class _BoardSceneState extends State<BoardScene>
   /// acercamiento entero, a veces sí y a veces no según qué llegara antes.
   void _take(int i) {
     final p = widget.plan.papers[i];
-    setState(() => _m.open = i);
+    setState(() {
+      _m.open = i;
+      _m.held = true;
+    });
     _cam
       ..yawTarget = 0
       ..pitchTarget = 0
@@ -240,98 +265,64 @@ class _BoardSceneState extends State<BoardScene>
   Projector _projector() => _cam.projector(_size.width, _size.height, 0);
 
   void _tap(Offset at) {
-    _m.hint = 0;
+    if (_m.leaves > 0) return;
+    _wake();
+    // Con una nota sujeta, lo único que hace un toque es devolverla. Aunque
+    // caiga encima de otra: cambiar de una a otra sin pasar por el tablón se
+    // saltaba las dos animaciones y parecía un corte de película.
+    if (_m.held) {
+      _front();
+      return;
+    }
+
     final p = _projector();
     final plan = widget.plan;
-    // De delante hacia atrás: la hoja descolgada primero, que es la que está
-    // encima de todas.
-    final orden = [for (var i = 0; i < plan.papers.length; i++) i]
-      ..sort((a, b) {
-        if (a == _m.open) return 1;
-        if (b == _m.open) return -1;
-        return 0;
-      });
-    for (final i in orden.reversed) {
-      final q = projectQuad(
-        p,
-        plan.papers[i].cornersAt(i == _m.open ? _m.openK : 0),
-      );
+    for (var i = 0; i < plan.papers.length; i++) {
+      final q = projectQuad(p, plan.papers[i].cornersAt(0));
       if (q != null && insideQuad(q, at)) {
-        if (i == _m.open) {
-          _front();
-        } else {
-          _take(i);
-        }
+        _take(i);
         return;
       }
     }
-    // La plancha: acercarse de frente.
+    // La madera no hace nada. Fuera de ella —el cielo, el prado— se sale: es
+    // la puerta, ahora que no hay flecha.
     final plank = projectQuad(p, [
-      V3(-plan.halfWidth, plan.high, BoardPlan.plankDepth),
-      V3(plan.halfWidth, plan.high, BoardPlan.plankDepth),
+      V3(-plan.halfWidth, plan.top, BoardPlan.plankDepth),
+      V3(plan.halfWidth, plan.top, BoardPlan.plankDepth),
       V3(plan.halfWidth, plan.low, BoardPlan.plankDepth),
       V3(-plan.halfWidth, plan.low, BoardPlan.plankDepth),
     ]);
-    // La madera, el cielo o el prado: lo único que hace un toque fuera de una
-    // nota es volver a colgar la que estuviera descolgada. De aquí no se sale
-    // tocando —un dedo suelto en el prado no puede ser la puerta— sino
-    // alejándose o con la flecha.
-    if (plank != null && insideQuad(plank, at)) {
-      if (_m.open != null) _front();
-      return;
-    }
-    if (_m.open != null) _front();
+    if (plank != null && insideQuad(plank, at)) return;
+    _irse();
+  }
+
+  /// Empezar a irse. No hay vuelta atrás: la cámara se va y la pantalla se
+  /// apaga hasta salir.
+  void _irse() {
+    if (_m.leaves > 0) return;
+    _m.leaves = 0.001;
+    _wake();
   }
 
   void _drag(ScaleUpdateDetails d) {
+    if (_m.leaves > 0) return;
     _m.hint = 0;
     _wake();
-    if (d.pointerCount >= 2 && d.scale != 1) {
-      // Pellizcar es lo único que cambia la distancia, y sólo dentro de la
-      // franja. Pasado el tope de atrás no se para en seco: sigue yendo con
-      // resistencia, que es lo que avisa de que ahí detrás está la salida.
-      final quiere = _cam.distanceTarget / d.scale.clamp(0.5, 2.0);
-      if (quiere > _far) {
-        final sobra = (quiere - _far) / (_far * 0.55);
-        _m.leaving = sobra.clamp(0.0, 1.0);
-        _cam.distanceTarget = _far + (quiere - _far) * 0.45;
-      } else {
-        _m.leaving = 0;
-        _cam.distanceTarget = clampD(quiere, _near, _far);
-      }
-    } else if (d.pointerCount == 1) {
-      // Un dedo lo corre a lo largo y nada más. Lo de arriba y abajo se tira:
-      // el tablón no tiene arriba y abajo a los que ir.
-      final p = _projector();
-      _cam.travelTarget -= d.focalPointDelta.dx * (_cam.distance / p.focal);
-      // Un roce no cuelga la nota. El dedo que se apoya al tocar produce
-      // arrastres de una décima de píxel, y con ellos la nota se cerraba en el
-      // mismo gesto que la abría.
-      if (_m.open != null && d.focalPointDelta.dx.abs() > 1.5) {
-        setState(() => _m.open = null);
-      }
+    if (d.pointerCount >= 2) {
+      // Separar los dedos es irse, y se va en cuanto se empieza: esperar a que
+      // el dedo se levante dejaba al tablón encogiéndose un rato largo sin que
+      // estuviera claro si iba a salir o no. Acercar ya no hace nada —para eso
+      // están las notas— así que juntar los dedos se ignora.
+      if (d.scale < 0.94) _irse();
+      return;
     }
+    // Un dedo lo corre a lo largo y nada más. Lo de arriba y abajo se tira: el
+    // tablón no tiene arriba y abajo a los que ir.
+    final p = _projector();
+    _cam.travelTarget -= d.focalPointDelta.dx * (_cam.distance / p.focal);
+    if (_m.held && d.focalPointDelta.dx.abs() > 1.5) _front();
     final tope = widget.plan.panLimit(_size, _cam.distanceTarget);
     _cam.travelTarget = clampD(_cam.travelTarget, -tope, tope);
-  }
-
-  /// Al soltar: si se tiró bastante hacia atrás, se sale al valle; si no, el
-  /// tablón vuelve a su sitio.
-  void _release(ScaleEndDetails d) {
-    if (_m.leaving > _umbralSalida) {
-      widget.onLeave();
-      return;
-    }
-    _m.leaving = 0;
-    // Un toque también termina en un gesto de escala, así que si esto no
-    // respetara la nota descolgada, abrirla y cerrarla serían la misma cosa.
-    if (_m.open != null) {
-      _wake();
-      return;
-    }
-    _cam.distanceTarget = clampD(_cam.distanceTarget, _near, _far);
-    _clampCam();
-    _wake();
   }
 
   @override
@@ -360,7 +351,6 @@ class _BoardSceneState extends State<BoardScene>
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onScaleUpdate: _drag,
-          onScaleEnd: _release,
           onTapUp: (d) => _tap(d.localPosition),
           child: CustomPaint(
             size: Size.infinite,
@@ -426,14 +416,13 @@ class BoardPainter extends CustomPainter {
     _plank(canvas, p);
     _roof(canvas, p);
     _papers(canvas, p, size);
-    _hint(canvas, size);
-    if (motion.leaving > 0.01) {
+    if (motion.leaves > 0.01) {
       // Se va apagando conforme se tira hacia atrás, para que soltar y salir
       // no sea una sorpresa: cuando la pantalla ya está medio ida, soltar es
       // lo que uno espera que pase.
       canvas.drawRect(
         Offset.zero & size,
-        Paint()..color = Colors.black.withValues(alpha: 0.55 * motion.leaving),
+        Paint()..color = Colors.black.withValues(alpha: 0.8 * motion.leaves),
       );
     }
   }
@@ -589,52 +578,35 @@ class BoardPainter extends CustomPainter {
     _name(canvas, p);
   }
 
-  /// El nombre del hábito, quemado en el filo de arriba de la plancha.
+  /// El sello del hábito, quemado en el filo de arriba de la plancha.
+  ///
+  /// Sólo el sello. El nombre y la región estaban escritos ahí y sobraban: uno
+  /// llega al tablón desde su propio pueblo y ya sabe de cuál es, así que era
+  /// un rótulo contando lo que se acaba de ver. El sello se queda porque es la
+  /// marca del sitio, como el escudo tallado en la viga.
   void _name(Canvas canvas, Projector p) {
-    final texto =
-        '${habit.name.toUpperCase()}   ·   '
-        '${habit.place.region.toUpperCase()}';
-    const alto = BoardPlan.headHeight;
+    const alto = BoardPlan.headHeight * 1.25;
+    // Un poco más abajo del filo: pegado arriba, el tejado le comía la cabeza.
+    final y = plan.headY - alto * 0.45;
+    final ancho = alto * 1.05;
     final quad = projectQuad(p, [
-      V3(
-        -plan.halfWidth + 0.1,
-        plan.headY + alto,
-        BoardPlan.plankDepth + 0.002,
-      ),
-      V3(plan.halfWidth - 0.1, plan.headY + alto, BoardPlan.plankDepth + 0.002),
-      V3(plan.halfWidth - 0.1, plan.headY, BoardPlan.plankDepth + 0.002),
-      V3(-plan.halfWidth + 0.1, plan.headY, BoardPlan.plankDepth + 0.002),
+      V3(-ancho / 2, y + alto, BoardPlan.plankDepth + 0.002),
+      V3(ancho / 2, y + alto, BoardPlan.plankDepth + 0.002),
+      V3(ancho / 2, y, BoardPlan.plankDepth + 0.002),
+      V3(-ancho / 2, y, BoardPlan.plankDepth + 0.002),
     ]);
     if (quad == null) return;
-    final ancho = (quad[1] - quad[0]).distance;
-    if (ancho < 60) return;
-    // La caja de maquetar tiene que tener la proporción del hueco al que va,
-    // porque la homografía estira lo que le den hasta las cuatro esquinas. Con
-    // una caja fija, un tablón ancho estiraba las letras a lo largo y el
-    // nombre salía deformado: cuanto más ancho el tablón, más deformado. Sale
-    // de las medidas del mundo, así que vale para cualquier ancho.
-    final src = plan.headBox;
+    if ((quad[1] - quad[0]).distance < 14) return;
+    const src = Size(60, 60);
     final m = paperTransform(src, quad);
     if (m == null) return;
-    final tp = TextPainter(
-      text: TextSpan(
-        text: texto,
-        style: TextStyle(
-          color: _lit(BoardPlan.post, 1).withValues(alpha: 0.8),
-          fontSize: 26,
-          letterSpacing: 6,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-      maxLines: 1,
-      ellipsis: '…',
-    )..layout(maxWidth: src.width);
     canvas.save();
     canvas.transform(m);
-    tp.paint(
+    HabitSigils.draw(
       canvas,
-      Offset((src.width - tp.width) / 2, (src.height - tp.height) / 2),
+      const Rect.fromLTWH(4, 4, 52, 52),
+      resolveHabitSymbol(habit.symbol),
+      _lit(BoardPlan.post, 1).withValues(alpha: 0.82),
     );
     canvas.restore();
   }
@@ -748,27 +720,9 @@ class BoardPainter extends CustomPainter {
       canvas.save();
       canvas.clipPath(path);
       canvas.transform(m);
-      ink[i].paint(canvas, i == motion.open ? motion.openK : 0.0, detail);
+      ink[i].paint(canvas, detail);
       canvas.restore();
     }
-  }
-
-  void _hint(Canvas canvas, Size size) {
-    final hint = motion.hint;
-    if (hint <= 0.02) return;
-    final tp = TextPainter(
-      text: TextSpan(
-        text: 'Arrastrá a los lados · tocá una nota · alejá para salir',
-        style: TextStyle(
-          color: Colors.white.withValues(alpha: 0.85 * hint),
-          fontSize: 11.5,
-          letterSpacing: 0.4,
-          shadows: const [Shadow(color: Colors.black87, blurRadius: 6)],
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout(maxWidth: size.width - 40);
-    tp.paint(canvas, Offset((size.width - tp.width) / 2, size.height - 46));
   }
 
   static Path _path(List<Offset> q) {

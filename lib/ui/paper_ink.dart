@@ -36,7 +36,11 @@ class PaperInk {
             ) ??
             NoteFont.sistema,
       ),
-      scale = scale ?? Appearance.instance.noteScale {
+      scale =
+          scale ??
+          (notice.kind == NoticeKind.pueblo
+              ? Appearance.instance.villageScale
+              : Appearance.instance.noteScale) {
     _lay();
   }
 
@@ -91,7 +95,6 @@ class PaperInk {
   /// No son `final`: si el texto no entra se vuelve a maquetar más chico, y
   /// eso es reasignarlas.
   late TextPainter _said, _because;
-  TextPainter? _more;
 
   /// El alto del que dispone el texto dentro del papel.
   static double get textHeight => box.height - pad * 2 - 4;
@@ -152,7 +155,6 @@ class PaperInk {
         0,
       );
       _because = _paint('', becauseSize, FontWeight.w400, 0, 1, ancho, 0);
-      _more = null;
       return;
     }
     _said = _paint(
@@ -173,10 +175,6 @@ class PaperInk {
       ancho,
       0,
     );
-    final more = notice.more;
-    _more = more == null
-        ? null
-        : _paint(more, 8.4 * k, FontWeight.w400, 0.6, 3, ancho, 0);
   }
 
   TextPainter _paint(
@@ -210,12 +208,17 @@ class PaperInk {
       _because.didExceedMaxLines ||
       _alto > textHeight;
 
-  /// Pinta la hoja. [open] va de 0 (clavada) a 1 (descolgada), y [detail] dice
-  /// cuánto texto se gana a la distancia a la que está: de lejos una hoja es
-  /// una mancha clara sobre madera, que es lo que es de verdad.
-  void paint(Canvas canvas, double open, double detail) {
+  /// Pinta la hoja. [detail] dice cuánto texto se gana a la distancia a la que
+  /// está: de lejos una hoja es una mancha clara sobre madera, que es lo que es
+  /// de verdad.
+  ///
+  /// Ya no hay dos estados. La nota enseña todo lo que tiene esté clavada o
+  /// descolgada, y descolgarla sirve para poder leerla, no para que aparezca
+  /// nada. El párrafo que había debajo del gráfico se fue entero: contaba cómo
+  /// leer el gráfico, y un gráfico que necesita que le expliquen cómo leerlo
+  /// está mal hecho.
+  void paint(Canvas canvas, double detail) {
     if (detail <= 0.02) return;
-    final abierta = Curves.easeOutCubic.transform(open.clamp(0.0, 1.0));
     final capa = detail < 0.99;
     if (capa) {
       canvas.saveLayer(
@@ -250,34 +253,20 @@ class PaperInk {
       y += _because.height;
     }
 
-    if (abierta > 0.02 && !corrido) {
-      // Lo de más abajo entra al descolgarla, y entra despacio: es lo que
-      // hace que descolgar una nota sea ganar algo y no sólo acercarse.
-      final gana = ((abierta - 0.25) / 0.6).clamp(0.0, 1.0);
-      canvas.saveLayer(
-        Offset.zero & box,
-        Paint()..color = Colors.white.withValues(alpha: gana),
-      );
+    if (!corrido) {
+      // El gráfico se ve desde el principio, clavada y todo. Antes salía sólo
+      // al descolgar la nota, y era lo único que de verdad hacía falta ver: la
+      // frase de arriba dice qué pasa y el gráfico dice de dónde sale, y las
+      // dos juntas caben en el papel sin tener que tocarlo.
       final hueco = box.height - pad - y;
       if (notice.bars.isNotEmpty && hueco > 34) {
         y += 8;
-        final alto = math.min(hueco - 10, notice.ticks.isEmpty ? 44.0 : 56.0);
+        final alto = math.min(hueco - 6, notice.ticks.isEmpty ? 46.0 : 58.0);
         canvas.save();
         canvas.translate(pad, y);
         _bars(canvas, Size(box.width - pad * 2, alto));
         canvas.restore();
-        y += alto + 6;
       }
-      final more = _more;
-      if (more != null && box.height - pad - y > more.height) {
-        canvas.drawLine(
-          Offset(pad, y),
-          Offset(box.width - pad, y),
-          Paint()..color = BoardPlan.ink.withValues(alpha: 0.14),
-        );
-        more.paint(canvas, Offset(pad, y + 6));
-      }
-      canvas.restore();
     }
     if (capa) canvas.restore();
   }
