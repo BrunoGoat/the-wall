@@ -131,8 +131,8 @@ class _TownViewState extends State<TownView>
 
   double _time = 0;
 
-  /// De qué fugaz fue el último deseo, para no pedirlo sesenta veces.
-  double _lastWish = -1;
+  /// Cuál fue la última fugaz que sonó, para no tocarla sesenta veces.
+  int _lastWish = 1 << 30;
   Duration _last = Duration.zero;
 
   /// The building that has just been finished, and how long since.
@@ -365,13 +365,11 @@ class _TownViewState extends State<TownView>
 
     Sensory.instance.music(_hour, dt, _displayIntegrity);
     // Una sola vez por fugaz: esto corre en cada fotograma y la fugaz dura
-    // segundo y pico.
+    // segundo y pico. Por su nombre y no por el reloj, porque las que se piden
+    // a mano desde los ajustes no caen en ninguna ventana del reloj.
     final fugaz = ShootingStar.at(_time, _hour);
-    final ahora = fugaz == null
-        ? -1.0
-        : (_time / ShootingStar.window).floor().toDouble();
-    if (fugaz != null && ahora != _lastWish) {
-      _lastWish = ahora;
+    if (fugaz != null && fugaz.id != _lastWish) {
+      _lastWish = fugaz.id;
       Sensory.instance.wish();
     }
 

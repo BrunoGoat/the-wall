@@ -210,9 +210,17 @@ class _SettingsSheetState extends State<SettingsSheet> {
           subtitle:
               'Sale ya mismo, sin esperar. De noche se ve una cada diecisiete '
               'minutos de media, y sólo si mirás hacia donde cae.',
-          act: () {
-            ShootingStar.force();
-            Sensory.instance.wish();
+          // Cierra los ajustes primero. Sin eso la fugaz cruzaba por detrás de
+          // esta misma hoja durante el segundo y pico que dura, que es la
+          // manera más tonta de que un botón de probar algo no pruebe nada. El
+          // sonido no lo toca esto: lo toca el valle al verla, y así suena una
+          // vez y no dos.
+          act: (nav) {
+            nav.pop();
+            Future<void>.delayed(
+              const Duration(milliseconds: 260),
+              ShootingStar.force,
+            );
           },
         ),
 
@@ -501,7 +509,7 @@ class _Row extends StatelessWidget {
   final Widget Function()? page;
 
   /// O nada de eso: algo que pasa y ya, sin salir de aquí.
-  final VoidCallback? act;
+  final void Function(NavigatorState nav)? act;
 
   @override
   Widget build(BuildContext context) {
@@ -510,12 +518,12 @@ class _Row extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       onTap: () {
         Sensory.instance.tick();
+        final nav = Navigator.of(context);
         final hacer = act;
         if (hacer != null) {
-          hacer();
+          hacer(nav);
           return;
         }
-        final nav = Navigator.of(context);
         nav.pop();
         if (page != null) {
           nav.push(MaterialPageRoute<void>(builder: (_) => page!()));

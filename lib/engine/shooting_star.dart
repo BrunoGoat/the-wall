@@ -14,6 +14,7 @@ import '../core/rng.dart';
 /// dibuja su propio cielo. Dos copias serían dos cielos con dos ritmos.
 class ShootingStar {
   const ShootingStar({
+    required this.id,
     required this.az0,
     required this.el0,
     required this.sweep,
@@ -21,6 +22,10 @@ class ShootingStar {
     required this.u,
     required this.glow,
   });
+
+  /// Cuál es ésta. Sirve para tocar su sonido una sola vez: esto se pregunta
+  /// en cada fotograma y una fugaz dura segundo y pico.
+  final int id;
 
   /// De dónde sale y hacia dónde va. Bajas y en diagonal, que es como se ven:
   /// una raya en mitad del cielo parece un avión.
@@ -45,9 +50,15 @@ class ShootingStar {
   /// diecisiete minutos a ver si funciona no es probar nada.
   static DateTime? forcedUntil;
 
-  static void force() => forcedUntil = DateTime.now().add(
-    Duration(milliseconds: (flight * 1000).round()),
-  );
+  /// Cuántas se han pedido a mano. Dos seguidas son dos, no una repetida.
+  static int _forcedSeq = 0;
+
+  static void force() {
+    _forcedSeq++;
+    forcedUntil = DateTime.now().add(
+      Duration(milliseconds: (flight * 1000).round()),
+    );
+  }
 
   /// La de ahora, si la hay.
   ///
@@ -58,7 +69,9 @@ class ShootingStar {
     final pedida = forcedUntil;
     if (pedida != null) {
       final falta = pedida.difference(DateTime.now()).inMilliseconds / 1000.0;
-      if (falta > 0 && falta <= flight) return _shape(0, 1 - falta / flight);
+      if (falta > 0 && falta <= flight) {
+        return _shape(0, 1 - falta / flight, id: -_forcedSeq);
+      }
       if (falta <= 0) forcedUntil = null;
     }
     if (!nightEnough(hour)) return null;
@@ -70,7 +83,8 @@ class ShootingStar {
     return _shape(epoch, u);
   }
 
-  static ShootingStar _shape(int epoch, double u) => ShootingStar(
+  static ShootingStar _shape(int epoch, double u, {int? id}) => ShootingStar(
+    id: id ?? epoch,
     az0: hash01(epoch, 405) * math.pi * 2,
     el0: 0.22 + hash01(epoch, 407) * 0.55,
     sweep:

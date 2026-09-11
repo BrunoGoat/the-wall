@@ -1205,7 +1205,20 @@ void _fugaz() {
       // esperar a la noche para comprobarlo no es comprobar nada.
       expect(ShootingStar.at(0, 15), isNull);
       ShootingStar.force();
-      expect(ShootingStar.at(0, 15), isNotNull);
+      final una = ShootingStar.at(0, 15);
+      expect(una, isNotNull);
+      // Y dos seguidas son dos y no una repetida, que es lo que decide si su
+      // sonido vuelve a tocarse.
+      ShootingStar.force();
+      expect(ShootingStar.at(0, 15)!.id, isNot(una!.id));
+    });
+
+    test('cada fugaz tiene su nombre, para que suene una vez y no sesenta', () {
+      // El valle pregunta esto en cada fotograma y la fugaz dura segundo y
+      // pico: sin un nombre estable, su sonido sonaría sesenta veces.
+      final a = ShootingStar.at(100, 22, chance: 1);
+      final b = ShootingStar.at(100.3, 22, chance: 1);
+      if (a != null && b != null) expect(a.id, b.id);
     });
 
     test('la cuenta de cada cuánto se ve una es la que se dice', () {
