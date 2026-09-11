@@ -143,8 +143,13 @@ class _SettingsSheetState extends State<SettingsSheet> {
         _Slider(
           theme: t,
           title: 'Tamaño de la letra',
-          value: (wants.noteScale - 0.8) / 0.6,
-          onChanged: (v) => wants.setNoteScale(0.8 + v * 0.6),
+          value:
+              (wants.noteScale - Appearance.minScale) /
+              (Appearance.maxScale - Appearance.minScale),
+          onChanged: (v) => wants.setNoteScale(
+            Appearance.minScale +
+                v * (Appearance.maxScale - Appearance.minScale),
+          ),
         ),
         const SizedBox(height: 6),
         _Row(

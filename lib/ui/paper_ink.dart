@@ -97,23 +97,45 @@ class PaperInk {
   static double get textHeight => box.height - pad * 2 - 4;
 
   void _lay() {
-    // Se maqueta, y si no entra se vuelve a maquetar más chico.
+    // Se maqueta, y si no entra se busca el tamaño más grande que sí entre.
     //
     // Hace falta desde que la letra y el cuerpo los elige quien usa la app:
     // una manuscrita de caja alta al máximo del deslizador puede pedir el
-    // doble de sitio que la de fábrica, y sin esto la mitad de los bandos
+    // triple de sitio que la de fábrica, y sin esto la mitad de los bandos
     // saldrían cortados con puntos suspensivos. Un papel de un tablón se
     // escribe más chico cuando hay mucho que decir, que es exactamente esto.
-    var k = 1.0;
-    for (var intento = 0; intento < 4; intento++) {
+    //
+    // Se busca por mitades y no bajando a ojo. Bajar a ojo se pasa de largo
+    // —al encoger cambian los cortes de línea y se gana una línea entera de
+    // golpe—, y pasarse de largo tiene una consecuencia fea: que pedir más
+    // tamaño dé menos. Con «Otra mano» en el tope, el deslizador escribía más
+    // chico que a media altura. Buscando por mitades, el tamaño que sale es
+    // siempre el mayor que cabe, así que subir el deslizador nunca puede
+    // escribir más chico.
+    _layAt(1);
+    shrunk = 1;
+    if (_alto <= textHeight) return;
+
+    var lo = 0.0, hi = 1.0;
+    for (var i = 0; i < 8; i++) {
+      final k = (lo + hi) / 2;
       _layAt(k);
-      final alto = _alto;
-      if (alto <= textHeight || intento == 3) break;
-      // Un pelo por debajo de lo justo, porque al encoger cambian los cortes
-      // de línea y a veces se gana una línea entera.
-      k *= (textHeight / alto) * 0.97;
+      if (_alto <= textHeight) {
+        lo = k;
+      } else {
+        hi = k;
+      }
     }
+    // La última prueba pudo ser una que no entraba: se deja puesta la mayor
+    // que sí.
+    _layAt(lo);
+    shrunk = lo;
   }
+
+  /// Cuánto hubo que encoger el texto para que entrara: 1 es que entró tal
+  /// cual. Sirve para saber si el deslizador del tamaño todavía hace algo o si
+  /// el papel ya está pidiendo lo contrario.
+  double shrunk = 1;
 
   double get _alto => _said.height + (corrido ? 0 : 13 + _because.height);
 

@@ -43,7 +43,14 @@ class Appearance extends ChangeNotifier {
   String get noteFont => _noteFont;
   String get villageFont => _villageFont;
 
-  /// De 0,8 a 1,4. Multiplica el cuerpo de todo lo que va escrito en un papel.
+  /// Multiplica el cuerpo de todo lo que va escrito en un papel.
+  ///
+  /// El tope de arriba está medido y no puesto a ojo: hasta [maxScale] no
+  /// encoge ni uno solo de los cuatrocientos treinta y seis bandos con ninguna
+  /// de las letras. Pasado ahí el papel empieza a encoger el texto para que
+  /// entre, y el deslizador se vuelve contra sí mismo — pedir un dos coma seis
+  /// daba letras más chicas que pedir un uno coma ocho.
+  static const double minScale = 0.8, maxScale = 2.2;
   double get noteScale => _noteScale;
 
   Future<void> setNoteFont(String v) async {
@@ -59,7 +66,7 @@ class Appearance extends ChangeNotifier {
   }
 
   Future<void> setNoteScale(double v) async {
-    final want = v.clamp(0.8, 1.4);
+    final want = v.clamp(minScale, maxScale);
     if (want == _noteScale) return;
     _noteScale = want;
     await _keep();
@@ -199,7 +206,10 @@ class Appearance extends ChangeNotifier {
         case 'villageFont':
           _villageFont = value;
         case 'noteScale':
-          _noteScale = (double.tryParse(value) ?? 1.0).clamp(0.8, 1.4);
+          _noteScale = (double.tryParse(value) ?? 1.0).clamp(
+            minScale,
+            maxScale,
+          );
         case 'effectsVol':
           _effectsVolume = (double.tryParse(value) ?? _midway).clamp(0.0, 1.0);
       }

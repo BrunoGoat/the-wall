@@ -11,6 +11,28 @@ import '../model/habit.dart';
 import 'board_plan.dart';
 import 'paper_ink.dart';
 
+/// Lo que cambia entre un fotograma y el siguiente.
+///
+/// Vive en un objeto y no en campos sueltos por un motivo concreto: el pintor
+/// se construye una vez por `build` y se vuelve a pintar sesenta veces por
+/// segundo sin volver a construirse. Con los números copiados dentro, el
+/// pintor se quedaba con los de aquel `build` y repintaba lo mismo una y otra
+/// vez, así que descolgar una nota se congelaba a medias: medio crecida, medio
+/// torcida y con el texto a media tinta, y hasta dónde llegaba dependía de
+/// cuándo hubiera ocurrido el último `build` por cualquier otro motivo. De ahí
+/// que pareciera que a veces se acercaba y a veces no.
+class BoardMotion {
+  /// Qué hoja está descolgada, y cuánto lo está.
+  int? open;
+  double openK = 0;
+
+  /// Cuánta ayuda se está enseñando. Se apaga sola en cuanto alguien toca.
+  double hint = 1;
+
+  /// Cuánto se ha tirado hacia atrás más allá del tope, de 0 a 1.
+  double leaving = 0;
+}
+
 /// El tablón de la plaza, de cerca y en tres dimensiones.
 ///
 /// No es una pantalla con el tablón dibujado: es el mismo tablón que está
@@ -39,7 +61,11 @@ class BoardScene extends StatefulWidget {
     required this.palette,
     required this.onLeave,
     this.letra = 0,
+    this.motion,
   });
+
+  /// Para los tests: el objeto que se mueve, para poder mirarlo desde fuera.
+  final BoardMotion? motion;
 
   /// Cambia cuando cambia la letra o el cuerpo elegidos en los ajustes. La
   /// escena no lee las preferencias: le basta con saber que algo cambió para
@@ -64,16 +90,8 @@ class _BoardSceneState extends State<BoardScene>
   /// Cuánto ha girado el mundo desde que se abrió, en segundos.
   Duration _last = Duration.zero;
 
-  /// Qué hoja está descolgada, y cuánto lo está.
-  int? _open;
-  double _openK = 0;
-
-  /// Cuánta ayuda se está enseñando. Se apaga sola en cuanto alguien toca.
-  double _hint = 1;
-
-  /// Cuánto se ha tirado hacia atrás más allá del tope, de 0 a 1. Pasado
-  /// [_umbralSalida] al soltar, se sale al valle.
-  double _leaving = 0;
+  /// Lo que se mueve. Lo lee el pintor en cada fotograma, no al construirse.
+  late final BoardMotion _m = widget.motion ?? BoardMotion();
   static const double _umbralSalida = 0.5;
 
   Size _size = const Size(400, 800);
@@ -92,8 +110,8 @@ class _BoardSceneState extends State<BoardScene>
     super.didUpdateWidget(old);
     if (!identical(old.plan, widget.plan) || old.letra != widget.letra) {
       _ink = _entintar();
-      _open = null;
-      _openK = 0;
+      _m.open = null;
+      _m.openK = 0;
       _cam.distanceTarget = widget.plan.readDistance(_size);
       _clampCam();
       _wake();
@@ -137,9 +155,9 @@ class _BoardSceneState extends State<BoardScene>
     _last = now;
     if (dt <= 0) return;
     _cam.step(dt);
-    final quiere = _open == null ? 0.0 : 1.0;
-    _openK += (quiere - _openK) * (1 - math.exp(-dt * 7.0));
-    if (_hint > 0) _hint = math.max(0, _hint - dt * 0.32);
+    final quiere = _m.open == null ? 0.0 : 1.0;
+    _m.openK += (quiere - _m.openK) * (1 - math.exp(-dt * 7.0));
+    if (_m.hint > 0) _m.hint = math.max(0, _m.hint - dt * 0.32);
     _frame.value++;
     // Un tablón quieto no tiene por qué pintarse sesenta veces por segundo.
     // Se para solo cuando la cámara llega a donde iba, y lo despierta el
@@ -154,8 +172,8 @@ class _BoardSceneState extends State<BoardScene>
         (c.yaw - c.yawTarget).abs() < 1e-4 &&
         (c.pitch - c.pitchTarget).abs() < 1e-4 &&
         (c.distance - c.distanceTarget).abs() < 1e-4 &&
-        ((_open == null ? 0.0 : 1.0) - _openK).abs() < 1e-3 &&
-        _hint <= 0;
+        ((_m.open == null ? 0.0 : 1.0) - _m.openK).abs() < 1e-3 &&
+        _m.hint <= 0;
   }
 
   void _wake() {
@@ -181,7 +199,7 @@ class _BoardSceneState extends State<BoardScene>
     _cam.pitchTarget = 0;
     // Con una nota descolgada, nada de topes: los coloca la app y están fuera
     // del alcance del dedo a propósito. Ver [_take].
-    if (_open != null) return;
+    if (_m.open != null) return;
     _cam.distanceTarget = clampD(_cam.distanceTarget, _near, _far);
     _cam.focusYTarget = plan.midY;
     final tope = plan.panLimit(_size, _cam.distanceTarget);
@@ -192,7 +210,7 @@ class _BoardSceneState extends State<BoardScene>
   /// tablón a los lados: uno vuelve de una nota al sitio del tablón en el que
   /// estaba, no al principio.
   void _front() {
-    setState(() => _open = null);
+    setState(() => _m.open = null);
     _cam.distanceTarget = widget.plan.readDistance(_size);
     _clampCam();
     _wake();
@@ -208,7 +226,7 @@ class _BoardSceneState extends State<BoardScene>
   /// acercamiento entero, a veces sí y a veces no según qué llegara antes.
   void _take(int i) {
     final p = widget.plan.papers[i];
-    setState(() => _open = i);
+    setState(() => _m.open = i);
     _cam
       ..yawTarget = 0
       ..pitchTarget = 0
@@ -222,24 +240,24 @@ class _BoardSceneState extends State<BoardScene>
   Projector _projector() => _cam.projector(_size.width, _size.height, 0);
 
   void _tap(Offset at) {
-    _hint = 0;
+    _m.hint = 0;
     final p = _projector();
     final plan = widget.plan;
     // De delante hacia atrás: la hoja descolgada primero, que es la que está
     // encima de todas.
     final orden = [for (var i = 0; i < plan.papers.length; i++) i]
       ..sort((a, b) {
-        if (a == _open) return 1;
-        if (b == _open) return -1;
+        if (a == _m.open) return 1;
+        if (b == _m.open) return -1;
         return 0;
       });
     for (final i in orden.reversed) {
       final q = projectQuad(
         p,
-        plan.papers[i].cornersAt(i == _open ? _openK : 0),
+        plan.papers[i].cornersAt(i == _m.open ? _m.openK : 0),
       );
       if (q != null && insideQuad(q, at)) {
-        if (i == _open) {
+        if (i == _m.open) {
           _front();
         } else {
           _take(i);
@@ -259,14 +277,14 @@ class _BoardSceneState extends State<BoardScene>
     // tocando —un dedo suelto en el prado no puede ser la puerta— sino
     // alejándose o con la flecha.
     if (plank != null && insideQuad(plank, at)) {
-      if (_open != null) _front();
+      if (_m.open != null) _front();
       return;
     }
-    if (_open != null) _front();
+    if (_m.open != null) _front();
   }
 
   void _drag(ScaleUpdateDetails d) {
-    _hint = 0;
+    _m.hint = 0;
     _wake();
     if (d.pointerCount >= 2 && d.scale != 1) {
       // Pellizcar es lo único que cambia la distancia, y sólo dentro de la
@@ -275,10 +293,10 @@ class _BoardSceneState extends State<BoardScene>
       final quiere = _cam.distanceTarget / d.scale.clamp(0.5, 2.0);
       if (quiere > _far) {
         final sobra = (quiere - _far) / (_far * 0.55);
-        _leaving = sobra.clamp(0.0, 1.0);
+        _m.leaving = sobra.clamp(0.0, 1.0);
         _cam.distanceTarget = _far + (quiere - _far) * 0.45;
       } else {
-        _leaving = 0;
+        _m.leaving = 0;
         _cam.distanceTarget = clampD(quiere, _near, _far);
       }
     } else if (d.pointerCount == 1) {
@@ -289,8 +307,8 @@ class _BoardSceneState extends State<BoardScene>
       // Un roce no cuelga la nota. El dedo que se apoya al tocar produce
       // arrastres de una décima de píxel, y con ellos la nota se cerraba en el
       // mismo gesto que la abría.
-      if (_open != null && d.focalPointDelta.dx.abs() > 1.5) {
-        setState(() => _open = null);
+      if (_m.open != null && d.focalPointDelta.dx.abs() > 1.5) {
+        setState(() => _m.open = null);
       }
     }
     final tope = widget.plan.panLimit(_size, _cam.distanceTarget);
@@ -300,14 +318,14 @@ class _BoardSceneState extends State<BoardScene>
   /// Al soltar: si se tiró bastante hacia atrás, se sale al valle; si no, el
   /// tablón vuelve a su sitio.
   void _release(ScaleEndDetails d) {
-    if (_leaving > _umbralSalida) {
+    if (_m.leaving > _umbralSalida) {
       widget.onLeave();
       return;
     }
-    _leaving = 0;
+    _m.leaving = 0;
     // Un toque también termina en un gesto de escala, así que si esto no
     // respetara la nota descolgada, abrirla y cerrarla serían la misma cosa.
-    if (_open != null) {
+    if (_m.open != null) {
       _wake();
       return;
     }
@@ -352,10 +370,7 @@ class _BoardSceneState extends State<BoardScene>
               cam: _cam,
               palette: widget.palette,
               habit: widget.habit,
-              open: _open,
-              openK: _openK,
-              hint: _hint,
-              leaving: _leaving,
+              motion: _m,
               repaint: _frame,
             ),
           ),
@@ -385,10 +400,7 @@ class BoardPainter extends CustomPainter {
     required this.cam,
     required this.palette,
     required this.habit,
-    required this.open,
-    required this.openK,
-    required this.hint,
-    required this.leaving,
+    required this.motion,
     required Listenable repaint,
   }) : super(repaint: repaint);
 
@@ -397,12 +409,11 @@ class BoardPainter extends CustomPainter {
   final OrbitCamera cam;
   final Palette palette;
   final Habit habit;
-  final int? open;
-  final double openK;
-  final double hint;
 
-  /// Cuánto se está tirando hacia la salida, de 0 a 1.
-  final double leaving;
+  /// Lo que se mueve. Se lee al pintar y no al construirse: el pintor se
+  /// construye una vez por `build` y se pinta en cada fotograma, así que un
+  /// número copiado aquí dentro se queda congelado.
+  final BoardMotion motion;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -416,13 +427,13 @@ class BoardPainter extends CustomPainter {
     _roof(canvas, p);
     _papers(canvas, p, size);
     _hint(canvas, size);
-    if (leaving > 0.01) {
+    if (motion.leaving > 0.01) {
       // Se va apagando conforme se tira hacia atrás, para que soltar y salir
       // no sea una sorpresa: cuando la pantalla ya está medio ida, soltar es
       // lo que uno espera que pase.
       canvas.drawRect(
         Offset.zero & size,
-        Paint()..color = Colors.black.withValues(alpha: 0.55 * leaving),
+        Paint()..color = Colors.black.withValues(alpha: 0.55 * motion.leaving),
       );
     }
   }
@@ -679,7 +690,7 @@ class BoardPainter extends CustomPainter {
   void _papers(Canvas canvas, Projector p, Size size) {
     final orden = <(double, int, List<Offset>)>[];
     for (var i = 0; i < plan.papers.length; i++) {
-      final abierta = i == open ? openK : 0.0;
+      final abierta = i == motion.open ? motion.openK : 0.0;
       final esquinas = plan.papers[i].cornersAt(abierta);
       final quad = projectQuad(p, esquinas);
       if (quad == null) continue;
@@ -693,8 +704,8 @@ class BoardPainter extends CustomPainter {
     // De lejos a cerca, y la descolgada siempre la última: se ha despegado del
     // tablón y tiene que tapar a las demás aunque su centro caiga detrás.
     orden.sort((a, b) {
-      if (a.$2 == open) return 1;
-      if (b.$2 == open) return -1;
+      if (a.$2 == motion.open) return 1;
+      if (b.$2 == motion.open) return -1;
       return b.$1.compareTo(a.$1);
     });
 
@@ -702,11 +713,13 @@ class BoardPainter extends CustomPainter {
       // Justo antes de la descolgada se echa un velo sobre todo lo demás. Sin
       // él la nota crecía delante de un tablón igual de nítido que ella y no
       // había manera de saber cuál se estaba leyendo.
-      if (i == open && openK > 0.01) {
+      if (i == motion.open && motion.openK > 0.01) {
         canvas.drawRect(
           Offset.zero & size,
           Paint()
-            ..color = Colors.black.withValues(alpha: 0.5 * openK.clamp(0, 1)),
+            ..color = Colors.black.withValues(
+              alpha: 0.5 * motion.openK.clamp(0, 1),
+            ),
         );
       }
       final path = _path(quad);
@@ -726,19 +739,22 @@ class BoardPainter extends CustomPainter {
       // desvanecido por ser pequeña en pantalla, y durante el vuelo hacia ella
       // eso se veía como un papel translúcido.
       final ancho = (quad[1] - quad[0]).distance;
-      final detail = i == open ? 1.0 : ((ancho - 54) / 90).clamp(0.0, 1.0);
+      final detail = i == motion.open
+          ? 1.0
+          : ((ancho - 54) / 90).clamp(0.0, 1.0);
       if (detail <= 0.02) continue;
       final m = paperTransform(PaperInk.box, quad);
       if (m == null) continue;
       canvas.save();
       canvas.clipPath(path);
       canvas.transform(m);
-      ink[i].paint(canvas, i == open ? openK : 0.0, detail);
+      ink[i].paint(canvas, i == motion.open ? motion.openK : 0.0, detail);
       canvas.restore();
     }
   }
 
   void _hint(Canvas canvas, Size size) {
+    final hint = motion.hint;
     if (hint <= 0.02) return;
     final tp = TextPainter(
       text: TextSpan(

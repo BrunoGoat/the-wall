@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,10 +16,12 @@ import 'package:la_muralla/engine/palette.dart';
 import 'package:la_muralla/core/math3.dart';
 import 'package:la_muralla/engine/camera.dart';
 import 'package:la_muralla/engine/solids.dart';
+import 'package:la_muralla/model/appearance.dart';
 import 'package:la_muralla/model/board.dart';
 import 'package:la_muralla/model/habit.dart';
 import 'package:la_muralla/model/board_slots.dart';
 import 'package:la_muralla/ui/board_plan.dart';
+import 'package:la_muralla/ui/board_scene.dart';
 import 'package:la_muralla/ui/note_font.dart';
 import 'package:la_muralla/ui/paper_ink.dart';
 import 'package:la_muralla/ui/notice_board.dart';
@@ -631,6 +635,57 @@ void main() {
       }
     });
 
+    // El pintor se construye una vez por `build` y se pinta sesenta veces por
+    // segundo sin volver a construirse. Con los números de la animación
+    // copiados dentro, repintaba siempre los del último `build`: descolgar una
+    // nota se quedaba a medias —medio crecida, medio torcida y con el texto a
+    // media tinta— y hasta dónde llegaba dependía de cuándo hubiera ocurrido
+    // un `build` por cualquier otro motivo. Esto pinta dos veces con el mismo
+    // pintor cambiando sólo lo que se mueve, y exige que lo pintado cambie.
+    testWidgets('lo que se mueve lo lee el pintor en cada fotograma', (
+      tester,
+    ) async {
+      final motion = BoardMotion()..hint = 0;
+      final painter = BoardPainter(
+        plan: plan,
+        ink: [for (final p in plan.papers) PaperInk(p.notice)],
+        cam: OrbitCamera()
+          ..travel = 0
+          ..focusY = plan.midY
+          ..focusZ = 0
+          ..yaw = 0
+          ..pitch = 0
+          ..distance = plan.readDistance(const Size(400, 860)),
+        palette: Palette.forMoment(13, 1.0),
+        habit: entrenar,
+        motion: motion,
+        repaint: ValueNotifier(0),
+      );
+      Future<List<int>> pinta() async {
+        final rec = ui.PictureRecorder();
+        painter.paint(Canvas(rec), const Size(400, 860));
+        final img = await rec.endRecording().toImage(400, 860);
+        final bytes = await img.toByteData();
+        return bytes!.buffer.asUint8List().toList();
+      }
+
+      late List<int> cerrada, abierta;
+      await tester.runAsync(() async {
+        cerrada = await pinta();
+        motion
+          ..open = 0
+          ..openK = 1;
+        abierta = await pinta();
+      });
+      expect(
+        abierta,
+        isNot(cerrada),
+        reason:
+            'el pintor se quedó con los números del momento en que se creó, '
+            'así que descolgar una nota no cambia nada de lo que se ve',
+      );
+    });
+
     testWidgets('se abre y se dibuja sin romperse', (tester) async {
       for (final size in [const Size(320, 640), const Size(440, 950)]) {
         tester.view.physicalSize = size;
@@ -807,6 +862,56 @@ void main() {
       );
     });
 
+    testWidgets('el deslizador del tamaño llega hasta donde sirve', (
+      tester,
+    ) async {
+      // El tope de arriba tiene que ser el sitio que hay de verdad, ni menos
+      // —entonces sobra papel y el deslizador se queda corto, que es lo que
+      // pasaba— ni más: pasado el punto en que el papel empieza a encoger el
+      // texto para que entre, pedir más da menos, y un deslizador que se
+      // vuelve contra sí mismo es peor que uno corto.
+      await tester.runAsync(() async {
+        for (final f in NoteFont.values) {
+          final family = f.family, asset = f.asset;
+          if (family == null || asset == null) continue;
+          final bytes = await File('assets/fonts/$asset').readAsBytes();
+          await (FontLoader(
+            family,
+          )..addFont(Future.value(bytes.buffer.asByteData()))).load();
+        }
+      });
+      // Qué tamaño sale de verdad, que no es el que se pide: el papel encoge
+      // el texto cuando no entra.
+      double real(NoteFont f, double pedido) {
+        var suma = 0.0;
+        for (final (dice, y) in bandos) {
+          suma += PaperInk(
+            Notice(NoticeKind.pueblo, dice, y),
+            font: f,
+            scale: pedido,
+          ).shrunk;
+        }
+        return pedido * suma / bandos.length;
+      }
+
+      for (final f in NoteFont.manos) {
+        // Lo que hay que exigirle a un deslizador: que llevarlo hacia arriba
+        // no escriba más chico. Eso pasa en cuanto el tope se pone más allá
+        // del sitio que hay, y es peor que quedarse corto, porque el de arriba
+        // del todo deja de ser el más grande.
+        final medio = real(f, 1.4);
+        final tope = real(f, Appearance.maxScale);
+        expect(
+          tope,
+          greaterThan(medio),
+          reason:
+              'con ${f.label}, subir el deslizador del 1,4 al máximo escribe '
+              'más chico (${medio.toStringAsFixed(2)} contra '
+              '${tope.toStringAsFixed(2)})',
+        );
+      }
+    });
+
     testWidgets('y a todos les cabe, con cualquier letra y cualquier cuerpo', (
       tester,
     ) async {
@@ -844,7 +949,7 @@ void main() {
       ];
       for (final f in NoteFont.values) {
         if (f.family == null) continue;
-        for (final cuerpo in [0.8, 1.0, 1.2, 1.4]) {
+        for (final cuerpo in [0.8, 1.0, 1.4, 1.8, Appearance.maxScale]) {
           for (final n in todas) {
             expect(
               PaperInk(n, font: f, scale: cuerpo).overflows,

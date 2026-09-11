@@ -347,7 +347,15 @@ class BoardPaper {
         BoardPlan.tanHalfFovY * (size.width / math.max(size.height, 1));
     final porAlto = h * grow / BoardPlan.tanHalfFovY;
     final porAncho = w * grow / math.max(tanX, 0.06);
-    return math.max(porAlto, porAncho) * 1.14 + lift;
+    // Pegada al borde, con un pelo de aire. Una nota descolgada es lo único
+    // que se está mirando: dejarle un margen del catorce por ciento la hacía
+    // parecer una nota un poco más grande y no una nota en la mano.
+    // Y la distancia se mide desde el ojo hasta la hoja, no hasta la plancha:
+    // la hoja está [rest] por delante de la madera y se adelanta otro [lift]
+    // al descolgarse. Sumar sólo el segundo dejaba la nota cinco centímetros
+    // más cerca de lo calculado, que es poco, pero lo justo para que asomara
+    // por los costados.
+    return math.max(porAlto, porAncho) * 1.02 + rest + lift;
   }
 
   /// Las cuatro esquinas, en el mundo, con [open] entre 0 y 1.
