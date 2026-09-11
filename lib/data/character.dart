@@ -94,16 +94,22 @@ class TownCharacter {
   /// Lo que cambia es qué se construye, no cuánto cuesta lo que se construye.
   /// Bajarle el precio a un edificio sería recortarle la geometría por arriba
   /// —la aguja de una iglesia es una pieza suya— así que lo que se hace es
-  /// tirar de los edificios baratos y darles recetas propias: basamento,
-  /// fuste retranqueado y remate, en lugar de planta y tejado.
+  /// tirar de los edificios baratos y darles recetas propias: una terraza
+  /// amurallada, la torre en un extremo, el ala con su tejado en el otro.
+  ///
+  /// Y abulta treinta veces lo que abulta la casa más grande de las otras seis
+  /// sin ser más esbelto que ellas, que es la diferencia entre una ciudad de
+  /// gigantes y un pueblo estirado.
   final bool grand;
 
   /// Cómo se llaman aquí las casas corrientes, cuando no se llaman como en
   /// todas partes.
   ///
-  /// Un cobertizo de dos piezas en el Coloso mide doce metros, es el doble de
-  /// ancho que una casona entera de la Ribera y lleva las ventanas en dos
-  /// alturas: llamarlo cobertizo es mentirle a quien lo está mirando.
+  /// Un cobertizo de dos piezas en el Coloso mide once metros de alto —una
+  /// casona entera de la Ribera mide dos y medio—, es dos veces y media más
+  /// ancho y lleva las ventanas en dos alturas: llamarlo cobertizo es
+  /// mentirle a quien lo está mirando.
+  ///
   /// Lo que cambia de región en región no es sólo la forma, es la palabra —y
   /// la palabra es la mitad de lo que hace que un sitio se sienta otro sitio.
   ///
@@ -111,6 +117,22 @@ class TownCharacter {
   /// el `shed` de siempre para el plano, la crónica y lo que ya esté en pie.
   /// Esto es el rótulo, no el edificio.
   final Map<BuildingKind, String>? houseNames;
+
+  /// El sitio que una casa corriente de aquí se guarda alrededor de su centro,
+  /// en las mismas unidades en las que se escriben las recetas.
+  ///
+  /// Es uno y pico en todas partes: una casa mide de ancho más o menos lo que
+  /// mide su solar. En el Coloso hace falta el doble, y no por gusto —una
+  /// torre con su terraza y su ala ocupa dos unidades de lado, y si el solar
+  /// mide una y pico los edificios se meten unos dentro de otros.
+  ///
+  /// Y eso no es sólo feo. El orden de pintado se apoya en que dos edificios
+  /// se puedan separar por un plano; cuando se atraviesan no hay tal plano y
+  /// hay que meterlos en el mismo árbol y cortarlos entre sí. Con un pueblo
+  /// entero apiñado, el pueblo entero es un solo árbol y volver a cortarlo
+  /// cuesta segundos: medio segundo por pieza con cuatrocientas, casi cinco
+  /// con mil ochocientas. Separar los solares lo devuelve a milisegundos.
+  double get houseRoom => grand ? 2.6 : 1.3;
 
   /// Seeds this town's own shuffle of the landmark catalogue, so no two towns
   /// meet it in the same order. Sin número: el catálogo crece.
@@ -224,16 +246,21 @@ class TownCharacter {
       symbol: 'torre',
       blurb:
           'Una ciudad de gigantes. Pocas piezas, y cada una levanta una torre.',
-      storey: 3.50,
-      spread: 2.05,
+      storey: 2.85,
+      spread: 1.62,
       pitch: 1.35,
       roofMix: (0.18, 0.68, 0.14),
       wash: Color(0xFFA9A093),
       washShare: 0.90,
-      plotPitch: 4.50,
+      plotPitch: 6.10,
       order: 0xC01A,
       wallThick: 0.85,
-      windowGap: 1.10,
+      // Pocas ventanas y grandes, no una cuadrícula. Con el reparto corriente
+      // a un muro del Coloso le entraban cuatro columnas de huecos por tres
+      // filas: doce ventanas iguales en una fachada, que es una oficina y no
+      // un torreón. Un edificio de piedra de este tamaño tiene dos huecos por
+      // planta y muro de sobra entre ellos.
+      windowGap: 2.05,
       // Los árboles no crecen con el pueblo: un roble mide lo que mide un
       // roble. Por eso hay tantos acá y no en ningún otro sitio salvo el
       // Robledal — son lo único de tamaño conocido al pie de la casa, y sin
@@ -243,9 +270,9 @@ class TownCharacter {
       trees: 0.62,
       grand: true,
       // Acá no hay cobertizos ni casonas. Lo más chico que se levanta cuesta
-      // dos piezas y mide doce metros —una casona de la Ribera mide dos y
-      // medio—; lo más grande cuesta ocho y pasa de los treinta y nueve. Los
-      // nombres van de menor a mayor, como van las piezas.
+      // dos piezas y mide once metros; lo más grande cuesta ocho y pasa de los
+      // dieciocho, con su escalinata, su ala y su torrecilla. Los nombres van
+      // de menor a mayor, como van las piezas.
       houseNames: {
         BuildingKind.shed: 'Nave',
         BuildingKind.cottage: 'Torre',

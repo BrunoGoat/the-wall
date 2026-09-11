@@ -83,6 +83,13 @@ class Measured {
   /// Medido sólo por lo que sube, el pueblo más alto gana siempre, que no es
   /// lo que «inclinado» quiere decir.
   double get slope => footprint == 0 ? 0 : roofRise / footprint;
+
+  /// Lo que abulta un edificio: alto por ancho por ancho.
+  ///
+  /// No es el volumen —nadie mide el volumen de una casa a ojo— sino la única
+  /// manera de decir «grande» que no se pueda cumplir estirando. Lo alto solo
+  /// premia la aguja; lo ancho solo premia el galpón; esto pide las dos cosas.
+  double get bulk => height * footprint * footprint;
   double get gardenShare => houses == 0 ? 0 : gardens / houses;
   double get treeShare => houses == 0 ? 0 : trees / houses;
 
@@ -192,30 +199,56 @@ void main() {
 
     test('gana en tamaño a las seis regiones, no por poco', () {
       // Lo que promete su descripción: enorme. Si no le saca de largo a la más
-      // alta, es una región más y no hacía falta.
+      // grande, es una región más y no hacía falta.
       //
-      // Donde gana de calle es a lo alto, y es a propósito: a lo ancho el
-      // límite no es el gusto sino el valle. Los pueblos están en un anillo de
-      // setenta y ocho con uno en el centro, así que ninguno puede pasar de un
-      // radio de treinta y nueve sin meterse dentro del vecino, y ese anillo
-      // no se ensancha sin mover pueblos que ya están puestos. Subir no cuesta
-      // nada, así que sube.
+      // Lo que se mide es el bulto —alto por ancho por ancho— y no sólo lo
+      // alto. Cuando esto exigía altura y nada más, la manera barata de
+      // pasarlo era estirar: salieron torres de tres de ancho por cincuenta de
+      // alto, con el test en verde y una esbeltez de dieciséis. Una aguja así
+      // no se lee como colosal, se lee como un lápiz, y encima no pegaba con
+      // el resto de la app, que está hecha de cuerpos anchos con tejado. El
+      // bulto no se deja engañar por eso: estirar sin ensanchar no lo sube.
       for (final r in regions.values) {
         expect(
-          coloso.height / r.height,
-          greaterThan(4.5),
+          coloso.bulk / r.bulk,
+          greaterThan(25.0),
           reason:
-              'el Coloso mide ${coloso.height.toStringAsFixed(1)} y '
+              'el Coloso abulta ${coloso.bulk.toStringAsFixed(0)} y '
+              '${r.place.region} ${r.bulk.toStringAsFixed(0)}',
+        );
+        expect(
+          coloso.height / r.height,
+          greaterThan(3.0),
+          reason:
+              'el Coloso mide ${coloso.height.toStringAsFixed(1)} de alto y '
               '${r.place.region} ${r.height.toStringAsFixed(1)}',
         );
         expect(
           coloso.footprint / r.footprint,
-          greaterThan(1.05),
+          greaterThan(2.0),
           reason:
-              'el Coloso no llega a ser más ancho que ${r.place.region} '
-              '(${coloso.footprint.toStringAsFixed(2)} contra '
-              '${r.footprint.toStringAsFixed(2)})',
+              'el Coloso mide ${coloso.footprint.toStringAsFixed(1)} de ancho '
+              'y ${r.place.region} ${r.footprint.toStringAsFixed(1)}',
         );
+      }
+    });
+
+    test('y no gana estirándose: no es un lápiz', () {
+      // La otra mitad de lo mismo, dicha como se ve. Un edificio de este sitio
+      // tiene que poder ser un edificio: si su alto es diez veces su ancho, es
+      // una columna, y una columna no combina con nada de lo que hay alrededor
+      // —ni con las casas, ni con los hitos, que son todos siluetas compuestas
+      // de cuerpos anchos.
+      expect(
+        coloso.height / coloso.footprint,
+        lessThan(3.0),
+        reason:
+            'sale a ${(coloso.height / coloso.footprint).toStringAsFixed(1)} '
+            'de alto por cada uno de ancho',
+      );
+      // Y la comparación es justa: las seis regiones andan por ahí también.
+      for (final r in regions.values) {
+        expect(r.height / r.footprint, lessThan(3.0), reason: r.place.region);
       }
     });
 
@@ -365,7 +398,7 @@ void main() {
       // los otros seis.
       //
       // Esto es lo que obligó a ensanchar el anillo de setenta y ocho a ciento
-      // ocho. No cabía ni lo de antes: dos Valles de ochocientas suman
+      // veinticuatro. No cabía ni lo de antes: dos Valles de ochocientas suman
       // ochenta y dos. Como la posición sale del hueco y no está guardada,
       // ensancharlo no le mueve una piedra a nadie.
       final (x, z) = Habit.centreOf(1);

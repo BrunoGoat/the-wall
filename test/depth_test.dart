@@ -192,6 +192,43 @@ void main() {
       );
     });
 
+    test('y ningún pueblo es un solo nudo', () {
+      // Lo que se rompió una vez, dicho directamente y barato.
+      //
+      // Dos edificios se ordenan solos cuando un plano los separa. Cuando se
+      // atraviesan no lo hay, y hay que meterlos en el mismo árbol y cortarlos
+      // entre sí — y ese árbol se vuelve a cortar entero cada vez que el
+      // pueblo crece. Al ensanchar las casas del Coloso sin ensancharle el
+      // solar, todos los edificios se tocaban: el pueblo entero era un nudo de
+      // cinco grupos, y poner una pieza pasó de once a quinientos doce
+      // milisegundos con cuatrocientas piezas, y a casi cinco segundos con mil
+      // ochocientas.
+      //
+      // Eso lo cazó el cronómetro de aquí abajo, pero sólo con mil ochocientas
+      // piezas y por el peor de los seis, que es tarde y es vago. Esto lo dice
+      // en la forma en que pasa: si un pueblo tiene ciento y pico edificios y
+      // el filtrado saca cinco grupos, están todos metidos unos dentro de
+      // otros.
+      //
+      // El umbral es un suelo contra el desastre, no una medida de lo apretado
+      // que está el pueblo: un pueblo sano saca del orden de un grupo por
+      // edificio o más —los contrafuertes cuentan aparte cuando no tocan—, y
+      // el nudo que hubo sacaba trece para ciento trece. Cualquier cosa por
+      // debajo de la mitad es que se están atravesando.
+      for (final c in TownCharacter.all) {
+        final layout = TownLayout(400, c);
+        final casas = layout.buildings.length;
+        final grupos = builtTown(layout, 400).clusters.length;
+        expect(
+          grupos,
+          greaterThan(casas ~/ 2),
+          reason:
+              '${c.region}: $casas edificios en $grupos grupos — se están '
+              'atravesando, y cada pieza nueva vuelve a cortarlos a todos',
+        );
+      }
+    });
+
     // And laying a piece re-files that piece's own corner of the town, not the
     // town. The world is append-only: the two hundred houses that did not
     // change did not need looking at.

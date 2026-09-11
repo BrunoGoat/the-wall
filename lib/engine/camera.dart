@@ -16,11 +16,11 @@ class OrbitCamera {
   static const double minDistance = 2.2;
 
   /// Far enough back to hold the whole valley in one frame: seis pueblos en un
-  /// anillo de ciento ocho, cada uno con su radio, y el más grande de
+  /// anillo de ciento veinticuatro, cada uno con su radio, y el más grande de
   /// todos —el Coloso— con torres de cuarenta de alto.
   ///
   /// Subió de seiscientos veinte cuando el anillo pasó de setenta y ocho a
-  /// ciento ocho. Con el tope viejo el valle entero ya no entraba, y lo
+  /// ciento veinticuatro. Con el tope viejo el valle entero ya no entraba, y lo
   /// que hacía la cámara era irse al tope y dejar dos pueblos fuera del cuadro
   /// sin decir nada.
   static const double maxDistance = 980.0;
