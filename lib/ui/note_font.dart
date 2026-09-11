@@ -68,14 +68,19 @@ enum NoteFont {
     mano: true,
   ),
   amatic('AmaticSC', 'AmaticSC.ttf', 'Amatic', 1.63, mano: true),
-  // Su medida decía 2,21 y era demasiado: puesta junto a las otras había que
-  // bajarle el deslizador a menos de la mitad para que pareciera la misma
-  // letra. Lo que se corrige es la medida, no el deslizador.
+  // Ésta es finísima y hubo que medirla dos veces. Su medida decía 2,21, y yo
+  // la bajé a 0,98 creyendo que era demasiado: junto a las otras, en la
+  // rejilla de ajustes, parecía enorme. En un papel de verdad no: con 0,98 la
+  // misma frase ocupaba 470 píxeles de ancho donde las demás ocupan 1050, o
+  // sea que llenaba menos de la mitad del papel y quedaba una nota casi vacía
+  // con dos renglones chiquitos en la punta. La medida estaba bien; lo que
+  // estaba mal era mirarla fuera de su sitio. 2,19 es lo que la deja llenando
+  // el mismo renglón que sus ocho compañeras, medido.
   otraMano(
     'JustAnotherHand',
     'JustAnotherHand.ttf',
     'Otra mano',
-    0.98,
+    2.19,
     mano: true,
   ),
 

@@ -899,15 +899,61 @@ void main() {
       expect(propias, {'arquitecta'});
     });
 
-    testWidgets('el cuerpo que se reparte no encoge ningún bando', (
+    testWidgets('las nueve manos escriben del mismo tamaño', (tester) async {
+      // Esto es lo que faltaba, y lo que dejó a «Otra mano» escribiendo en
+      // chiquito durante tres builds. La medida de cada letra está para que
+      // elegir una no sea elegir un tamaño, pero nadie comprobaba que lo
+      // consiguiera: se podía poner cualquier número y sólo se veía en el
+      // teléfono. Con 0,98, «Otra mano» ocupaba menos de la mitad del renglón
+      // que las demás, o sea una nota casi vacía con dos líneas chiquitas.
+      //
+      // Se mide el ancho porque es lo que decide cuánto papel llena el texto,
+      // que es lo que uno ve. La altura de la tinta varía más entre letras
+      // escritas a mano y no hay nada que corregir ahí: una letra con las
+      // astas largas es así.
+      await tester.runAsync(() async {
+        for (final f in NoteFont.manos) {
+          final bytes = await File('assets/fonts/${f.asset}').readAsBytes();
+          await (FontLoader(
+            f.family!,
+          )..addFont(Future.value(bytes.buffer.asByteData()))).load();
+        }
+      });
+      const frase =
+          'Esta noche habrá hoguera en la colina. Los mayores dicen '
+          'que es una vieja tradición.';
+      double anchoDe(NoteFont f) => (TextPainter(
+        text: TextSpan(
+          text: frase,
+          style: TextStyle(
+            fontFamily: f.family,
+            fontSize: 13 * f.scale * Appearance.villageScale,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout()).width;
+
+      final ref = anchoDe(NoteFont.sal);
+      for (final f in NoteFont.manos) {
+        final k = anchoDe(f) / ref;
+        expect(
+          k,
+          closeTo(1, 0.12),
+          reason:
+              '${f.label} llena el ${(k * 100).round()}% del renglón que llena '
+              'Sal: con la misma nota escribe de otro tamaño',
+        );
+      }
+    });
+
+    testWidgets('y el cuerpo que se reparte no encoge ninguno de más', (
       tester,
     ) async {
-      // Ya no hay deslizador que pueda volverse contra sí mismo: el cuerpo es
-      // uno y está elegido. Lo que hay que exigirle es que sea el sitio que
-      // hay de verdad, o sea que ninguno de los cuatrocientos treinta y seis
-      // bandos tenga que encoger para entrar, con ninguna de las nueve manos.
-      // Un papel que encoge escribe más chico que el de al lado sin motivo
-      // visible, y eso se lee como un fallo.
+      // El cuerpo es uno y está elegido, y funciona como tope: tan grande como
+      // quepa, sin pasar de ahí. Encoger no es un fallo —es lo que hace que un
+      // bando largo siga entrando en su papel, igual que a mano uno aprieta la
+      // letra cuando ve que no llega—, pero sí lo es encoger tanto que el
+      // papel se lea de otro tamaño que el de al lado.
       await tester.runAsync(() async {
         for (final f in NoteFont.values) {
           final family = f.family, asset = f.asset;
