@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:la_muralla/engine/palette.dart';
 import 'package:la_muralla/ui/legend_card.dart';
@@ -169,6 +170,61 @@ void main() {
         lejos(color, t.fgSoft),
         greaterThan(0.02),
         reason: 'a las $hora es exactamente el texto normal y no se distingue',
+      );
+      await tester.pumpWidget(const SizedBox());
+    }
+  });
+
+  testWidgets('y se escribe de la misma tinta con la que se lee', (
+    tester,
+  ) async {
+    // De noche pasaba esto: escribías la leyenda en negro y, al guardarla, el
+    // mismo texto salía blanco. La tarjeta le pone el color a su cuerpo con un
+    // DefaultTextStyle, que un Text lee y un campo de texto no —ése se mezcla
+    // contra el tema de Material, que lo pintaba oscuro sobre el bloque
+    // oscuro—. Leer una leyenda y escribirla son la misma cosa vista dos
+    // veces, así que tienen que verse igual.
+    for (final hora in [13.0, 2.0]) {
+      final t = UiTheme(Palette.forMoment(hora, 1.0));
+      final size = _pantallas.last;
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        _marco(
+          size,
+          Center(
+            child: StoneCard(
+              theme: t,
+              when: DateTime(2026, 9, 10),
+              number: 7,
+              label: 'Corrí',
+              onWrite: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 200));
+      // Lo que se ve al leerla: el Text sale sin color y se lo pone la
+      // tarjeta, así que hay que preguntarle al párrafo ya resuelto.
+      final leida = (tester.renderObject(find.text('Corrí')) as RenderParagraph)
+          .text
+          .style!
+          .color!;
+
+      await tester.tap(find.text('Corrí'));
+      await tester.pump(const Duration(milliseconds: 200));
+      final escribiendo = tester
+          .widget<EditableText>(find.byType(EditableText))
+          .style
+          .color!;
+
+      expect(
+        escribiendo,
+        leida,
+        reason:
+            'a las $hora se escribe en $escribiendo y se lee en $leida: '
+            'el texto cambia de color al guardarlo',
       );
       await tester.pumpWidget(const SizedBox());
     }

@@ -244,17 +244,32 @@ class _StoneCardState extends State<StoneCard> {
               onTapOutside: (_) => _close(),
               textCapitalization: TextCapitalization.sentences,
               cursorColor: t.accent,
-              style: const TextStyle(
+              // El color va escrito aquí y no heredado. La tarjeta se lo pone
+              // a su cuerpo con un DefaultTextStyle, que es lo que hace que la
+              // leyenda ya escrita salga clara sobre el bloque oscuro de
+              // noche; pero un campo de texto no lee eso: se mezcla contra el
+              // tema de Material, que lo pintaba en negro. Así, escribiendo de
+              // noche se escribía en negro y al guardar el mismo texto se
+              // volvía blanco.
+              style: TextStyle(
                 fontSize: 13.5,
                 height: 1.25,
                 fontWeight: FontWeight.w500,
+                color: t.fg,
               ),
               decoration: InputDecoration(
                 isDense: true,
                 counterText: '',
                 contentPadding: EdgeInsets.zero,
                 hintText: 'qué fue',
-                hintStyle: t.bodySoft.copyWith(fontSize: 13.5, height: 1.25),
+                // Y el hueco, de la misma tinta floja que «escribir una
+                // leyenda»: es lo mismo que falta, visto un segundo después.
+                hintStyle: TextStyle(
+                  fontSize: 13.5,
+                  height: 1.25,
+                  fontWeight: FontWeight.w400,
+                  color: LegendCard.pending(t),
+                ),
                 border: InputBorder.none,
               ),
             )
