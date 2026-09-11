@@ -140,7 +140,47 @@ class PaperInk {
   /// el papel ya está pidiendo lo contrario.
   double shrunk = 1;
 
-  double get _alto => _said.height + (corrido ? 0 : 13 + _because.height);
+  /// Lo que ocupa todo lo que lleva el papel: el titular, la raya, el renglón
+  /// de abajo y el gráfico.
+  ///
+  /// El gráfico cuenta, y antes no contaba. La búsqueda del tamaño miraba sólo
+  /// el texto, así que el texto siempre «entraba» y el gráfico se quedaba con
+  /// lo que sobrara: en la nota del ritmo sobraban cuarenta y un píxeles de
+  /// los cincuenta y cuatro que pide, y las barras salían aplastadas contra el
+  /// filete. Reservando su sitio, lo que se ajusta es el texto, que es lo que
+  /// se puede escribir más chico sin perder nada.
+  ///
+  /// Lo que pide es fijo y no proporcional: un gráfico de veinte píxeles no
+  /// es un gráfico más chico, es una raya. Trece de esos píxeles son los pies
+  /// de las barras cuando los hay, y ésos son texto de verdad.
+  static const double chartHeight = 46, chartWithTicks = 58, chartGap = 8;
+
+  double get _chart => corrido || notice.bars.isEmpty
+      ? 0
+      : chartGap + (notice.ticks.isEmpty ? chartHeight : chartWithTicks);
+
+  @visibleForTesting
+  double get usedHeight => _alto;
+
+  /// El alto que le queda de verdad al gráfico al pintar.
+  ///
+  /// Cero es que no hay gráfico o que no cabe ninguno. Normalmente es lo que
+  /// pide entero, porque el texto se encogió para dejarle sitio; el mínimo
+  /// sigue ahí para el caso en que ni encogiendo entrara, porque aplastado se
+  /// lee peor que entero pero mejor que fuera del papel.
+  double get chartRoom {
+    if (corrido || notice.bars.isEmpty) return 0;
+    final y = pad + 4 + _said.height + 13 + _because.height;
+    final hueco = box.height - pad - y;
+    if (hueco <= 34) return 0;
+    return math.min(
+      hueco - chartGap,
+      notice.ticks.isEmpty ? chartHeight : chartWithTicks,
+    );
+  }
+
+  double get _alto =>
+      _said.height + (corrido ? 0 : 13 + _because.height) + _chart;
 
   void _layAt(double k) {
     final ancho = textWidth;
@@ -258,10 +298,9 @@ class PaperInk {
       // al descolgar la nota, y era lo único que de verdad hacía falta ver: la
       // frase de arriba dice qué pasa y el gráfico dice de dónde sale, y las
       // dos juntas caben en el papel sin tener que tocarlo.
-      final hueco = box.height - pad - y;
-      if (notice.bars.isNotEmpty && hueco > 34) {
-        y += 8;
-        final alto = math.min(hueco - 6, notice.ticks.isEmpty ? 46.0 : 58.0);
+      final alto = chartRoom;
+      if (alto > 0) {
+        y += chartGap;
         canvas.save();
         canvas.translate(pad, y);
         _bars(canvas, Size(box.width - pad * 2, alto));

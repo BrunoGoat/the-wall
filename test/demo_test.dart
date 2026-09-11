@@ -957,6 +957,60 @@ void main() {
       expect(propias, {'arquitecta'});
     });
 
+    testWidgets('y a las notas de estadísticas les cabe también el gráfico', (
+      tester,
+    ) async {
+      // Lo que se veía en el teléfono: la nota del ritmo con las barras
+      // aplastadas contra el filete de abajo. La búsqueda del tamaño miraba
+      // sólo el texto, así que el texto siempre «entraba» y el gráfico se
+      // quedaba con lo que sobrara — cuarenta y un píxeles de los cincuenta y
+      // cuatro que pide. Trece de los que pide son los pies de las barras
+      // cuando los hay, y ésos son texto de verdad.
+      //
+      // Ahora el gráfico tiene su sitio reservado y lo que se ajusta es el
+      // texto, que es lo que se puede escribir más chico sin perder nada.
+      await tester.runAsync(() async {
+        for (final f in NoteFont.values) {
+          final family = f.family, asset = f.asset;
+          if (family == null || asset == null) continue;
+          final bytes = await File('assets/fonts/$asset').readAsBytes();
+          await (FontLoader(
+            family,
+          )..addFont(Future.value(bytes.buffer.asByteData()))).load();
+        }
+      });
+      // Varios días, porque lo que dicen las notas cambia con lo que hay
+      // detrás y una frase de más es un renglón de más.
+      for (var d = 0; d < 14; d++) {
+        final cuando = DateTime(2026, 3, 12, 21).add(Duration(days: d));
+        final v = demoValley(cuando);
+        for (final n in boardNotices(v.first, valley: v, at: cuando)) {
+          if (n.kind == NoticeKind.pueblo || n.bars.isEmpty) continue;
+          final tinta = PaperInk(n);
+          final pide = n.ticks.isEmpty
+              ? PaperInk.chartHeight
+              : PaperInk.chartWithTicks;
+          expect(
+            tinta.chartRoom,
+            pide,
+            reason:
+                'a «${n.said}» le quedan ${tinta.chartRoom.round()} píxeles '
+                'para un gráfico que pide ${pide.round()}',
+          );
+          expect(tinta.overflows, isFalse, reason: '«${n.said}» se sale');
+          // Y el texto no se encoge tanto que deje de leerse para hacerle
+          // sitio: si hiciera falta eso, el papel es el que está mal.
+          expect(
+            tinta.shrunk,
+            greaterThan(0.7),
+            reason:
+                '«${n.said}» tuvo que escribirse al '
+                '${(tinta.shrunk * 100).round()}% para que entrara el gráfico',
+          );
+        }
+      }
+    });
+
     testWidgets('las nueve manos escriben del mismo tamaño', (tester) async {
       // Esto es lo que faltaba, y lo que dejó a «Otra mano» escribiendo en
       // chiquito durante tres builds. La medida de cada letra está para que
