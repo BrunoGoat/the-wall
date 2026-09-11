@@ -1,3 +1,6 @@
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:la_muralla/data/symbols.dart';
 import 'package:la_muralla/model/habit.dart';
@@ -84,5 +87,53 @@ void main() {
       expect(h.symbol, 'libro');
       expect(habitSymbols, contains(h.symbol));
     });
+
+    test(
+      'y a media tinta sale de un solo tono, sin cruces más oscuros',
+      () async {
+        // Cada icono son varias formas. Pintadas por separado con tinta a media
+        // fuerza —que es como se piden casi siempre: la barra de hábitos, el
+        // tablón, el cartel del pueblo— cada sitio donde dos se cruzan suma su
+        // transparencia con la de debajo y sale más oscuro: la mancuerna tenía
+        // las barras más oscuras que los discos y el puño la muñeca más oscura
+        // que los dedos. Un icono es una cosa, no un montón de formas apiladas.
+        //
+        // Negro al sesenta y dos por ciento sobre blanco da 97 de gris. Dos
+        // capas dan 37: no hace falta afinar el listón, el fallo es enorme.
+        const lado = 120;
+        const alfa = 0.62;
+        final piso = (255 * (1 - alfa)).round();
+        for (final id in habitSymbols) {
+          final rec = ui.PictureRecorder();
+          final c = Canvas(rec);
+          c.drawRect(
+            const Rect.fromLTWH(0, 0, lado * 1.0, lado * 1.0),
+            Paint()..color = const Color(0xFFFFFFFF),
+          );
+          HabitSigils.draw(
+            c,
+            const Rect.fromLTWH(10, 10, lado - 20.0, lado - 20.0),
+            id,
+            const Color(0xFF000000).withValues(alpha: alfa),
+          );
+          final img = await rec.endRecording().toImage(lado, lado);
+          final data = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
+          final px = data!.buffer.asUint8List();
+          var masOscuro = 255;
+          for (var i = 0; i < px.length; i += 4) {
+            if (px[i] < masOscuro) masOscuro = px[i];
+          }
+          expect(
+            masOscuro,
+            greaterThanOrEqualTo(piso - 2),
+            reason:
+                'en «$id» hay un cruce a $masOscuro cuando el tono plano es '
+                '$piso: dos formas apilando su transparencia',
+          );
+          // Y que haya dibujo: un icono en blanco pasaría lo de arriba solo.
+          expect(masOscuro, lessThanOrEqualTo(piso + 2), reason: '«$id» vacío');
+        }
+      },
+    );
   });
 }

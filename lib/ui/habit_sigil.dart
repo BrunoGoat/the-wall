@@ -109,6 +109,29 @@ class HabitSigils {
   /// weight — a row of them reads as a set rather than as a rummage.
   static void draw(Canvas canvas, Rect box, String id, Color color) {
     final marks = _marks(resolveHabitSymbol(id));
+
+    // Un icono son varias formas, y casi siempre se pide con tinta a media
+    // fuerza —los de la barra, el del tablón, el del cartel del pueblo—. Cada
+    // forma pintada por separado suma su transparencia con la de debajo, así
+    // que donde dos se cruzan el tono sale más oscuro: la mancuerna tenía las
+    // barras más oscuras que los discos, y el puño la muñeca más oscura que
+    // los dedos. Un icono es una cosa, no un montón de formas apiladas.
+    //
+    // Se pintan todas opacas sobre una capa aparte y la transparencia se le
+    // aplica a la capa entera al pegarla. Así la unión sale de un solo tono, y
+    // da igual cuántas veces se crucen. La capa sólo se abre cuando hace falta:
+    // con tinta opaca no hay nada que sumar.
+    final capa = color.a < 0.999;
+    if (capa) {
+      // Con holgura: un trazo de punta redonda en el borde de la caja se sale
+      // por la mitad de su grosor, y lo que quede fuera de la capa se recorta.
+      canvas.saveLayer(
+        box.inflate(math.max(box.width, box.height) * 0.15),
+        Paint()..color = const Color(0xFF000000).withValues(alpha: color.a),
+      );
+    }
+    final tinta = capa ? color.withValues(alpha: 1) : color;
+
     final k = math.min(box.width, box.height) / 100.0;
     canvas.save();
     canvas.translate(
@@ -118,7 +141,7 @@ class HabitSigils {
     canvas.scale(k);
     for (final m in marks) {
       final paint = Paint()
-        ..color = color
+        ..color = tinta
         ..isAntiAlias = true;
       if (m.width > 0) {
         paint
@@ -130,6 +153,7 @@ class HabitSigils {
       canvas.drawPath(m.path, paint);
     }
     canvas.restore();
+    if (capa) canvas.restore();
   }
 }
 
