@@ -114,17 +114,21 @@ def tap():
 # exacto a los cinco segundos: si quedara cola, el sonido seguiría sonando con
 # el cielo ya vacío y eso se oye como un fallo.
 #
-# Tres capas. Un acorde que se abre y respira, que es la cama; un soplo de aire
-# filtrado que sube y baja, que es el vuelo; y una lluvia de campanitas
-# pentatónicas, más juntas en el medio, que es el brillo.
+# La primera versión llevaba una capa de ruido filtrado con el corte moviéndose
+# —la idea era el aire del vuelo— y sonaba a nave espacial. El ruido se fue
+# entero. Lo que queda no lleva ruido de ninguna clase: son campanitas, que es
+# lo que suena a magia, sobre una cama de cuerdas apagada.
 def wish():
     dur = 5.0
     n = int(dur * SR)
     rnd = random.Random(2027)
     out = [0.0] * n
 
-    # --- la cama: un acorde suspendido, en dos octavas y con vibrato lento.
-    chord = [329.63, 493.88, 587.33, 739.99, 987.77]
+    # --- la cama: un acorde suspendido, bajo y con algo de armónico para que
+    # no sea un seno pelado. El vibrato es mínimo: con el de antes, cinco senos
+    # ondulando a la vez sonaban a theremin, que es la otra manera de sonar a
+    # marciano.
+    chord = [164.81, 246.94, 293.66, 369.99, 493.88]
     for k, f in enumerate(chord):
         entra = 0.25 + k * 0.16
         for i in range(n):
@@ -132,38 +136,28 @@ def wish():
             if t < entra:
                 continue
             tt = t - entra
-            a = min(1.0, tt / 0.9) * (0.34 - k * 0.045)
-            vib = 1 + 0.0035 * math.sin(2 * math.pi * (4.3 + 0.7 * k) * t)
-            out[i] += math.sin(2 * math.pi * f * vib * tt) * a
+            a = min(1.0, tt / 1.1) * (0.20 - k * 0.028)
+            vib = 1 + 0.0012 * math.sin(2 * math.pi * (3.1 + 0.4 * k) * t)
+            ph = 2 * math.pi * f * vib * tt
+            out[i] += (math.sin(ph) + 0.22 * math.sin(2 * ph)) * a
 
-    # --- el vuelo: ruido filtrado con el corte subiendo y volviendo a bajar.
-    # El filtro es de un polo hecho a mano porque el corte se mueve, y el
-    # lowpass de arriba tiene el suyo fijo.
-    prev = 0.0
-    for i in range(n):
-        t = i / SR
-        u = t / dur
-        cutoff = 400 + 3200 * math.sin(math.pi * u) ** 1.4
-        a = math.exp(-2 * math.pi * cutoff / SR)
-        prev = (1 - a) * rnd.uniform(-1, 1) + a * prev
-        # Se abre y se cierra como una ola, y nunca llega a taparlo todo.
-        out[i] += prev * (math.sin(math.pi * u) ** 2.2) * 0.55
-
-    # --- el brillo: campanitas sueltas, la mitad en el tercio del medio.
+    # --- el brillo: campanitas sueltas, amontonadas en el medio del vuelo.
+    # Esto es lo que se tiene que oír, así que va por delante de la cama.
     escala = [1046.5, 1174.66, 1396.91, 1567.98, 1760.0, 2093.0, 2349.32, 2793.83]
-    for c in range(26):
-        # Repartidas por una curva que las amontona en el medio del vuelo.
+    for c in range(30):
         u = 0.5 + 0.5 * math.copysign(abs(rnd.uniform(-1, 1)) ** 1.7, rnd.uniform(-1, 1))
         t0 = 0.15 + u * (dur - 1.1)
         f = escala[rnd.randrange(len(escala))]
-        dec = 0.30 + rnd.random() * 0.55
-        amp = 0.16 + 0.13 * rnd.random()
+        dec = 0.30 + rnd.random() * 0.60
+        amp = 0.20 + 0.14 * rnd.random()
         i0 = int(t0 * SR)
         for i in range(i0, min(n, i0 + int(dec * 5 * SR))):
             tt = (i - i0) / SR
             e = math.exp(-tt / dec)
+            # El parcial de arriba es el que hace que suene a campana y no a
+            # flauta, y va en una relación que no es entera a propósito.
             out[i] += (math.sin(2 * math.pi * f * tt) +
-                       0.28 * math.sin(2 * math.pi * f * 2.76 * tt)) * e * amp
+                       0.26 * math.sin(2 * math.pi * f * 2.76 * tt)) * e * amp
 
     # --- y el sobre de todo: entra en medio segundo, se apaga hasta cero justo
     # al final. El cuadrado del coseno acaba plano, no en punta, que es lo que

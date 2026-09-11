@@ -4,8 +4,6 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../ui/note_font.dart';
-
 /// The handful of things about the app that are a preference rather than a
 /// record of what you did.
 ///
@@ -59,69 +57,23 @@ class Appearance extends ChangeNotifier {
 
   // ------------------------------------------------------- la letra del papel
 
-  /// Con qué letra están escritas las notas del tablón y los bandos del
-  /// pueblo, y de qué tamaño.
+  /// Con qué letra están escritos los papeles del tablón.
   ///
-  /// Dos por separado porque son dos cosas distintas: una nota del tablón son
-  /// cuentas tuyas y un bando es alguien del pueblo escribiendo un papel.
-  /// Poner la misma en las dos es elegir que todo el tablón esté escrito por
-  /// la misma mano, que también es una respuesta.
+  /// Ya no son ajustes y por eso ya no se guardan. El día que dejaron de
+  /// elegirse, los valores viejos siguieron en el disco de quien los hubiera
+  /// tocado: había gente —yo el primero, probándolas— con una letra fija
+  /// guardada para los bandos, así que el tablón entero le salía de una sola
+  /// mano y el reparto entre las nueve no se veía nunca. Una preferencia que
+  /// no se puede cambiar no es una preferencia: es una constante con un sitio
+  /// donde quedarse desactualizada.
+  ///
   /// Lo que quedó elegido tras probarlas una a una en el tablón: las notas en
   /// Arquitecta a media altura del deslizador, y los bandos repartidos entre
   /// las nueve manos, casi arriba del todo.
-  static const String defaultNoteFont = 'arquitecta';
-  static const String defaultVillageFont = 'varias';
-  static const double defaultNoteScale = 1.5;
-  static const double defaultVillageScale = 2.06;
-
-  String _noteFont = defaultNoteFont;
-  String _villageFont = defaultVillageFont;
-  double _noteScale = defaultNoteScale;
-  double _villageScale = defaultVillageScale;
-
-  String get noteFont => _noteFont;
-  String get villageFont => _villageFont;
-
-  /// Y cada uno con su tamaño: una letra de imprenta y una escrita a mano no
-  /// se leen igual al mismo cuerpo, así que un solo deslizador para las dos
-  /// obligaba a elegir a cuál de las dos dejar mal.
-  double get villageScale => _villageScale;
-
-  Future<void> setVillageScale(double v) async {
-    final want = v.clamp(minScale, maxScale);
-    if (want == _villageScale) return;
-    _villageScale = want;
-    await _keep();
-  }
-
-  /// Multiplica el cuerpo de todo lo que va escrito en un papel.
-  ///
-  /// El tope de arriba está medido y no puesto a ojo: hasta [maxScale] no
-  /// encoge ni uno solo de los cuatrocientos treinta y seis bandos con ninguna
-  /// de las letras. Pasado ahí el papel empieza a encoger el texto para que
-  /// entre, y el deslizador se vuelve contra sí mismo — pedir un dos coma seis
-  /// daba letras más chicas que pedir un uno coma ocho.
-  static const double minScale = 0.8, maxScale = 2.2;
-  double get noteScale => _noteScale;
-
-  Future<void> setNoteFont(String v) async {
-    if (v == _noteFont) return;
-    _noteFont = v;
-    await _keep();
-  }
-
-  Future<void> setVillageFont(String v) async {
-    if (v == _villageFont) return;
-    _villageFont = v;
-    await _keep();
-  }
-
-  Future<void> setNoteScale(double v) async {
-    final want = v.clamp(minScale, maxScale);
-    if (want == _noteScale) return;
-    _noteScale = want;
-    await _keep();
-  }
+  static const String noteFont = 'arquitecta';
+  static const String villageFont = 'varias';
+  static const double noteScale = 1.5;
+  static const double villageScale = 2.06;
 
   // --------------------------------------------------------------- el sonido
 
@@ -191,10 +143,6 @@ class Appearance extends ChangeNotifier {
     _hapticsOff = false;
     _musicVolume = _midway;
     _effectsVolume = _midway;
-    _noteFont = defaultNoteFont;
-    _villageFont = defaultVillageFont;
-    _noteScale = defaultNoteScale;
-    _villageScale = defaultVillageScale;
     _fakeHour = false;
     _fakeHourAt = 22.0;
   }
@@ -255,34 +203,23 @@ class Appearance extends ChangeNotifier {
           } else {
             _musicVolume = v.clamp(0.0, 1.0);
           }
-        // Una letra guardada puede ya no existir: las cinco de prueba se
-        // fueron de la app por no tener licencia, y quien las hubiera elegido
-        // tiene su nombre escrito en el disco. Si no está, vale la de siempre
-        // y no la del sistema.
-        case 'noteFont':
-          _noteFont = NoteFont.porNombre(value) == null
-              ? defaultNoteFont
-              : value;
-        case 'villageFont':
-          _villageFont = NoteFont.porNombre(value) == null
-              ? defaultVillageFont
-              : value;
-        case 'villageScale':
-          _villageScale = (double.tryParse(value) ?? defaultVillageScale).clamp(
-            minScale,
-            maxScale,
-          );
+        case 'effectsVol':
+          _effectsVolume = (double.tryParse(value) ?? _midway).clamp(0.0, 1.0);
         case 'fakeHour':
           _fakeHour = value == '1';
         case 'fakeHourAt':
           _fakeHourAt = (double.tryParse(value) ?? 22.0).clamp(0.0, 23.99);
+        // Las cuatro de la letra ya no se eligen, así que ya no se guardan.
+        // Se leen para tirarlas: al sacarlas de `visto`, la próxima escritura
+        // no las vuelve a poner y el disco se limpia solo. Hace falta hacerlo
+        // y no ignorarlas sin más, porque quien hubiera probado letras tenía
+        // una guardada para los bandos y le salía el tablón entero de una
+        // sola mano.
+        case 'noteFont':
+        case 'villageFont':
         case 'noteScale':
-          _noteScale = (double.tryParse(value) ?? 1.0).clamp(
-            minScale,
-            maxScale,
-          );
-        case 'effectsVol':
-          _effectsVolume = (double.tryParse(value) ?? _midway).clamp(0.0, 1.0);
+        case 'villageScale':
+          visto.remove(key);
       }
     }
     return visto;
@@ -296,10 +233,6 @@ class Appearance extends ChangeNotifier {
     '$_volMark=$_volNow',
     'musicVol=$_musicVolume',
     'effectsVol=$_effectsVolume',
-    'noteFont=$_noteFont',
-    'villageFont=$_villageFont',
-    'noteScale=$_noteScale',
-    'villageScale=$_villageScale',
     'fakeHour=${_fakeHour ? 1 : 0}',
     'fakeHourAt=$_fakeHourAt',
   ];

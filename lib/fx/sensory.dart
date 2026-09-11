@@ -52,7 +52,7 @@ class Sensory {
     SoundBite('repair', 'repair.wav', 'Reparar', 0.70),
     SoundBite('milestone', 'milestone.wav', 'Obra terminada', 0.85),
     SoundBite('epic', 'epic.wav', 'Hito del pueblo', 0.90),
-    SoundBite('wish', 'wish.wav', 'Estrella fugaz', 0.80),
+    SoundBite('wish', 'wish.wav', 'Estrella fugaz', 0.50),
   ];
 
   static SoundBite? biteOf(String id) {
@@ -409,6 +409,10 @@ class Sensory {
 
   /// Lo que suena cuando cruza una fugaz: cinco segundos que entran, crecen y
   /// se apagan a cero justo cuando ella se apaga.
+  ///
+  /// Más bajo que lo demás del catálogo, y a propósito: lo demás es respuesta
+  /// a un dedo tuyo y esto pasa solo. Algo que suena sin que lo pidas tiene
+  /// que sonar más flojo que algo que pediste.
   ///
   /// Reproductor propio y no uno del montón, por dos motivos. Dura cinco
   /// segundos, así que con el montón rotando se lo llevaría por delante

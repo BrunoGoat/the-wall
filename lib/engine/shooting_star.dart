@@ -207,12 +207,23 @@ class ShootingStar {
     final hacia = hash01(id, 409) < 0.5 ? -1.0 : 1.0;
     final span = v.halfWide * 2 + 0.16;
 
-    // Cae dentro de la franja que se ve. Arranca en la mitad de arriba pero
-    // no pegada al techo: el resplandor de la cabeza mide un séptimo de la
-    // pantalla, y saliendo del borde mismo se le va la mitad fuera.
+    // A qué altura cruza. En cualquier parte de la franja menos pegada al
+    // techo: el resplandor de la cabeza mide un séptimo de la pantalla, y
+    // saliendo del borde mismo se le va la mitad fuera.
     final alto = v.elTop - v.elFloor;
-    final el0 = v.elFloor + alto * (0.46 + 0.39 * hash01(id, 407));
-    final drop = (el0 - v.elFloor) * (0.55 + 0.40 * hash01(id, 413));
+    final el0 = v.elFloor + alto * (0.30 + 0.55 * hash01(id, 407));
+
+    // Y cuánto baja mientras cruza: casi nada.
+    //
+    // Caían en diagonal porque así caen las de verdad, pero aquí el cielo que
+    // se ve es una franja de cuatro grados: una diagonal en cuatro grados no
+    // se lee como una diagonal, se lee como que la estrella se mete debajo del
+    // pueblo. Cruzando a lo largo, lo que se ve es lo que tiene que verse, que
+    // es que atraviesa el cielo entero. Una de cada cinco baja un poco más,
+    // para que no sean todas la misma raya.
+    final cae = hash01(id, 415);
+    final drop =
+        (el0 - v.elFloor) * (cae > 0.80 ? 0.30 + 0.35 * hash01(id, 413) : 0.10);
 
     return ShootingStar(
       id: id,

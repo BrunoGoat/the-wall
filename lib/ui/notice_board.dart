@@ -158,17 +158,15 @@ class _NoticeBoardScreenState extends State<NoticeBoardScreen> {
     body: ListenableBuilder(
       listenable: Appearance.instance,
       builder: (context, _) {
-        final wants = Appearance.instance;
+        // Sigue escuchando a Appearance porque el cielo del tablón lleva la
+        // hora fingida de los ajustes.
         return Stack(
           children: [
             Positioned.fill(
               child: BoardScene(
-                // La clave rehace las hojas cuando cambia la letra: maquetar
+                // La clave rehace las hojas en cada tirada del dado: maquetar
                 // es caro y no puede hacerse al pintar.
-                key: ValueKey(
-                  '${_roll}_${wants.noteFont}_'
-                  '${wants.villageFont}_${wants.noteScale}',
-                ),
+                key: ValueKey(_roll),
                 plan: _plan,
                 habit: widget.habit,
                 palette: widget.theme.palette,

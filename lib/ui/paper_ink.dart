@@ -31,16 +31,16 @@ class PaperInk {
         font ??
             NoteFont.porNombre(
               notice.kind == NoticeKind.pueblo
-                  ? Appearance.instance.villageFont
-                  : Appearance.instance.noteFont,
+                  ? Appearance.villageFont
+                  : Appearance.noteFont,
             ) ??
             NoteFont.sistema,
       ),
       scale =
           scale ??
           (notice.kind == NoticeKind.pueblo
-              ? Appearance.instance.villageScale
-              : Appearance.instance.noteScale) {
+              ? Appearance.villageScale
+              : Appearance.noteScale) {
     _lay();
   }
 

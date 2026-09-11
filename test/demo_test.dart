@@ -865,14 +865,49 @@ void main() {
       );
     });
 
-    testWidgets('el deslizador del tamaño llega hasta donde sirve', (
+    testWidgets('y salen de varias manos aunque haya una letra guardada', (
       tester,
     ) async {
-      // El tope de arriba tiene que ser el sitio que hay de verdad, ni menos
-      // —entonces sobra papel y el deslizador se queda corto, que es lo que
-      // pasaba— ni más: pasado el punto en que el papel empieza a encoger el
-      // texto para que entre, pedir más da menos, y un deslizador que se
-      // vuelve contra sí mismo es peor que uno corto.
+      // Esto es lo que se vio en el teléfono, y lo que el test de al lado no
+      // podía cazar porque preguntaba directamente por el reparto: el reparto
+      // estaba bien. Lo que estaba mal era que nadie lo llamaba. Las letras
+      // dejaron de elegirse pero el valor viejo se quedó en el disco, así que
+      // a quien hubiera probado una le salía el tablón entero de esa mano.
+      SharedPreferences.setMockInitialValues({
+        'pueblo_sound_v1': <String>['villageFont=amatic', 'noteFont=sal'],
+      });
+      await Appearance.instance.load();
+
+      final manos = <String>{};
+      for (final (dice, y) in bandos.take(60)) {
+        manos.add(PaperInk(Notice(NoticeKind.pueblo, dice, y)).font.name);
+      }
+      expect(manos, isNot(contains('varias')));
+      expect(
+        manos.length,
+        greaterThan(5),
+        reason: 'sesenta bandos salieron de $manos',
+      );
+
+      // Y las notas de estadísticas, todas de la misma: Arquitecta.
+      final propias = <String>{};
+      for (final k in [NoticeKind.hour, NoticeKind.week, NoticeKind.comeback]) {
+        propias.add(
+          PaperInk(Notice(k, 'Un titular', 'y su renglón')).font.name,
+        );
+      }
+      expect(propias, {'arquitecta'});
+    });
+
+    testWidgets('el cuerpo que se reparte no encoge ningún bando', (
+      tester,
+    ) async {
+      // Ya no hay deslizador que pueda volverse contra sí mismo: el cuerpo es
+      // uno y está elegido. Lo que hay que exigirle es que sea el sitio que
+      // hay de verdad, o sea que ninguno de los cuatrocientos treinta y seis
+      // bandos tenga que encoger para entrar, con ninguna de las nueve manos.
+      // Un papel que encoge escribe más chico que el de al lado sin motivo
+      // visible, y eso se lee como un fallo.
       await tester.runAsync(() async {
         for (final f in NoteFont.values) {
           final family = f.family, asset = f.asset;
@@ -883,36 +918,30 @@ void main() {
           )..addFont(Future.value(bytes.buffer.asByteData()))).load();
         }
       });
-      // Qué tamaño sale de verdad, que no es el que se pide: el papel encoge
-      // el texto cuando no entra.
-      double real(NoteFont f, double pedido) {
-        var suma = 0.0;
+      var peor = 1.0;
+      var quien = '';
+      var encogidos = 0;
+      for (final f in NoteFont.manos) {
         for (final (dice, y) in bandos) {
-          suma += PaperInk(
+          final k = PaperInk(
             Notice(NoticeKind.pueblo, dice, y),
             font: f,
-            scale: pedido,
+            scale: Appearance.villageScale,
           ).shrunk;
+          if (k < 1) encogidos++;
+          if (k < peor) {
+            peor = k;
+            quien = '${f.label} · $dice';
+          }
         }
-        return pedido * suma / bandos.length;
       }
-
-      for (final f in NoteFont.manos) {
-        // Lo que hay que exigirle a un deslizador: que llevarlo hacia arriba
-        // no escriba más chico. Eso pasa en cuanto el tope se pone más allá
-        // del sitio que hay, y es peor que quedarse corto, porque el de arriba
-        // del todo deja de ser el más grande.
-        final medio = real(f, 1.4);
-        final tope = real(f, Appearance.maxScale);
-        expect(
-          tope,
-          greaterThan(medio),
-          reason:
-              'con ${f.label}, subir el deslizador del 1,4 al máximo escribe '
-              'más chico (${medio.toStringAsFixed(2)} contra '
-              '${tope.toStringAsFixed(2)})',
-        );
-      }
+      expect(
+        peor,
+        greaterThan(0.6),
+        reason:
+            'encogen $encogidos de ${NoteFont.manos.length * bandos.length} y '
+            'el peor baja al ${peor.toStringAsFixed(2)} en $quien',
+      );
     });
 
     testWidgets('y a todos les cabe, con cualquier letra y cualquier cuerpo', (
@@ -952,7 +981,14 @@ void main() {
       ];
       for (final f in NoteFont.values) {
         if (f.family == null) continue;
-        for (final cuerpo in [0.8, 1.0, 1.4, 1.8, Appearance.maxScale]) {
+        // Los dos cuerpos que se reparten de verdad, y uno por encima: si
+        // alguien los sube, esto sigue avisando antes de que se salga.
+        for (final cuerpo in [
+          0.8,
+          Appearance.noteScale,
+          Appearance.villageScale,
+          2.2,
+        ]) {
           for (final n in todas) {
             expect(
               PaperInk(n, font: f, scale: cuerpo).overflows,
