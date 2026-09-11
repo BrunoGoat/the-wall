@@ -72,15 +72,28 @@ class Habit {
   /// glance, and a person with seven habits has a different problem.
   static const int maxSlots = 6;
 
-  /// Where a slot's town stands. Slot zero is the middle of the valley — the
-  /// first habit is the capital — and the rest ring it, far enough apart that
-  /// two towns of thirty thousand achievements still would not touch.
+  /// Where a slot's town stands. Slot zero is the middle of the valley — el
+  /// primer hábito es la capital— y los demás lo rodean.
+  ///
+  /// El anillo mide ciento ocho. Medía setenta y ocho, y setenta y ocho era
+  /// poco: el pueblo del centro y uno del anillo se tocan en cuanto la suma de
+  /// sus radios pasa del anillo, y un Valle de ochocientas piezas ya mide
+  /// cuarenta y uno. Es decir que dos Valles de ochocientas no cabían, y eso
+  /// era así desde antes de que existiera el Coloso —que con las mismas
+  /// ochocientas mide cincuenta y dos y no cabría de ninguna manera.
+  ///
+  /// Con ciento ocho caben los dos más grandes del catálogo con ochocientas
+  /// piezas cada uno y sobra sitio. Donde vuelve a quedarse corto es en dos
+  /// pueblos de dos mil, que son años de dos hábitos a la vez; ensancharlo más
+  /// se paga en la vista del valle, donde seis pueblos chicos quedarían
+  /// perdidos en el prado.
+  ///
+  /// Nada de esto está guardado: la posición sale del número de hueco, así que
+  /// ensanchar el anillo no le mueve una piedra a ningún pueblo, sólo los
+  /// separa.
   static (double, double) centreOf(int slot) {
     if (slot <= 0) return (0.0, 0.0);
-    // Close enough that the whole valley fits in one frame and the towns can
-    // be compared, far enough that two towns of thirty thousand achievements
-    // still have meadow between them.
-    const ring = 78.0;
+    const ring = 108.0;
     final k = (slot - 1) % (maxSlots - 1);
     final a = -math.pi / 2 + k * 2 * math.pi / (maxSlots - 1);
     return (math.cos(a) * ring, math.sin(a) * ring);

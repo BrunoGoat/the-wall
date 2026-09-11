@@ -15,9 +15,15 @@ class OrbitCamera {
   static const double maxPitch = 1.50; // ~86 degrees: top-down, never below
   static const double minDistance = 2.2;
 
-  /// Far enough back to hold the whole valley — six towns on a ring a hundred
-  /// and thirty units out — in one frame.
-  static const double maxDistance = 620.0;
+  /// Far enough back to hold the whole valley in one frame: seis pueblos en un
+  /// anillo de ciento ocho, cada uno con su radio, y el más grande de
+  /// todos —el Coloso— con torres de cuarenta de alto.
+  ///
+  /// Subió de seiscientos veinte cuando el anillo pasó de setenta y ocho a
+  /// ciento ocho. Con el tope viejo el valle entero ya no entraba, y lo
+  /// que hacía la cámara era irse al tope y dejar dos pueblos fuera del cuadro
+  /// sin decir nada.
+  static const double maxDistance = 980.0;
 
   /// Where the camera is looking, on the wall axis.
   double travel = 0;

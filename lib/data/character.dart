@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+import '../engine/town.dart' show BuildingKind;
+
 /// What kind of place a town is.
 ///
 /// Four habits must not feel like the same thing four times. The pieces are
@@ -30,6 +32,7 @@ class TownCharacter {
     this.gardens = 0.0,
     this.trees = 0.0,
     this.grand = false,
+    this.houseNames,
   });
 
   /// What this kind of place is called, and one line about it.
@@ -85,15 +88,29 @@ class TownCharacter {
   ///
   /// Para un hábito que hacés poco y que pesa mucho: aprender algo, una
   /// mudanza, una visita. Diez piezas al mes no levantan un pueblo si cada
-  /// casa cuesta cinco; acá cuestan dos o tres y cada una es enorme, así que
-  /// diez piezas son cuatro casas de gigante y no media casa corriente.
+  /// casa cuesta cinco; acá cuestan tres y media de media y cada una es una
+  /// torre, así que diez piezas son tres torres y no media casa corriente.
   ///
   /// Lo que cambia es qué se construye, no cuánto cuesta lo que se construye.
   /// Bajarle el precio a un edificio sería recortarle la geometría por arriba
   /// —la aguja de una iglesia es una pieza suya— así que lo que se hace es
-  /// elegir siempre de los edificios que ya son de dos o tres piezas, y
-  /// levantarlos al doble de alto.
+  /// tirar de los edificios baratos y darles recetas propias: basamento,
+  /// fuste retranqueado y remate, en lugar de planta y tejado.
   final bool grand;
+
+  /// Cómo se llaman aquí las casas corrientes, cuando no se llaman como en
+  /// todas partes.
+  ///
+  /// Un cobertizo de dos piezas en el Coloso mide doce metros, es el doble de
+  /// ancho que una casona entera de la Ribera y lleva las ventanas en dos
+  /// alturas: llamarlo cobertizo es mentirle a quien lo está mirando.
+  /// Lo que cambia de región en región no es sólo la forma, es la palabra —y
+  /// la palabra es la mitad de lo que hace que un sitio se sienta otro sitio.
+  ///
+  /// Lo que no cambia es el precio: sigue costando dos piezas y sigue siendo
+  /// el `shed` de siempre para el plano, la crónica y lo que ya esté en pie.
+  /// Esto es el rótulo, no el edificio.
+  final Map<BuildingKind, String>? houseNames;
 
   /// Seeds this town's own shuffle of the landmark catalogue, so no two towns
   /// meet it in the same order. Sin número: el catálogo crece.
@@ -205,14 +222,15 @@ class TownCharacter {
     TownCharacter(
       region: 'Coloso',
       symbol: 'torre',
-      blurb: 'Pocas piezas y enormes: para lo que hacés poco y pesa mucho.',
-      storey: 6.00,
-      spread: 1.45,
+      blurb:
+          'Una ciudad de gigantes. Pocas piezas, y cada una levanta una torre.',
+      storey: 3.50,
+      spread: 2.05,
       pitch: 1.35,
       roofMix: (0.18, 0.68, 0.14),
       wash: Color(0xFFA9A093),
       washShare: 0.90,
-      plotPitch: 3.20,
+      plotPitch: 4.50,
       order: 0xC01A,
       wallThick: 0.85,
       windowGap: 1.10,
@@ -224,6 +242,19 @@ class TownCharacter {
       gardens: 0.22,
       trees: 0.62,
       grand: true,
+      // Acá no hay cobertizos ni casonas. Lo más chico que se levanta cuesta
+      // dos piezas y mide doce metros —una casona de la Ribera mide dos y
+      // medio—; lo más grande cuesta ocho y pasa de los treinta y nueve. Los
+      // nombres van de menor a mayor, como van las piezas.
+      houseNames: {
+        BuildingKind.shed: 'Nave',
+        BuildingKind.cottage: 'Torre',
+        BuildingKind.workshop: 'Baluarte',
+        BuildingKind.house: 'Torreón',
+        BuildingKind.granary: 'Bastión',
+        BuildingKind.townhouse: 'Ciudadela',
+        BuildingKind.inn: 'Coloso',
+      },
     ),
   ];
 

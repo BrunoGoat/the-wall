@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +8,7 @@ import 'package:la_muralla/engine/palette.dart';
 import 'package:la_muralla/engine/solid.dart';
 import 'package:la_muralla/engine/solids.dart';
 import 'package:la_muralla/engine/town.dart';
+import 'package:la_muralla/model/habit.dart';
 
 /// What one region's town actually comes out as, measured off the pieces.
 ///
@@ -201,7 +203,7 @@ void main() {
       for (final r in regions.values) {
         expect(
           coloso.height / r.height,
-          greaterThan(1.9),
+          greaterThan(4.5),
           reason:
               'el Coloso mide ${coloso.height.toStringAsFixed(1)} y '
               '${r.place.region} ${r.height.toStringAsFixed(1)}',
@@ -285,7 +287,7 @@ void main() {
       }
 
       final suyo = porEdificio(towns['Coloso']!.place);
-      expect(suyo, lessThan(3.2), reason: 'sale a $suyo piezas por edificio');
+      expect(suyo, lessThan(3.7), reason: 'sale a $suyo piezas por edificio');
       for (final r in regions.values) {
         expect(
           suyo,
@@ -310,25 +312,76 @@ void main() {
       }
     });
 
-    test('y dos pueblos de gigantes no se pisan en el valle', () {
-      // El anillo mide setenta y ocho, con el pueblo uno en su centro. Si el
-      // radio de dos colosos sumara más que eso, un pueblo se metería dentro
-      // de otro — y las posiciones son para siempre, así que no habría vuelta.
-      //
-      // Cuatrocientas piezas es lo que se mira, que para un hábito de los que
-      // van en un Coloso son muchos años. Más allá el anillo se queda corto
-      // para cualquier pueblo grande y no sólo para éste: el Valle llega a
-      // cuarenta y uno con ochocientas, y dos Valles ya no caben. Eso es de
-      // antes y se arregla ensanchando el anillo, que es mover de sitio
-      // pueblos que ya están puestos, así que se anota y no se toca.
-      final r = TownLayout(400, towns['Coloso']!.place).radius;
+    test('y sus edificios tienen sus propios nombres', () {
+      // Un cobertizo del Coloso mide once metros y tiene dos filas de
+      // ventanas. Llamarlo cobertizo es mentirle a quien lo está mirando.
+      final c = towns['Coloso']!.place;
+      final t = TownLayout(400, c);
+      final vistos = <String>{};
+      for (final b in t.buildings) {
+        if (b.isLandmark) continue;
+        vistos.add(b.name);
+        expect(
+          buildingName.values,
+          isNot(contains(b.name)),
+          reason: 'el Coloso levantó un ${b.name}, que es de otro sitio',
+        );
+      }
+      // Y los siete, no dos: la Ciudadela y el Coloso son el remate de la
+      // ciudad y tienen que llegar alguna vez.
       expect(
-        r * 2,
-        lessThan(78),
-        reason:
-            'dos colosos de radio ${r.toStringAsFixed(1)} se tocan: el del '
-            'centro llega hasta los del anillo',
+        vistos.length,
+        BuildingKind.values.length,
+        reason: 'sólo salieron $vistos',
       );
+
+      // Lo que dice el cartel de «se está levantando» tiene que ser lo mismo
+      // que dirá el edificio cuando esté en pie. Son dos caminos distintos y
+      // antes uno de los dos no sabía de la región.
+      final plan = TownPlan.of(c);
+      for (var placed = 1; placed < 120; placed += 7) {
+        final dice = plan.underway(placed)?.$1;
+        final b = t.buildings.firstWhere((b) => b.firstPiece <= placed - 1);
+        expect(dice, isNotNull);
+        if (b.isLandmark) continue;
+        expect(
+          buildingName.values,
+          isNot(contains(dice)),
+          reason: 'con $placed piezas el cartel dice «$dice»',
+        );
+      }
+
+      // Y las seis regiones se quedan con los nombres de siempre.
+      for (final r in regions.values) {
+        expect(r.place.houseNames, isNull, reason: r.place.region);
+      }
+    });
+
+    test('y dos pueblos de gigantes no se pisan en el valle', () {
+      // El anillo del valle tiene un pueblo en el centro, así que dos pueblos
+      // se tocan en cuanto la suma de sus radios pasa de lo que mide el
+      // anillo. Con ochocientas piezas, que en un hábito de los que van en un
+      // Coloso son años, tiene que caber el más grande junto al más grande de
+      // los otros seis.
+      //
+      // Esto es lo que obligó a ensanchar el anillo de setenta y ocho a ciento
+      // ocho. No cabía ni lo de antes: dos Valles de ochocientas suman
+      // ochenta y dos. Como la posición sale del hueco y no está guardada,
+      // ensancharlo no le mueve una piedra a nadie.
+      final (x, z) = Habit.centreOf(1);
+      final anillo = math.sqrt(x * x + z * z);
+      final coloso = TownLayout(800, towns['Coloso']!.place).radius;
+      for (final r in towns.values) {
+        final otro = TownLayout(800, r.place).radius;
+        expect(
+          coloso + otro,
+          lessThan(anillo),
+          reason:
+              'un Coloso de radio ${coloso.toStringAsFixed(1)} y un '
+              '${r.place.region} de ${otro.toStringAsFixed(1)} se tocan '
+              'en un anillo de ${anillo.toStringAsFixed(0)}',
+        );
+      }
     });
   });
 

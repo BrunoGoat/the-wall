@@ -92,6 +92,7 @@ class TownBuilding {
     required this.seed,
     this.spread = 1.0,
     this.roof = RoofStuff.tile,
+    this.names,
   });
 
   final int index;
@@ -114,6 +115,11 @@ class TownBuilding {
   /// Tile, slate or straw.
   final RoofStuff roof;
 
+  /// Cómo llama esta región a las casas corrientes, si las llama de otra
+  /// manera. Es el rótulo del edificio, no el edificio: un `shed` sigue
+  /// costando dos piezas aunque acá se llame Zócalo.
+  final Map<BuildingKind, String>? names;
+
   /// The plot's own yard: where it is, how big, and what is on it.
   ///
   /// None of it is a piece and none of it is earned. A kitchen garden is not
@@ -125,7 +131,7 @@ class TownBuilding {
   double treeX = 0, treeZ = 0, treeSize = 0;
 
   int get cost => landmark?.cost ?? buildingCost[kind]!;
-  String get name => landmark?.name ?? buildingName[kind]!;
+  String get name => landmark?.name ?? names?[kind] ?? buildingName[kind]!;
   bool get isLandmark => landmark != null;
 
   /// How much room it keeps clear around its own middle. A house wants its
@@ -316,14 +322,48 @@ class TownPlan {
       // buhardilla: lo que lo hace enorme es el tamaño, no el número de
       // cuerpos. Y de paso cada edificio cuesta dos o tres piezas en lugar de
       // cinco o seis, que es lo que hace que diez piezas al mes levanten algo.
-      pool = const [
-        BuildingKind.cottage,
-        BuildingKind.shed,
-        BuildingKind.cottage,
-        BuildingKind.workshop,
-        BuildingKind.cottage,
-        BuildingKind.shed,
-      ];
+      //
+      // Crece igual que los demás, en tres tramos. Lo que cambia es el suelo:
+      // acá el edificio más chico que existe son dos piezas y mide once
+      // metros, así que el primer tramo es casi todo eso y aun así el pueblo
+      // se ve enorme desde la primera semana. Y el tercer tramo guarda la
+      // Ciudadela y el Coloso —siete y ocho piezas— que no son una casa sino
+      // el remate de la ciudad, y que por eso tienen que costar lo que cuesta
+      // llegar hasta ellos.
+      if (b < 6) {
+        pool = const [
+          BuildingKind.shed,
+          BuildingKind.cottage,
+          BuildingKind.cottage,
+          BuildingKind.shed,
+          BuildingKind.workshop,
+          BuildingKind.cottage,
+        ];
+      } else if (b < 18) {
+        pool = const [
+          BuildingKind.cottage,
+          BuildingKind.shed,
+          BuildingKind.workshop,
+          BuildingKind.cottage,
+          BuildingKind.house,
+          BuildingKind.shed,
+          BuildingKind.workshop,
+          BuildingKind.cottage,
+        ];
+      } else {
+        pool = const [
+          BuildingKind.cottage,
+          BuildingKind.workshop,
+          BuildingKind.house,
+          BuildingKind.shed,
+          BuildingKind.granary,
+          BuildingKind.workshop,
+          BuildingKind.cottage,
+          BuildingKind.townhouse,
+          BuildingKind.shed,
+          BuildingKind.inn,
+        ];
+      }
     } else if (b < 7) {
       pool = const [
         BuildingKind.shed,
@@ -392,6 +432,14 @@ class TownPlan {
   static String nameOfId(String id) =>
       landmarkOf(id)?.name ?? buildingName[kindOf(id)]!;
 
+  /// Lo mismo, pero con la palabra que use esta región. Lo que lee el cartel
+  /// de «se está levantando» tiene que decir lo mismo que dirá el edificio
+  /// cuando esté en pie.
+  String nameOf(String id) =>
+      landmarkOf(id)?.name ??
+      character.houseNames?[kindOf(id)] ??
+      buildingName[kindOf(id)]!;
+
   /// La obra del pueblo, turno a turno.
   ///
   /// Lee de la crónica mientras alcance y decide de ahí en adelante. Lo que
@@ -446,7 +494,7 @@ class TownPlan {
     for (final w in walk(chronicle)) {
       if (placed < w.from + w.cost) {
         return (
-          nameOfId(w.id),
+          nameOf(w.id),
           w.from + w.cost - placed,
           landmarkOf(w.id) != null,
         );
@@ -576,6 +624,7 @@ class TownLayout {
       seed: hash32(seed, 0x5A11, 7),
       spread: character.spread,
       roof: _roofOf(hash32(seed, 0x5A11, 7)),
+      names: character.houseNames,
     );
     for (final p in _piecesOf(building)) {
       if (pieces.length > placed) break;
@@ -689,6 +738,7 @@ class TownLayout {
         seed: seed,
         spread: character.spread,
         roof: _roofOf(seed),
+        names: character.houseNames,
       );
       final made = _piecesOf(building);
       for (final p in made) {
@@ -768,6 +818,13 @@ class TownLayout {
       // Stretched wider on the ground, a building needs more ground. The
       // plot has to know what the mason is going to do to it.
       final r = (works[b].landmark?.room ?? 1.3) * character.spread;
+      // Lo apretado que se admite. Una ciudad de gigantes se apiña: sus
+      // edificios son más anchos que la calle que los separa y se meten unos
+      // en otros, que es lo que le da su silueta de bloque. El render lo
+      // aguanta —corta la geometría donde dos sólidos se cruzan— y a cambio
+      // el pueblo ocupa menos suelo, que es lo que decide si dos pueblos del
+      // valle se tocan.
+      final packed = character.grand ? 0.58 : 0.72;
       var placedIt = false;
       for (var i = from; i < all.length; i++) {
         if (used[i]) continue;
@@ -776,7 +833,7 @@ class TownLayout {
         for (var k = 0; k < out.length; k++) {
           final dx = x - out[k].$1, dz = z - out[k].$2;
           if (dx.abs() > 14 || dz.abs() > 14) continue;
-          final need = (r + reaches[k]) * 0.72;
+          final need = (r + reaches[k]) * packed;
           if (dx * dx + dz * dz < need * need) {
             ok = false;
             break;
@@ -932,6 +989,101 @@ class TownLayout {
     final deep = hashRange(1.44, 1.64, s, 7);
     final storey = hashRange(0.96, 1.06, s, 8);
     const pitch = 1.0;
+
+    // Un pueblo de gigantes no se construye con las recetas de un pueblo de
+    // gente, agrandadas. Agrandar una casa da una casa vista de cerca: la
+    // puerta mide tres metros, la ventana dos, y no hay nada que diga que es
+    // grande. Lo que hace una torre es que sea una torre — un basamento, un
+    // fuste largo con muchas filas de ventanas, y algo arriba que remate.
+    //
+    // Están escritas en las mismas unidades que las demás, así que el ancho y
+    // el alto del Coloso las estiran igual que estiran las de la Ribera. Lo
+    // que cambia es la forma, no la escala.
+    if (character.grand) {
+      // Cómo se remata una torre. Todas con la misma aguja daban un pueblo de
+      // lápices; y el remate es lo único que se ve de lejos, así que es lo que
+      // tiene que cambiar de un edificio a otro.
+      void crown(double w, double d) {
+        final cual = hash01(s, 12);
+        if (cual < 0.52) {
+          m.spire(w * 1.16, d * 1.16, 1.9);
+        } else if (cual < 0.80) {
+          m.roof(w * 1.2, d * 1.2, 1.2);
+        } else if (cual < 0.92) {
+          m.dome(w * 1.02, d * 1.02, 1.1);
+        } else {
+          m.parapet(w * 1.14, d * 1.14, 0.62);
+        }
+      }
+
+      switch (b.kind!) {
+        case BuildingKind.shed:
+          // La nave: un galpón de gigantes, ancho y con un tejado enorme. Es
+          // lo más chico que existe acá y aun así le saca tres cabezas a una
+          // casona de la Ribera.
+          //
+          // Lleva tejado y no azotea a propósito: es el primer edificio que
+          // levanta el pueblo y con dos bloques planos con ventanas en
+          // cuadrícula el sitio se leía como un barrio de torres de oficinas.
+          // Un tejado a dos aguas de seis metros no se lee como otra cosa.
+          m.floor(wide * 1.46, deep * 1.46, 1.75);
+          m.roof(wide * 1.6, deep * 1.6, 1.3);
+        case BuildingKind.cottage:
+          // La torre: basamento ancho, fuste retranqueado y remate. El
+          // retranqueo es lo que la hace leerse alta —un prisma recto de
+          // arriba abajo se lee como un muro visto de cerca.
+          m.plinth(wide * 1.48, deep * 1.48, 0.48);
+          m.floor(wide * 1.06, deep * 1.06, 3.1);
+          crown(wide * 1.06, deep * 1.06);
+        case BuildingKind.workshop:
+          // El baluarte: tres cuerpos que van menguando y un adarve que
+          // vuela por encima del último.
+          m.plinth(wide * 1.58, deep * 1.58, 0.56);
+          m.floor(wide * 1.38, deep * 1.38, 1.95);
+          m.floor(wide * 1.02, deep * 1.02, 1.55);
+          m.parapet(wide * 1.18, deep * 1.18, 0.58);
+        case BuildingKind.house:
+          // El torreón: soportales abajo —que es donde se mete la gente, y
+          // por eso son lo que dice de qué tamaño es todo lo demás— y dos
+          // cuerpos encima.
+          m.plinth(wide * 1.54, deep * 1.54, 0.42);
+          m.arcade(wide * 1.4, 1.2, deep * 1.4, rise: true);
+          m.floor(wide * 1.22, deep * 1.22, 2.45);
+          m.floor(wide * 0.9, deep * 0.9, 1.8);
+          crown(wide * 0.9, deep * 0.9);
+        case BuildingKind.granary:
+          // El bastión: escalinata y una pirámide escalonada de tres
+          // cuerpos. Es el que menos sube y el que más pesa.
+          m.stair(wide * 1.12, 0.44, deep * 0.88, dz: deep * 1.2);
+          m.plinth(wide * 1.62, deep * 1.62, 0.46);
+          m.floor(wide * 1.44, deep * 1.44, 1.95);
+          m.floor(wide * 1.18, deep * 1.18, 1.7);
+          m.floor(wide * 0.92, deep * 0.92, 1.5);
+          m.parapet(wide * 1.06, deep * 1.06, 0.6);
+        case BuildingKind.townhouse:
+          // La ciudadela: escalinata, soportales, tres cuerpos y remate.
+          // Siete piezas, que son meses.
+          m.stair(wide * 1.16, 0.46, deep * 0.9, dz: deep * 1.24);
+          m.plinth(wide * 1.66, deep * 1.66, 0.48);
+          m.arcade(wide * 1.46, 1.25, deep * 1.46, rise: true);
+          m.floor(wide * 1.28, deep * 1.28, 2.5);
+          m.floor(wide * 1.06, deep * 1.06, 2.1);
+          m.floor(wide * 0.84, deep * 0.84, 1.7);
+          crown(wide * 0.84, deep * 0.84);
+        case BuildingKind.inn:
+          // El coloso, que es el que le da nombre al sitio: lo más grande que
+          // se levanta sin ser un hito, y ocho piezas de espera.
+          m.stair(wide * 1.2, 0.48, deep * 0.94, dz: deep * 1.3);
+          m.plinth(wide * 1.72, deep * 1.72, 0.5);
+          m.arcade(wide * 1.52, 1.3, deep * 1.52, rise: true);
+          m.floor(wide * 1.34, deep * 1.34, 2.6);
+          m.floor(wide * 1.12, deep * 1.12, 2.2);
+          m.floor(wide * 0.88, deep * 0.88, 1.85);
+          m.parapet(wide * 1.0, deep * 1.0, 0.62);
+          m.spire(wide * 0.7, deep * 0.7, 2.1);
+      }
+      return _straw(b, m.finish(b.cost));
+    }
 
     switch (b.kind!) {
       case BuildingKind.shed:

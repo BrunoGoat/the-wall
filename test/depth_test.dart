@@ -130,20 +130,32 @@ void main() {
     // notice board in the middle of it, and the order between all of that is
     // the same question asked of a much messier scene.
     test('nothing in a real town is painted over what is in front of it', () {
+      // Dos regiones y no una. La primera es un pueblo corriente; el Coloso es
+      // el caso difícil, porque sus edificios son más anchos que la calle que
+      // los separa y se meten unos dentro de otros de verdad. Ahí es donde un
+      // orden por la media entre dos cajas que se cruzan da lo que le da la
+      // gana según desde dónde se mire.
       final bad = <String>[];
-      for (final n in [1, 12, 90, 300]) {
-        final layout = TownLayout(n, TownCharacter.all.first);
-        for (var yi = 0; yi < 6 && bad.isEmpty; yi++) {
-          for (var pi = 0; pi < 2 && bad.isEmpty; pi++) {
-            final where = _fault(
-              layout,
-              n,
-              yi * math.pi / 3 + 0.21,
-              0.18 + pi * 0.5,
-              math.max(9.0, layout.radius * 1.4),
-              1.2,
-            );
-            if (where != null) bad.add('$n piezas: $where');
+      for (final c in [
+        TownCharacter.all.first,
+        TownCharacter.all.firstWhere((x) => x.grand),
+      ]) {
+        for (final n in [1, 12, 90, 300]) {
+          final layout = TownLayout(n, c);
+          for (var yi = 0; yi < 6 && bad.isEmpty; yi++) {
+            for (var pi = 0; pi < 2 && bad.isEmpty; pi++) {
+              final where = _fault(
+                layout,
+                n,
+                yi * math.pi / 3 + 0.21,
+                0.18 + pi * 0.5,
+                math.max(9.0, layout.radius * 1.4),
+                1.2,
+              );
+              if (where != null) {
+                bad.add('${c.region}, $n piezas: $where');
+              }
+            }
           }
         }
       }
