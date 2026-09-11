@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import '../engine/palette.dart';
 import '../fx/sensory.dart';
 import '../model/appearance.dart';
+import '../model/board.dart';
+import '../model/board_seen.dart';
 import '../model/piece.dart';
 import '../data/landmarks.dart';
 import '../model/store.dart';
@@ -84,7 +86,10 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     widget.store.addListener(_onStore);
     Appearance.instance.addListener(_onStore);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _greet());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _greet();
+      _lookForNews();
+    });
   }
 
   @override
@@ -108,6 +113,9 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
     setState(() {});
+    // Una pieza más, una leyenda escrita o un cambio de pueblo pueden haberle
+    // dado al tablón algo nuevo que decir.
+    _lookForNews();
   }
 
   /// One line on opening, so the wall's condition is the first thing you learn.
@@ -174,13 +182,37 @@ class _HomeScreenState extends State<HomeScreen> {
   /// El tablón de este pueblo, desde el botón.
   void _readOwnBoard() {
     final store = widget.store;
-    Navigator.of(context).push(
-      NoticeBoardScreen.route(
-        valley: store.habits,
-        habit: store.habit,
-        theme: _theme,
-      ),
-    );
+    Navigator.of(context)
+        .push(
+          NoticeBoardScreen.route(
+            valley: store.habits,
+            habit: store.habit,
+            theme: _theme,
+          ),
+        )
+        // Al volver se repinta: dentro se habrán leído notas, y el punto del
+        // botón tiene que estar apagado ya cuando se vuelve a ver el pueblo.
+        .then((_) => _lookForNews());
+  }
+
+  /// Si el tablón de este pueblo tiene algo clavado que no leíste.
+  ///
+  /// Guardado y no calculado al pintar. Saberlo cuesta releer todas las piezas
+  /// del pueblo —eso es lo que hace el tablón— y esto se pinta en cada
+  /// fotograma mientras la cámara se mueve. Se vuelve a mirar cuando puede
+  /// haber cambiado: al arrancar, cuando el almacén se mueve —una pieza, una
+  /// leyenda, cambiar de pueblo— y al salir del tablón.
+  bool _news = false;
+
+  void _lookForNews() {
+    final store = widget.store;
+    final hay =
+        BoardSeen.instance.unread(
+          store.habit.id,
+          boardNotices(store.habit, valley: store.habits),
+        ) >
+        0;
+    if (hay != _news && mounted) setState(() => _news = hay);
   }
 
   void _openSky({Constellation? justFound}) {
@@ -317,6 +349,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   glyph: (c) => BoardGlyph(color: c, shadows: t.halo),
                   theme: t,
                   tooltip: 'El tablón del pueblo',
+                  // El punto: hay algo clavado que no leíste. Del color de la
+                  // hora, como todo lo demás — a las tres de la mañana un
+                  // naranja de mediodía es una mancha que no es de aquí.
+                  dot: _news ? t.accent : null,
                   onTap: _readOwnBoard,
                 ),
                 // El observatorio es uno para todo el valle: lo que se anota

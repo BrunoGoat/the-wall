@@ -9,6 +9,7 @@ import '../engine/palette.dart';
 import '../engine/renderer.dart';
 import '../engine/shooting_star.dart';
 import '../engine/star_draw.dart';
+import '../model/board_seen.dart';
 import '../model/habit.dart';
 import 'board_plan.dart';
 import '../data/symbols.dart';
@@ -272,6 +273,9 @@ class _BoardSceneState extends State<BoardScene>
   /// acercamiento entero, a veces sí y a veces no según qué llegara antes.
   void _take(int i) {
     final p = widget.plan.papers[i];
+    // Descolgarla es leerla. Lo que apaga la marca es esto y no entrar al
+    // tablón: el papel que no tocaste sigue siendo papel que no leíste.
+    BoardSeen.instance.markRead(widget.habit.id, p.notice);
     setState(() {
       _m.open = i;
       _m.held = true;
@@ -390,6 +394,16 @@ class _BoardSceneState extends State<BoardScene>
               habit: widget.habit,
               hourOfDay: widget.hourOfDay,
               motion: _m,
+              // Cuáles no leíste. Se recalcula en cada `build`, que es lo que
+              // hace que la marca se apague al descolgar la hoja.
+              unread: {
+                for (var i = 0; i < widget.plan.papers.length; i++)
+                  if (BoardSeen.instance.isUnread(
+                    widget.habit.id,
+                    widget.plan.papers[i].notice,
+                  ))
+                    i,
+              },
               repaint: _frame,
             ),
           ),
@@ -421,8 +435,12 @@ class BoardPainter extends CustomPainter {
     required this.habit,
     required this.hourOfDay,
     required this.motion,
+    required this.unread,
     required Listenable repaint,
   }) : super(repaint: repaint);
+
+  /// Los papeles que todavía no se descolgaron nunca.
+  final Set<int> unread;
 
   final BoardPlan plan;
   final List<PaperInk> ink;
@@ -765,7 +783,35 @@ class BoardPainter extends CustomPainter {
       canvas.transform(m);
       ink[i].paint(canvas, detail);
       canvas.restore();
+      _unreadMark(canvas, i, quad);
     }
+  }
+
+  /// La marca de lo que no leíste: un punto clavado en la esquina de arriba
+  /// del papel, del color de la hora.
+  ///
+  /// Va después de la tinta y no antes. El papel se pinta en tres pasadas —el
+  /// color del papel, el filete y el texto— y dibujándolo con la primera
+  /// quedaba debajo de las otras dos: estaba ahí y no se veía.
+  ///
+  /// Se va en cuanto se descuelga el papel, y no hace falta apagarla con una
+  /// animación: el papel se está yendo hacia la cámara mientras tanto y la
+  /// marca se va con él.
+  void _unreadMark(Canvas canvas, int i, List<Offset> quad) {
+    if (!unread.contains(i) || i == motion.open) return;
+    final ancho = (quad[1] - quad[0]).distance;
+    // De lejos no: un punto suelto sobre una mancha clara no se lee como una
+    // marca en un papel, se lee como suciedad en la pantalla.
+    if (ancho < 30) return;
+    final at =
+        quad[1] + (quad[0] - quad[1]) * 0.10 + (quad[2] - quad[1]) * 0.12;
+    final r = (ancho * 0.045).clamp(2.0, 7.0);
+    canvas.drawCircle(
+      at,
+      r * 1.8,
+      Paint()..color = Colors.black.withValues(alpha: 0.18),
+    );
+    canvas.drawCircle(at, r, Paint()..color = palette.accent);
   }
 
   static Path _path(List<Offset> q) {

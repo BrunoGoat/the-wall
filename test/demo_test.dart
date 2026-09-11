@@ -663,6 +663,7 @@ void main() {
         habit: entrenar,
         hourOfDay: 13,
         motion: motion,
+        unread: const <int>{},
         repaint: ValueNotifier(0),
       );
       Future<List<int>> pinta() async {
@@ -688,6 +689,63 @@ void main() {
             'el pintor se quedó con los números del momento en que se creó, '
             'así que descolgar una nota no cambia nada de lo que se ve',
       );
+    });
+
+    testWidgets('la marca de lo no leído se ve, y se va al descolgarla', (
+      tester,
+    ) async {
+      // Lo que hace que el punto del botón quiera decir algo: que dentro se
+      // vea cuál es el papel nuevo, y que deje de verse en cuanto se toca.
+      //
+      // La cámara se pone delante del papel que se prueba. El tablón es más
+      // ancho que la pantalla —se recorre a lo largo, para eso está— así que
+      // los de las puntas caen fuera del encuadre, y comparar dos dibujos de
+      // algo que no se ve sale igual pase lo que pase.
+      final cual = plan.papers.length ~/ 2;
+      BoardPainter pintor(Set<int> unread, BoardMotion motion) => BoardPainter(
+        plan: plan,
+        ink: [for (final p in plan.papers) PaperInk(p.notice)],
+        cam: OrbitCamera()
+          ..travel = plan.papers[cual].cx
+          ..focusY = plan.midY
+          ..focusZ = 0
+          ..yaw = 0
+          ..pitch = 0
+          ..distance = plan.readDistance(const Size(400, 860)),
+        palette: Palette.forMoment(13, 1.0),
+        habit: entrenar,
+        hourOfDay: 13,
+        motion: motion,
+        unread: unread,
+        repaint: ValueNotifier(0),
+      );
+      Future<List<int>> pinta(BoardPainter p) async {
+        final rec = ui.PictureRecorder();
+        p.paint(Canvas(rec), const Size(400, 860));
+        final img = await rec.endRecording().toImage(400, 860);
+        final bytes = await img.toByteData();
+        return bytes!.buffer.asUint8List().toList();
+      }
+
+      await tester.runAsync(() async {
+        final quieto = BoardMotion()..hint = 0;
+        expect(
+          await pinta(pintor({cual}, quieto)),
+          isNot(await pinta(pintor(const <int>{}, quieto))),
+          reason: 'el papel sin leer se ve igual que uno leído',
+        );
+
+        // Y la que está descolgada no la lleva: ya la estás leyendo.
+        final abierta = BoardMotion()
+          ..hint = 0
+          ..open = cual
+          ..openK = 1;
+        expect(
+          await pinta(pintor({cual}, abierta)),
+          await pinta(pintor(const <int>{}, abierta)),
+          reason: 'la nota ampliada sigue con su punto de aviso encima',
+        );
+      });
     });
 
     testWidgets('se abre y se dibuja sin romperse', (tester) async {

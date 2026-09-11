@@ -181,7 +181,15 @@ class GhostButton extends StatefulWidget {
     required this.theme,
     required this.onTap,
     this.tooltip,
+    this.dot,
   }) : assert(icon != null || glyph != null, 'un botón sin nada dentro');
+
+  /// Un punto arriba a la derecha, de este color. Null es sin punto.
+  ///
+  /// Lo pone quien sabe si hay algo que mirar al otro lado; el botón sólo
+  /// sabe dibujarlo. Va suelto y sin número: lo que dice es «hay algo nuevo»,
+  /// y cuántas cosas nuevas hay se ve entrando.
+  final Color? dot;
 
   final IconData? icon;
 
@@ -215,15 +223,34 @@ class _GhostButtonState extends State<GhostButton> {
         child: SizedBox(
           width: 44,
           height: 44,
-          child: Center(
-            child: widget.glyph != null
-                ? widget.glyph!(t.fg.withValues(alpha: _down ? 0.95 : 0.62))
-                : Icon(
-                    widget.icon,
-                    size: 20,
-                    color: t.fg.withValues(alpha: _down ? 0.95 : 0.62),
-                    shadows: t.halo,
+          child: Stack(
+            children: [
+              Positioned.fill(child: Center(child: _dentro(t))),
+              if (widget.dot != null)
+                Positioned(
+                  right: 7,
+                  top: 7,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: widget.dot,
+                      shape: BoxShape.circle,
+                      // Un anillo del color del cielo debajo, para que el punto
+                      // se despegue del icono tenga detrás lo que tenga: sobre
+                      // el prado de mediodía y sobre el cielo de noche.
+                      boxShadow: [
+                        BoxShadow(
+                          color: (t.dark ? Colors.black : Colors.white)
+                              .withValues(alpha: 0.5),
+                          blurRadius: 3,
+                          spreadRadius: 1.2,
+                        ),
+                      ],
+                    ),
                   ),
+                ),
+            ],
           ),
         ),
       ),
@@ -232,4 +259,13 @@ class _GhostButtonState extends State<GhostButton> {
         ? b
         : Tooltip(message: widget.tooltip!, child: b);
   }
+
+  Widget _dentro(UiTheme t) => widget.glyph != null
+      ? widget.glyph!(t.fg.withValues(alpha: _down ? 0.95 : 0.62))
+      : Icon(
+          widget.icon,
+          size: 20,
+          color: t.fg.withValues(alpha: _down ? 0.95 : 0.62),
+          shadows: t.halo,
+        );
 }
