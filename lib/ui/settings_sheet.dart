@@ -495,11 +495,15 @@ class _Row extends StatelessWidget {
   }
 }
 
-/// Las diez letras que puede llevar un papel, para ir probándolas.
+/// Las letras que puede llevar un papel, para ir probándolas.
 ///
 /// Cada botón está escrito con su propia letra, que es lo único que hace falta
 /// para elegir: una lista de nombres en la letra del sistema no dice nada de
 /// cómo se va a ver el tablón.
+///
+/// Las de prueba van aparte y avisadas. No es un detalle de orden: son cinco
+/// letras que no se pueden publicar tal cual, y quien elija una tiene que
+/// saberlo aquí y no al preparar la tienda.
 class _Fonts extends StatelessWidget {
   const _Fonts({
     required this.theme,
@@ -514,43 +518,71 @@ class _Fonts extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = theme;
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final f in NoteFont.values)
-          GestureDetector(
-            onTap: () {
-              Sensory.instance.tick();
-              onPick(f.name);
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                color: f.name == value
-                    ? t.accent.withValues(alpha: 0.18)
-                    : t.fg.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(9),
-                border: Border.all(
-                  color: f.name == value
-                      ? t.accent.withValues(alpha: 0.7)
-                      : t.fg.withValues(alpha: 0.12),
-                ),
-              ),
+        _fila(t, [
+          for (final f in NoteFont.values)
+            if (f.libre) f,
+        ]),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, size: 13, color: t.fgFaint),
+            const SizedBox(width: 5),
+            Expanded(
               child: Text(
-                f.label,
-                style: TextStyle(
-                  fontFamily: f.family,
-                  fontSize: 13.5 * f.scale,
-                  color: f.name == value ? t.accent : t.fgSoft,
-                  fontWeight: f.name == value
-                      ? FontWeight.w700
-                      : FontWeight.w500,
-                ),
+                'Sin licencia para publicar. Para probar.',
+                style: t.bodySoft.copyWith(fontSize: 10.5),
               ),
             ),
-          ),
+          ],
+        ),
+        const SizedBox(height: 7),
+        _fila(t, [
+          for (final f in NoteFont.values)
+            if (!f.libre) f,
+        ]),
       ],
     );
   }
+
+  Widget _fila(UiTheme t, List<NoteFont> fuentes) => Wrap(
+    spacing: 8,
+    runSpacing: 8,
+    children: [
+      for (final f in fuentes)
+        GestureDetector(
+          onTap: () {
+            Sensory.instance.tick();
+            onPick(f.name);
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: f.name == value
+                  ? t.accent.withValues(alpha: 0.18)
+                  : t.fg.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(9),
+              border: Border.all(
+                color: f.name == value
+                    ? t.accent.withValues(alpha: 0.7)
+                    : t.fg.withValues(alpha: f.libre ? 0.12 : 0.2),
+                style: f.libre ? BorderStyle.solid : BorderStyle.solid,
+                width: f.libre ? 1 : 1.4,
+              ),
+            ),
+            child: Text(
+              f.label,
+              style: TextStyle(
+                fontFamily: f.family,
+                fontSize: 13.5 * f.scale,
+                color: f.name == value ? t.accent : t.fgSoft,
+                fontWeight: f.name == value ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
+    ],
+  );
 }

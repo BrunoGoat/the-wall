@@ -795,9 +795,9 @@ void main() {
       // a ninguna de verdad.
       await tester.runAsync(() async {
         for (final f in NoteFont.values) {
-          final family = f.family;
-          if (family == null) continue;
-          final bytes = await File('assets/fonts/$family.ttf').readAsBytes();
+          final family = f.family, asset = f.asset;
+          if (family == null || asset == null) continue;
+          final bytes = await File('assets/fonts/$asset').readAsBytes();
           await (FontLoader(
             family,
           )..addFont(Future.value(bytes.buffer.asByteData()))).load();
