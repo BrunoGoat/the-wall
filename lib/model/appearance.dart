@@ -4,6 +4,8 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../engine/season.dart';
+
 /// The handful of things about the app that are a preference rather than a
 /// record of what you did.
 ///
@@ -53,6 +55,82 @@ class Appearance extends ChangeNotifier {
     if (want == _fakeHourAt) return;
     _fakeHourAt = want;
     await _keep();
+  }
+
+  // -------------------------------------------------------------- el año
+
+  /// De qué lado del ecuador está el valle.
+  ///
+  /// Hace falta y no se puede deducir del reloj: en enero medio mundo está
+  /// bajo la nieve y el otro medio en lo más alto del verano. Por defecto sale
+  /// del país del idioma del teléfono, que es lo único que hay sin pedir
+  /// permisos, y se puede corregir a mano — la lista de países nunca va a
+  /// acertar con todo el mundo, y equivocarse aquí se ve el primer día.
+  ///
+  /// Nulo quiere decir «lo que diga el teléfono». Se guarda sólo cuando
+  /// alguien lo toca, así que a quien no lo toque le sigue valiendo lo que
+  /// diga el teléfono aunque se mude.
+  Hemisphere? _hemisphere;
+
+  Hemisphere get hemisphere => _hemisphere ?? _fromLocale;
+
+  /// Si está puesto a mano o sale del teléfono.
+  bool get hemisphereChosen => _hemisphere != null;
+
+  static Hemisphere get _fromLocale {
+    try {
+      final l = PlatformDispatcher.instance.locale;
+      return Season.hemisphereOf(l.countryCode);
+    } catch (_) {
+      return Hemisphere.north;
+    }
+  }
+
+  Future<void> setHemisphere(Hemisphere? v) async {
+    if (v == _hemisphere) return;
+    _hemisphere = v;
+    await _keep();
+  }
+
+  /// Si el valle cambia con el año.
+  ///
+  /// Se puede apagar. No todo el mundo quiere que su pueblo esté pelado y
+  /// blanco cinco meses, y hay a quien le gusta el verde de siempre.
+  bool _seasonsOff = false;
+  bool get seasons => !_seasonsOff;
+
+  Future<void> setSeasons(bool v) async {
+    if (v == !_seasonsOff) return;
+    _seasonsOff = !v;
+    await _keep();
+  }
+
+  /// Fingir un día del año, igual que se finge la hora: para poder ver el
+  /// invierno en marzo sin esperar a que llegue.
+  bool _fakeSeason = false;
+  double _fakeSeasonAt = 0.0;
+
+  bool get fakeSeason => _fakeSeason;
+  double get fakeSeasonAt => _fakeSeasonAt;
+
+  Future<void> setFakeSeason(bool v) async {
+    if (v == _fakeSeason) return;
+    _fakeSeason = v;
+    await _keep();
+  }
+
+  Future<void> setFakeSeasonAt(double v) async {
+    final want = v.clamp(0.0, 0.999);
+    if (want == _fakeSeasonAt) return;
+    _fakeSeasonAt = want;
+    await _keep();
+  }
+
+  /// En qué punto del año está el valle ahora mismo.
+  Season get season {
+    if (_seasonsOff) return Season.none;
+    if (_fakeSeason) return Season(_fakeSeasonAt);
+    return Season.on(DateTime.now(), hemisphere);
   }
 
   // ------------------------------------------------------- la letra del papel
@@ -209,6 +287,18 @@ class Appearance extends ChangeNotifier {
           _fakeHour = value == '1';
         case 'fakeHourAt':
           _fakeHourAt = (double.tryParse(value) ?? 22.0).clamp(0.0, 23.99);
+        case 'hemisphere':
+          _hemisphere = switch (value) {
+            'n' => Hemisphere.north,
+            's' => Hemisphere.south,
+            _ => null,
+          };
+        case 'seasons':
+          _seasonsOff = value == '0';
+        case 'fakeSeason':
+          _fakeSeason = value == '1';
+        case 'fakeSeasonAt':
+          _fakeSeasonAt = (double.tryParse(value) ?? 0.0).clamp(0.0, 0.999);
         // Las cuatro de la letra ya no se eligen, así que ya no se guardan.
         // Se leen para tirarlas: al sacarlas de `visto`, la próxima escritura
         // no las vuelve a poner y el disco se limpia solo. Hace falta hacerlo
@@ -235,6 +325,12 @@ class Appearance extends ChangeNotifier {
     'effectsVol=$_effectsVolume',
     'fakeHour=${_fakeHour ? 1 : 0}',
     'fakeHourAt=$_fakeHourAt',
+    // Sólo si alguien lo puso a mano: sin fila, manda el teléfono.
+    if (_hemisphere != null)
+      'hemisphere=${_hemisphere == Hemisphere.south ? 's' : 'n'}',
+    'seasons=${_seasonsOff ? 0 : 1}',
+    'fakeSeason=${_fakeSeason ? 1 : 0}',
+    'fakeSeasonAt=$_fakeSeasonAt',
   ];
 
   Timer? _writeSoon;

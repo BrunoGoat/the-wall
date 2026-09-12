@@ -304,13 +304,32 @@ class TownPlan {
 
   /// El hito número `no` de este pueblo: el primero de su orden que todavía no
   /// construyó.
-  String landmarkFor(int no, Set<String> used) {
+  String landmarkFor(int no, Set<String> used) =>
+      landmarkChoices(no, used).first;
+
+  /// Las obras entre las que el pueblo puede elegir para su hito número [no].
+  ///
+  /// Las dos primeras de su propio orden que todavía no ha levantado. Las dos
+  /// son igual de suyas y les tocaba igual de pronto: la que no salga no se
+  /// pierde, sigue la primera de la lista y le toca la próxima vez. Elegir
+  /// aquí no es renunciar a nada, es decidir el orden.
+  ///
+  /// La primera sigue siendo la que sale si nadie elige, así que un pueblo al
+  /// que nunca se le conteste se construye exactamente igual que antes de que
+  /// esto existiera.
+  List<String> landmarkChoices(int no, Set<String> used, {int count = 2}) {
+    final out = <String>[];
     for (final id in order) {
-      if (!used.contains(id)) return id;
+      if (used.contains(id)) continue;
+      out.add(id);
+      if (out.length == count) return out;
     }
     // Catálogo entero construido, que son ciento y pico obras y muchos años.
     // Vuelve a empezar en vez de dejar al pueblo sin nada que hacer.
-    return order[no % order.length];
+    for (var k = 0; out.length < count; k++) {
+      out.add(order[(no + k) % order.length]);
+    }
+    return out;
   }
 
   BuildingKind kindFor(int b) {
@@ -429,13 +448,62 @@ class TownPlan {
   /// puestas y el que está a punto de empezar, porque su nombre ya está en la
   /// cabecera. Lo que viene después queda abierto, y ahí es donde entra lo que
   /// se añada mañana.
+  ///
+  /// Con una parada, y dura exactamente una pieza: en el instante en que un
+  /// hito **empezaría** y nadie ha dicho cuál, esto no lo escribe. Ése es el
+  /// hueco donde cabe la pregunta. Mientras tanto `walk` sigue dando la
+  /// primera opción, así que el pueblo se ve igual que siempre y nada se queda
+  /// a medias — simplemente todavía no está escrito, y por eso se puede
+  /// cambiar.
+  ///
+  /// Una pieza y no más, y eso importa. Con la parada abierta mientras el hito
+  /// tuviera piezas puestas, un pueblo al que nadie le contestara se quedaba
+  /// con la crónica congelada para siempre — y una crónica congelada es
+  /// exactamente lo que la crónica existe para que no pase: un hito nuevo en
+  /// el catálogo le cambiaría las casas a alguien que ya las tiene levantadas.
+  /// En cuanto cae la pieza siguiente, la pregunta caducó y se escribe lo que
+  /// se hubiera escrito siempre.
   List<String> chronicleFor(int placed, List<String> chronicle) {
     final out = <String>[];
     for (final w in walk(chronicle)) {
       if (w.from > placed) break;
+      if (w.from == placed && w.at >= chronicle.length && w.landmark != null) {
+        break;
+      }
       out.add(w.id);
     }
     return out;
+  }
+
+  /// Las dos obras que el pueblo puede empezar ahora, si es que toca elegir.
+  ///
+  /// Devuelve nulo mientras no haya nada que preguntar: cuando lo siguiente es
+  /// una casa corriente, cuando el hito que viene todavía queda lejos, o
+  /// cuando ya está escrito cuál es y por lo tanto ya no se toca.
+  ///
+  /// El momento es exactamente aquél en que el hito empezaría, ni antes ni
+  /// después. Antes sería preguntar por algo que no se ve venir; después ya
+  /// habría piezas puestas de una obra que se elegiría luego, y una pieza no
+  /// se mueve nunca.
+  /// Y caduca en cuanto cae la pieza siguiente: si la obra ya tiene una piedra
+  /// puesta, se acabó la pregunta. Una pieza no se mueve nunca, y menos de
+  /// sitio.
+  (int at, List<String> options)? choiceFor(int placed, List<String> chron) {
+    final used = <String>{};
+    var from = 0;
+    for (var b = 0; b < 20000; b++) {
+      final written = b < chron.length;
+      final id = written ? chron[b] : decide(b, used);
+      if (!written && from >= placed) {
+        if (from > placed) return null;
+        if (landmarkOf(id) != null) {
+          return (b, landmarkChoices(landmarkNumber(b), used));
+        }
+      }
+      if (!id.startsWith(kindMark)) used.add(id);
+      from += costOfId(id);
+    }
+    return null;
   }
 
   /// What the town is putting up right now, how much of it is left, and

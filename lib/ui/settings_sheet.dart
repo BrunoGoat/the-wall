@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/demo.dart';
 import '../data/landmarks.dart';
+import '../engine/season.dart';
 import '../engine/town.dart';
 import '../fx/sensory.dart';
 import '../model/appearance.dart';
@@ -189,6 +190,50 @@ class _SettingsSheetState extends State<SettingsSheet> {
             );
           },
         ),
+
+        const SizedBox(height: 26),
+        _Head(theme: t, text: 'EL AÑO'),
+        _Switch(
+          theme: t,
+          title: 'Las estaciones',
+          subtitle:
+              'El valle cambia con el año: verde nuevo en primavera, dorado en '
+              'otoño, nieve en los tejados en invierno, y los días más cortos '
+              'o más largos según toque.',
+          on: wants.seasons,
+          onChanged: wants.setSeasons,
+        ),
+        if (wants.seasons) ...[
+          _Switch(
+            theme: t,
+            title: 'Estoy en el hemisferio sur',
+            subtitle:
+                'Para que diciembre sea verano y julio invierno. Sale del '
+                'idioma del teléfono; esto es para corregirlo.',
+            on: wants.hemisphere == Hemisphere.south,
+            onChanged: (v) =>
+                wants.setHemisphere(v ? Hemisphere.south : Hemisphere.north),
+          ),
+          _Switch(
+            theme: t,
+            title: 'Fingir el día del año',
+            subtitle:
+                'Para ver el invierno en marzo sin esperarlo, igual que se '
+                'finge la hora.',
+            on: wants.fakeSeason,
+            onChanged: wants.setFakeSeason,
+          ),
+          if (wants.fakeSeason)
+            _Slider(
+              theme: t,
+              title:
+                  '${Season(wants.fakeSeasonAt).name}, '
+                  '${Season(wants.fakeSeasonAt).daylightHours.toStringAsFixed(1)}'
+                  ' horas de luz',
+              value: wants.fakeSeasonAt,
+              onChanged: wants.setFakeSeasonAt,
+            ),
+        ],
 
         const SizedBox(height: 26),
         _Head(theme: t, text: 'LO DEMÁS'),

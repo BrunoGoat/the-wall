@@ -12,6 +12,7 @@ import '../model/piece.dart';
 import '../data/landmarks.dart';
 import '../model/store.dart';
 import 'board_glyph.dart';
+import 'choice_sheet.dart';
 import 'habit_bar.dart';
 import 'habits_sheet.dart';
 import 'hold_button.dart';
@@ -249,6 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 // to be anything but in the way.
                 if (Appearance.instance.rapid) return;
                 setState(() {});
+                _askWhatToBuild();
               },
               onStoneTapped: (brick) => setState(() {
                 _selected = brick;
@@ -485,6 +487,55 @@ class _HomeScreenState extends State<HomeScreen> {
   /// The notice board of one town. Reading another town's board does not move
   /// you there: you can stand in your own plaza and read what the next valley
   /// over has worked out about itself.
+  /// Si el pueblo tiene algo que preguntar, preguntarlo.
+  ///
+  /// Justo después de que caiga la pieza que empezaría la obra, que es el
+  /// único momento en que la pregunta tiene sentido: antes no se ve venir, y
+  /// después ya habría piedra puesta de algo que se elegiría luego.
+  ///
+  /// Se espera a que termine el fotograma de la pieza cayendo. Una hoja que
+  /// sube encima del polvo y del sonido le pisa a la pieza su momento, que es
+  /// lo único que esta app celebra.
+  void _askWhatToBuild() {
+    if (_asking) return;
+    final options = widget.store.pendingChoice;
+    if (options == null) return;
+    _asking = true;
+    Future.delayed(const Duration(milliseconds: 1100), () {
+      if (!mounted) {
+        _asking = false;
+        return;
+      }
+      final ahora = widget.store.pendingChoice;
+      if (ahora == null) {
+        _asking = false;
+        return;
+      }
+      Sensory.instance.tick();
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        barrierColor: sheetScrim(_theme.dark),
+        builder: (_) => ChoiceSheet(
+          options: ahora,
+          place: widget.store.habit.place,
+          theme: _theme,
+          onPick: (mark) => widget.store.chooseWork(mark.id),
+          onLeave: widget.store.letThemDecide,
+        ),
+      ).whenComplete(() {
+        _asking = false;
+        // Arrastrar la hoja hacia abajo también es cerrarla sin contestar, y
+        // no pasa por ningún botón. Si sigue sin contestarse, deciden ellos.
+        widget.store.letThemDecide();
+      });
+    });
+  }
+
+  /// Para no abrir dos hojas si caen dos piezas seguidas muy rápido.
+  bool _asking = false;
+
   void _readBoard(int town) {
     final store = widget.store;
     if (town < 0 || town >= store.habits.length) return;

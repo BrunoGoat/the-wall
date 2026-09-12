@@ -285,7 +285,10 @@ class Yard {
             cx + w / 2,
             h,
             z + gap * 0.32,
-            Surface.own,
+            // Hoja y no «color propio»: así la huerta sigue el calendario
+            // del año como cualquier otra hoja del valle, en vez de quedarse
+            // verde primavera bajo la nieve.
+            Surface.leaf,
             ao: 0.94,
             tint: _greens[(seed + r) & 3],
           ),
@@ -347,7 +350,7 @@ class Yard {
           cx + w * 0.41,
           ht * 0.76,
           cz + w * 0.41,
-          Surface.own,
+          Surface.leaf,
           ao: 0.96,
           tint: leaf,
         ),
@@ -361,7 +364,7 @@ class Yard {
           cx + w * 0.27,
           ht,
           cz + w * 0.27,
-          Surface.own,
+          Surface.leaf,
           ao: 1.0,
           tint: _greens[(seed + 1) & 3],
         ),

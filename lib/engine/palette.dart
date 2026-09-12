@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import '../core/math3.dart';
+import 'season.dart';
 
 /// The look of La Muralla: stylised flat-shaded limestone under a big sky.
 ///
@@ -26,6 +27,7 @@ class Palette {
     required this.contrast,
     required this.hour,
     required this.starAlpha,
+    this.season = Season.none,
   });
 
   final Color skyTop, skyHorizon, haze, ground, groundFar;
@@ -33,8 +35,20 @@ class Palette {
   final Color sun, skyLight, accent, ink;
   final double contrast;
 
-  /// Local time of day, 0..24.
+  /// La hora con la que se pinta, de 0 a 24 — pero **no** la del reloj.
+  ///
+  /// Es la hora llevada al horario del ciclo, que supone que amanece a las
+  /// seis y anochece a las ocho. En enero amanece más tarde que eso, así que
+  /// las nueve de la mañana de enero entran aquí como las siete y pico, y
+  /// salen con la luz que les toca. Lo hace [Palette.forMoment]; ver ahí por
+  /// qué se remapea la hora en vez de mover el ciclo entero.
+  ///
+  /// Quien necesite la hora de verdad —la fugaz, el tablón, la música— la
+  /// tiene aparte y no la saca de acá.
   final double hour;
+
+  /// En qué punto del año está el valle.
+  final Season season;
 
   /// How visible the stars are, 0..1.
   final double starAlpha;
@@ -225,8 +239,27 @@ class Palette {
 
   /// Blends the cycle at [hourOfDay] and then weathers it by [integrity]
   /// (1 = pristine, 0.12 = long abandoned).
-  factory Palette.forMoment(double hourOfDay, double integrity) {
-    final h = hourOfDay % 24.0;
+  ///
+  /// La estación no le cambia los colores al ciclo: le cambia **a qué hora
+  /// pasa cada cosa**. El ciclo de arriba está escrito para un día que
+  /// amanece a las seis y anochece a las ocho, y esos doce colores están
+  /// elegidos uno a uno; reescribirlos cuatro veces —uno por estación— sería
+  /// cuarenta y ocho colores que mantener de acuerdo entre sí, y en la
+  /// primera semana dejarían de estarlo.
+  ///
+  /// Así que lo que se mueve es la hora. [Season] dice a qué hora amanece y
+  /// anochece hoy, y eso se lleva a las seis y a las veinte con un tramo
+  /// recto a cada lado del mediodía solar. En invierno la mañana se estira
+  /// —las ocho de un martes de julio entran como las seis y media y salen con
+  /// la luz del amanecer, que es lo que se ve por la ventana— y la tarde se
+  /// encoge. El sol sale de esta misma hora, así que la luz y el color no se
+  /// pueden desacoplar aunque uno quiera.
+  factory Palette.forMoment(
+    double hourOfDay,
+    double integrity, {
+    Season season = Season.none,
+  }) {
+    final h = _cycleHour(hourOfDay % 24.0, season);
     var lo = _cycle.first, hi = _cycle.last;
     for (var i = 0; i < _cycle.length - 1; i++) {
       if (h >= _cycle[i].$1 && h <= _cycle[i + 1].$1) {
@@ -239,7 +272,23 @@ class Palette {
     final raw = span <= 0 ? 0.0 : (h - lo.$1) / span;
     // Ease the crossfade so dawn and dusk linger instead of snapping.
     final t = raw * raw * (3 - 2 * raw);
-    return _PaletteSpec.lerp(lo.$2, hi.$2, t).weathered(integrity, h);
+    return _PaletteSpec.lerp(lo.$2, hi.$2, t).weathered(integrity, h, season);
+  }
+
+  /// La hora del reloj, llevada al horario que supone el ciclo.
+  ///
+  /// Cuatro tramos rectos con los extremos clavados: medianoche en
+  /// medianoche, el amanecer de hoy en las seis, el mediodía solar en sí
+  /// mismo y el ocaso de hoy en las veinte. Es monótona por construcción, así
+  /// que la hora nunca va para atrás, y las dos mitades del día tienen la
+  /// misma escala porque el mediodía solar está justo en medio de las dos.
+  static double _cycleHour(double h, Season season) {
+    const noon = Season.noon;
+    final rise = season.sunrise, set = season.sunset;
+    if (h <= rise) return lerpD(0, 6.0, rise <= 0 ? 1 : h / rise);
+    if (h <= noon) return lerpD(6.0, noon, (h - rise) / (noon - rise));
+    if (h <= set) return lerpD(noon, 20.0, (h - noon) / (set - noon));
+    return lerpD(20.0, 24.0, (h - set) / (24 - set));
   }
 }
 
@@ -288,7 +337,7 @@ class _PaletteSpec {
       );
 
   /// Neglect drains the warmth out of everything and thickens the air.
-  Palette weathered(double integrity, double hour) {
+  Palette weathered(double integrity, double hour, Season season) {
     final decay = 1.0 - integrity.clamp(0.0, 1.0);
     const grim = Color(0xFF6D7367);
     const grimSky = Color(0xFF8A8F92);
@@ -310,6 +359,7 @@ class _PaletteSpec {
       ink: ink,
       contrast: lerpD(contrast, 0.84, decay),
       hour: hour,
+      season: season,
       starAlpha: starAlpha * (1 - decay * 0.7),
     );
   }

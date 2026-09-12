@@ -7,6 +7,7 @@ import '../core/rng.dart';
 import '../data/pacing.dart';
 import '../data/symbols.dart';
 import '../data/character.dart';
+import '../data/landmarks.dart';
 import '../engine/town.dart';
 import 'habit.dart';
 import 'piece.dart';
@@ -93,6 +94,66 @@ class Store extends ChangeNotifier {
       ..clear()
       ..addAll(want);
     return true;
+  }
+
+  /// Lo que el pueblo está esperando que le contesten, si es que espera algo.
+  ///
+  /// Todo lo demás de esta app ocurre solo: las casas se eligen con el hash del
+  /// pueblo y los hitos por el orden que le tocó al fundarlo, y está bien que
+  /// sea así — hay un solo botón y ninguna decisión que tomar, y ésa es la
+  /// mitad de lo que la hace descansada.
+  ///
+  /// Pero una vez cada varias semanas, cuando toca empezar una obra grande, el
+  /// pueblo pregunta. Dos obras que le tocaban igual de pronto, y la que no
+  /// salga sigue la primera de la lista para la próxima vez, así que elegir no
+  /// es renunciar a nada: es decidir el orden de tu propio valle. Es la única
+  /// decisión que hay en toda la app, y por eso tiene que ser rara.
+  ///
+  /// Nulo casi siempre. Deja de serlo justo en la pieza en la que la obra
+  /// empezaría, y vuelve a serlo en cuanto se contesta.
+  List<Landmark>? get pendingChoice {
+    final c = plan.choiceFor(habit.total, habit.chronicle);
+    if (c == null) return null;
+    final marks = [
+      for (final id in c.$2)
+        if (TownPlan.landmarkOf(id) != null) TownPlan.landmarkOf(id)!,
+    ];
+    return marks.length < 2 ? null : marks;
+  }
+
+  /// Contestar: se escribe en la crónica y de ahí no se mueve nunca más.
+  ///
+  /// Si lo que llega no es una de las dos que se preguntaron, no pasa nada —
+  /// se escribe la primera, que es la que habría salido sola. Un pueblo no se
+  /// queda esperando por una respuesta que no llega.
+  void chooseWork(String id) {
+    final c = plan.choiceFor(habit.total, habit.chronicle);
+    if (c == null) return;
+    final want = c.$2.contains(id) ? id : c.$2.first;
+    while (habit.chronicle.length < c.$1) {
+      // No puede pasar —la crónica llega justo hasta aquí— pero si pasara,
+      // escribir en el hueco equivocado le cambiaría los edificios a un pueblo
+      // que ya está en pie. Mejor rellenar con lo que decía el plan.
+      habit.chronicle.add(plan.chronicleFor(total, habit.chronicle).last);
+    }
+    habit.chronicle.add(want);
+    _writeUpWorks(habit);
+    _save();
+    notifyListeners();
+  }
+
+  /// Cerrar sin contestar: que decidan ellos, y que lo decidan ahora.
+  ///
+  /// Escribe la primera, que es la que habría salido sola. Se podría no hacer
+  /// nada —la pregunta caduca con la pieza siguiente y entonces se escribe lo
+  /// mismo— pero eso deja la crónica un hueco corta mientras tanto, y si ese
+  /// mientras tanto dura un mes y en el medio cae una actualización con hitos
+  /// nuevos, la obra que estaba a punto de empezar podría cambiar. Es una
+  /// ventana chica, pero cerrarla cuesta una línea.
+  void letThemDecide() {
+    final c = plan.choiceFor(habit.total, habit.chronicle);
+    if (c == null) return;
+    chooseWork(c.$2.first);
   }
 
   /// Y de todos, que es lo que hace falta al abrir la app y al importar.

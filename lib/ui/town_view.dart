@@ -326,7 +326,11 @@ class _TownViewState extends State<TownView>
     return now.hour + now.minute / 60.0;
   }
 
-  Palette _buildPalette() => Palette.forMoment(_hour, _displayIntegrity);
+  Palette _buildPalette() => Palette.forMoment(
+    _hour,
+    _displayIntegrity,
+    season: Appearance.instance.season,
+  );
 
   // ------------------------------------------------------------------ tick
 

@@ -19,6 +19,7 @@ import 'town.dart';
 import 'world.dart';
 import 'landscape.dart';
 import 'palette.dart';
+import 'season.dart';
 
 int _ch(double v) {
   final i = (v * 255.0).round();
@@ -700,12 +701,116 @@ class TownPainter extends CustomPainter {
   /// because the second of those changes colour in a single frame.
   static Color meadowTone(Palette pal) {
     final day = pal.daylight;
+    // El verde de siempre, sin año: el año entra una sola vez, más abajo.
+    // Entrando aquí también, se aplicaba dos veces —una con el peso de la
+    // mezcla y otra entera— y el otoño salía rojo ladrillo en vez de ocre.
     final green = Color.lerp(
       const Color(0xFF204D53),
-      const Color(0xFF749445),
+      _grassOfYear(Season.none),
       day,
     )!;
-    return Color.lerp(pal.ground, green, 0.32 + 0.115 * day)!;
+    var prado = Color.lerp(pal.ground, green, 0.32 + 0.115 * day)!;
+    // El año otra vez, ahora sobre la mezcla ya hecha.
+    //
+    // Hace falta las dos veces. El verde entra en la mezcla pesando poco menos
+    // de la mitad —el resto es el tono del suelo de esa hora, que no sabe nada
+    // del año—, así que teñir sólo el verde dejaba septiembre y junio casi del
+    // mismo color.
+    //
+    // Pero **multiplicando y no mezclando**. Mezclar con el verde de la
+    // estación es mezclar con un color de mediodía: a las dos de la mañana el
+    // prado se aclaraba un tercio hacia un verde de mediodía y la noche dejaba
+    // de ser noche. Multiplicar por lo que la estación le hizo al verde mueve
+    // el tono y deja la luz en paz — y con el año apagado la razón es uno y
+    // esto no hace absolutamente nada, que es la otra mitad de por qué así.
+    prado = _tintedLike(
+      prado,
+      _grassOfYear(Season.none),
+      _grassOfYear(pal.season),
+    );
+    // Y encima, la nieve. Va después de todo lo demás porque tapa: un prado
+    // nevado no es un prado de otro color, es un prado que no se ve.
+    //
+    // Sin el factor del día: la nieve de noche se ve, y bastante —es lo único
+    // que hay claro en un paisaje oscuro—. El tono ya sigue a la luz de la
+    // hora, así que de noche sale azulada sola.
+    //
+    // Y no la misma nieve que los tejados, sino algo más apagada: un prado
+    // nevado se mira de canto y un tejado de frente, así que el prado devuelve
+    // menos luz. Con la misma de los dos, el suelo salía exactamente del gris
+    // de la bruma y el horizonte desaparecía — el valle entero era una sola
+    // mancha pálida sin línea que separase la tierra del cielo.
+    final manto = Color.lerp(_snowTone(pal), pal.ground, 0.22)!;
+    return Color.lerp(prado, manto, pal.season.snow * 0.66)!;
+  }
+
+  /// Mueve [c] lo mismo que [from] se movió hasta [to].
+  ///
+  /// Por razón y no por mezcla, así que lo oscuro sigue oscuro: lo que cambia
+  /// es de qué color es, no cuánta luz le está dando. Si [from] y [to] son el
+  /// mismo color, esto devuelve [c] intacto.
+  static Color _tintedLike(Color c, Color from, Color to) {
+    double r(double a, double b) => b <= 0.004 ? 1.0 : clampD(a / b, 0.35, 2.2);
+    return Color.from(
+      alpha: c.a,
+      red: clampD(c.r * r(to.r, from.r), 0, 1),
+      green: clampD(c.g * r(to.g, from.g), 0, 1),
+      blue: clampD(c.b * r(to.b, from.b), 0, 1),
+    );
+  }
+
+  /// De qué color está el pasto en esta época del año.
+  ///
+  /// Cuatro tonos y una mezcla, y el orden es el del año: el verde ácido de
+  /// la hierba nueva en primavera, el verde cansado y algo seco del final del
+  /// verano, el pajizo del otoño, y el pardo apagado del invierno bajo el
+  /// cual asoma la nieve.
+  ///
+  /// Se parte del verde de siempre —el que tenía la app antes de que hubiera
+  /// estaciones— y se tira de él hacia cada lado, en vez de escribir cuatro
+  /// colores nuevos. Así el prado de un día de verano es exactamente el de
+  /// siempre y no hay ninguna captura vieja que deje de valer.
+  static Color _grassOfYear(Season s) {
+    const verano = Color(0xFF749445);
+    var c = verano;
+    //
+    // Los tres tonos están cerca del verde de partida a propósito. El prado no
+    // se tiñe mezclando sino por razón entre este color y el de verano, y una
+    // razón grande en un solo canal es un valle marciano: con un ocre subido
+    // para el otoño, el rojo salía multiplicado por uno y medio y el pueblo
+    // quedaba plantado en Marte. Lo que se busca es el giro, no el color.
+    // La primavera es **más verde**, no sólo más clara. El primer tono que le
+    // puse subía el rojo y el verde por igual, así que el prado de marzo salía
+    // igual que el de junio con más luz —y a ojo, el mismo prado.
+    c = Color.lerp(c, const Color(0xFF6FB83C), s.spring * 0.85)!;
+    c = Color.lerp(c, const Color(0xFF95873F), s.autumn * 0.80)!;
+    // Por `bare` y no por `winter`, que es la diferencia entre un prado de
+    // marzo verde y uno pardo. `winter` vale medio en **los dos** equinoccios
+    // —es el eje coseno del año—, así que tirando de él, a la primavera le
+    // caía encima medio invierno y se comía justo el verde que la hace
+    // primavera. `bare` es cero hasta bien entrado el invierno, que es cuando
+    // el pasto se seca de verdad, y además es el mismo número con el que se
+    // cae la hoja: la tierra y los árboles se apagan juntos, como pasa.
+    c = Color.lerp(c, const Color(0xFF7B7358), s.bare * 0.75)!;
+    return c;
+  }
+
+  /// La nieve no es blanca: es del color de la luz que le está dando.
+  ///
+  /// Blanco puro de mediodía es una mancha de papel pegada al paisaje, y de
+  /// noche es un agujero. Tirando del blanco hacia el sol y hacia el cielo de
+  /// la hora, la nieve del amanecer sale rosada y la de la noche azul, que es
+  /// lo que hace la nieve de verdad y lo que la mete dentro de la escena.
+  static Color _snowTone(Palette pal) {
+    final luz = Color.lerp(pal.sun, pal.skyLight, 0.45)!;
+    // De noche se hunde más en la luz de la hora que de día. Una nieve casi
+    // blanca en un paisaje nocturno es un agujero recortado: lo único que se
+    // ve, y encima plano.
+    return Color.lerp(
+      const Color(0xFFEDF1F5),
+      luz,
+      0.30 + 0.40 * (1 - pal.daylight),
+    )!;
   }
 
   /// What one range is painted with: the colour of its body, and the colour
@@ -758,11 +863,24 @@ class TownPainter extends CustomPainter {
     // centésimas de luz del cielo: literalmente invisible.
     final noche = 1 - pal.daylight;
     final lejos = 1 - near01;
-    final body = Color.lerp(
+    var body = Color.lerp(
       hill,
       const Color(0xFF000000),
       lerpD(0.54 * lejos, 0.52 + 0.28 * lejos, noche),
     )!;
+    // En invierno las cumbres se ven blancas desde el valle, y empiezan a
+    // verse antes que la nieve de abajo: arriba hace más frío. Se aclara la
+    // sierra entera y no sólo su borde —a esta distancia una cordillera es una
+    // silueta plana— y con menos fuerza cuanto más lejos está, porque lo que
+    // está lejos lo tapa la bruma y no la nieve.
+    final alto = clampD(pal.season.winter * 1.45 - 0.30, 0.0, 1.0);
+    if (alto > 0.004) {
+      body = Color.lerp(
+        body,
+        _snowTone(pal),
+        alto * (0.22 + 0.26 * near01) * (0.35 + 0.65 * pal.daylight),
+      )!;
+    }
     return (body, Color.lerp(body, pal.haze, 0.30 + 0.15 * near01)!);
   }
 
@@ -1863,7 +1981,7 @@ class TownPainter extends CustomPainter {
   /// A face with no achievement behind it: the town's own furniture.
   void _plain(Projector p, Facet f, Palette pal, V3 light, double decay) {
     final at = f.v.first;
-    final albedo = _weather(Color(f.tint ?? 0xFF808080), decay, 0);
+    final albedo = _weather(_plainTone(f, at, pal), decay, 0);
     final colour = _hazeAt(
       _shade(f.n, albedo, light, pal, f.ao, 0, 0),
       p,
@@ -1878,7 +1996,7 @@ class TownPainter extends CustomPainter {
       final c = _hazeAt(
         _shade(
           g.n,
-          _weather(Color(g.tint ?? 0xFF808080), decay, 0),
+          _weather(_plainTone(g, at, pal), decay, 0),
           light,
           pal,
           g.ao,
@@ -2024,11 +2142,15 @@ class TownPainter extends CustomPainter {
       case Surface.own:
         albedo = _weather(Color(f.tint ?? 0xFF808080), decay, s);
       case Surface.leaf:
-        final leaf = Color.lerp(
-          const Color(0xFF4E5C3C),
-          const Color(0xFF6E7448),
-          hash01(s, 11),
-        )!;
+        final leaf = leafOfYear(
+          Color.lerp(
+            const Color(0xFF4E5C3C),
+            const Color(0xFF6E7448),
+            hash01(s, 11),
+          )!,
+          s,
+          pal.season,
+        );
         // Pulled towards the ground's own tone so a tree reads as part of the
         // landscape rather than as a green block dropped onto it.
         albedo = Color.lerp(
@@ -2170,10 +2292,19 @@ class TownPainter extends CustomPainter {
     // Real crop colours rather than a wash of the ground tone: young green,
     // ripe barley, the deep green of a kitchen garden.
     final t = hash01(s, 9);
-    final crop = t < 0.36
+    var crop = t < 0.36
         ? const Color(0xFF6FA341)
         : (t < 0.72 ? const Color(0xFFC9A94A) : const Color(0xFF4E8C46));
+    // Un sembrado es lo que más se mueve con el año de todo lo que hay en el
+    // valle: brota, madura, se siega y se queda en tierra pelada hasta la
+    // primavera. Sin esto, una huerta en pleno enero está verde y lozana
+    // debajo de la nieve, que es la clase de detalle que rompe el resto.
+    final year = pal.season;
+    crop = Color.lerp(crop, const Color(0xFF8FBE4A), year.spring * 0.50)!;
+    crop = Color.lerp(crop, const Color(0xFFD9BE62), year.autumn * 0.55)!;
     final soil = const Color(0xFF6B563E);
+    // Y en invierno queda la tierra, que es lo que hay en un bancal en enero.
+    crop = Color.lerp(crop, soil, year.winter * 0.72)!;
     final along = piece.alongX;
     final across = along ? piece.d : piece.w;
     final rows = clampD(across / 0.26, 3, 14).round();
@@ -2496,6 +2627,7 @@ class TownPainter extends CustomPainter {
   ) {
     final ndl = math.max(0.0, n.dot(light));
     final skyTerm = 0.5 + 0.5 * n.y;
+    albedo = _snowed(albedo, n, pal);
     // Stone in shadow is still stone: the sky term is modulated by the albedo
     // so unlit faces stay pale limestone instead of collapsing to black.
     final k = (0.44 + 0.58 * ndl + 0.26 * skyTerm) * ao * pal.contrast;
@@ -2522,6 +2654,80 @@ class TownPainter extends CustomPainter {
       b = lerpD(b, 0.68, repairGlow * 0.45);
     }
     return Color.fromARGB(255, _ch(r), _ch(g), _ch(b));
+  }
+
+  /// El color de una cara del mobiliario del pueblo: la huerta, el roble de la
+  /// parcela, el tablón.
+  ///
+  /// Estas cosas no son piezas de nadie —nadie se las ganó— así que no tienen
+  /// un edificio del que sacar el tono y lo dicen ellas mismas con un tinte.
+  /// Pero una hoja es una hoja aunque no sea de nadie: la del roble de la
+  /// parcela tiene que dorarse en octubre igual que la del bosque, y la huerta
+  /// tiene que quedarse en tierra en enero. Sin esto, en un valle nevado había
+  /// setos verde primavera al lado de cada casa.
+  ///
+  /// La semilla sale de dónde está, que es lo único propio que tiene una cara
+  /// suelta, y así dos robles vecinos no se doran el mismo día.
+  Color _plainTone(Facet f, V3 at, Palette pal) {
+    final base = Color(f.tint ?? 0xFF808080);
+    if (f.surface != Surface.leaf) return base;
+    return leafOfYear(
+      base,
+      hash32((at.x * 64).round(), (at.z * 64).round(), 5),
+      pal.season,
+    );
+  }
+
+  /// De qué color está una hoja en esta época del año.
+  ///
+  /// Cada árbol se dora un poco antes o un poco después que su vecino —el
+  /// mismo `hash` que ya le daba su verde le da ahora su calendario—, porque
+  /// un bosque entero que cambia de color el mismo día es un bosque pintado.
+  ///
+  /// Primero el oro y después la rama, en ese orden y no a la vez: un roble
+  /// pelado en mitad de su mejor semana es un roble que se saltó la parte
+  /// bonita. Y no hace falta geometría nueva para el invierno — a esta
+  /// distancia, un árbol sin hoja es un árbol del color del tronco.
+  static Color leafOfYear(Color base, int seed, Season year) {
+    final suyo = 0.78 + hash01(seed, 23) * 0.44;
+    final oro = clampD(year.autumn * suyo, 0, 1);
+    final pelado = clampD(year.bare * suyo, 0, 1);
+    var c = Color.lerp(
+      base,
+      Color.lerp(
+        const Color(0xFFC08A35),
+        const Color(0xFF9C4A2C),
+        hash01(seed, 29),
+      )!,
+      oro * 0.82,
+    )!;
+    return Color.lerp(c, const Color(0xFF5A4635), pelado * 0.88)!;
+  }
+
+  /// La nieve que se le queda encima a una cara.
+  ///
+  /// No hay geometría nueva y no hace falta ninguna: la nieve se posa en lo
+  /// que mira hacia arriba y no en lo que mira de lado, así que basta con la
+  /// normal de la cara. Un faldón de tejado la coge casi entera, un adarve y
+  /// un basamento entera del todo, un muro nada, y lo que mira al suelo
+  /// tampoco. Eso es exactamente lo que hace la nieve.
+  ///
+  /// Va sobre el albedo y no sobre el color ya iluminado, que es la diferencia
+  /// entre nieve y pintura blanca: así el faldón que da al sol brilla y el de
+  /// la otra vertiente queda en penumbra azulada, con la misma luz que todo
+  /// lo demás.
+  ///
+  /// Y no cuaja del todo: queda algo de tejado asomando, que es lo que hace
+  /// que se lea «tejado con nieve» y no «bloque blanco».
+  Color _snowed(Color albedo, V3 n, Palette pal) {
+    final snow = pal.season.snow;
+    if (snow < 0.004) return albedo;
+    final up = n.y;
+    if (up <= 0.02) return albedo;
+    // Lo tumbado que está, con el borde suavizado para que un tejado muy
+    // empinado se quede a medias en vez de aparecer nevado de golpe.
+    final lies = smoothstep(0.10, 0.72, up);
+    return Color.lerp(albedo, _snowTone(pal), snow * lies * 0.88)!;
   }
 
   // ---------------------------------------------------------------- flush
