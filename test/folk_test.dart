@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:la_muralla/data/character.dart';
+import 'package:la_muralla/data/doings.dart';
 import 'package:la_muralla/engine/folk.dart';
 import 'package:la_muralla/engine/palette.dart';
 import 'package:la_muralla/engine/season.dart';
@@ -252,8 +253,13 @@ void main() {
       final t = _town(400);
       for (final w in folkOf(t, 400)) {
         if (w.kid) continue;
-        expect(w.debugActs, isNot(contains(FolkAct.kite)));
-        expect(w.debugActs, isNot(contains(FolkAct.chase)));
+        for (final d in w.debugActs) {
+          expect(
+            d?.who,
+            isNot(Who.kid),
+            reason: '${w.name} no es un crío y ${d?.name}',
+          );
+        }
       }
     });
 
@@ -267,9 +273,7 @@ void main() {
         final donde = w.debugPath;
         final quehace = w.debugActs;
         for (var i = 0; i < quehace.length; i++) {
-          if (quehace[i] != FolkAct.kite && quehace[i] != FolkAct.chase) {
-            continue;
-          }
+          if (quehace[i]?.where != Where.meadow) continue;
           final d = math.sqrt(
             math.pow(donde[i].$1 - t.cx, 2) + math.pow(donde[i].$2 - t.cz, 2),
           );
@@ -289,7 +293,7 @@ void main() {
       for (final w in folkOf(t, 200)) {
         for (var k = 0; k < 300; k++) {
           final at = w.at(w.period * k / 300);
-          if (at.moving) expect(at.act, FolkAct.walk);
+          if (at.moving) expect(at.act, isNull);
         }
       }
     });
@@ -300,7 +304,7 @@ void main() {
       final t = _town(200);
       var visto = 0;
       for (final w in folkOf(t, 200)) {
-        FolkAct? antes;
+        Doing? antes;
         var seguidos = 0;
         for (var k = 0; k < 600; k++) {
           final at = w.at(w.period * k / 600);
@@ -318,6 +322,54 @@ void main() {
         }
       }
       expect(visto, greaterThan(100), reason: 'las paradas duran un suspiro');
+    });
+
+    test('las cosas de casa pasan en su casa', () {
+      // Su puerta es el único sitio de la ronda que es suyo. Amasar pan en
+      // mitad del prado sería exactamente el tipo de cosa que convierte un
+      // pueblo en un parque de atracciones.
+      final t = _town(400);
+      for (final w in folkOf(t, 400)) {
+        final donde = w.debugPath, quehace = w.debugActs;
+        final casa = t.buildings[w.home];
+        for (var i = 0; i < quehace.length; i++) {
+          if (quehace[i]?.where != Where.door) continue;
+          final d = math.sqrt(
+            math.pow(donde[i].$1 - casa.cx, 2) +
+                math.pow(donde[i].$2 - casa.cz, 2),
+          );
+          expect(
+            d,
+            lessThan(6.0),
+            reason: '${w.name} ${quehace[i]!.name} lejos de su casa',
+          );
+        }
+      }
+    });
+
+    test('hay de sobra para que no se repita el pueblo entero', () {
+      // El número que importa no es cuántas hay escritas sino cuántas se ven:
+      // noventa en la tabla y seis en un pueblo sería lo mismo que seis.
+      final t = _town(400);
+      final vistas = <String>{};
+      for (final w in folkOf(t, 400)) {
+        for (final d in w.debugActs) {
+          if (d != null) vistas.add(d.id);
+        }
+      }
+      expect(vistas.length, greaterThan(45));
+    });
+
+    test('todas las de la tabla son alcanzables desde algún sitio', () {
+      // Una actividad que ninguna clase de sitio puede sortear es una
+      // actividad escrita y nunca vista.
+      for (final d in Doing.all) {
+        final crios = d.fits(true), mayores = d.fits(false);
+        expect(crios || mayores, isTrue, reason: '${d.id} no le toca a nadie');
+        expect(d.weight, greaterThan(0), reason: '${d.id} no sale nunca');
+      }
+      final ids = {for (final d in Doing.all) d.id};
+      expect(ids.length, Doing.all.length, reason: 'hay dos con el mismo id');
     });
 
     test('el mismo vecino hace lo mismo dos veces', () {

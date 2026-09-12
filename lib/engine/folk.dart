@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/math3.dart';
 import '../core/rng.dart';
+import '../data/doings.dart';
 import '../data/folknames.dart';
 import 'solid.dart';
 import 'town.dart';
@@ -54,8 +55,9 @@ class Townsfolk {
   /// expositor y en los tests, que no tienen un hábito detrás.
   final DateTime? born;
 
-  /// Lo que hace en cada parada de su ronda.
-  final List<FolkAct> _act;
+  /// Lo que hace en cada parada de su ronda. Nulo en los quiebros del camino,
+  /// que no son sitios a los que se va.
+  final List<Doing?> _act;
 
   /// Si es un crío. Más chico, y es el que sale al prado a soltar la cometa o
   /// a correr detrás de una mariposa — que es lo que hace un crío en un pueblo
@@ -95,7 +97,7 @@ class Townsfolk {
   /// no se ponga a martillear un puente y que nadie suelte una cometa dentro
   /// de la plaza.
   @visibleForTesting
-  List<FolkAct> get debugActs => _act;
+  List<Doing?> get debugActs => _act;
 
   /// Lo que anda una persona en un segundo.
   ///
@@ -139,7 +141,7 @@ class Townsfolk {
           math.atan2(dx, dz),
           (walked + d * k) / stride * 2 * math.pi,
           true,
-          FolkAct.walk,
+          null,
           u - acc,
         );
       }
@@ -149,17 +151,16 @@ class Townsfolk {
       if (u < acc + stay) {
         // Parado: mirando a donde vino a mirar, con un balanceo lento que es
         // lo que separa a alguien esperando de un poste.
+        final what = _act[(i + 1) % n];
         final look = _facing[(i + 1) % n];
-        final sway = math.sin((u - acc) * 0.7 + hash01(seed, 9) * 6) * 0.18;
-        return FolkAt(
-          to.$1,
-          to.$2,
-          look + sway,
-          0,
-          false,
-          _act[(i + 1) % n],
-          u - acc,
-        );
+        // La cabeza se va yendo a mirar alrededor, y cuánto depende de en qué
+        // ande: quien pica piedra no levanta la vista y quien no hace nada la
+        // levanta todo el rato.
+        final sway =
+            math.sin((u - acc) * 0.7 + hash01(seed, 9) * 6) *
+            0.18 *
+            (what?.turn ?? 1.0);
+        return FolkAt(to.$1, to.$2, look + sway, 0, false, what, u - acc);
       }
       acc += stay;
     }
@@ -177,7 +178,7 @@ class FolkAt {
     this.heading,
     this.gait,
     this.moving, [
-    this.act = FolkAct.walk,
+    this.act,
     this.phase = 0,
   ]);
   final double x, z;
@@ -189,47 +190,13 @@ class FolkAt {
   final double gait;
   final bool moving;
 
-  /// Qué está haciendo ahora mismo.
-  final FolkAct act;
+  /// Qué está haciendo ahora mismo. Nulo quiere decir que va de camino.
+  final Doing? act;
 
   /// Cuántos segundos lleva haciéndolo. Es lo que mueve el gesto: sin esto,
   /// alguien charlando es alguien con el brazo levantado y quieto, que es peor
   /// que no levantarlo.
   final double phase;
-}
-
-/// En qué anda un vecino.
-///
-/// Andar de un sitio a otro era todo lo que había, y un pueblo donde cuarenta
-/// personas sólo andan es un hormiguero: el movimiento se lee como tráfico y
-/// no como vida. Lo que hace que un sitio parezca habitado es que la gente
-/// **esté haciendo algo** cuando llega — y que lo que hace tenga que ver con
-/// dónde está, porque nadie suelta una cometa en medio de la plaza ni se pone
-/// a martillear un prado vacío.
-enum FolkAct {
-  /// De camino a la próxima parada.
-  walk,
-
-  /// Parado, mirando lo que vino a mirar.
-  stand,
-
-  /// Hablando con quien tenga al lado. Como todos se ponen en corro mirando al
-  /// medio del sitio, dos que coincidan quedan de cara: no hubo que emparejar
-  /// a nadie, salió del corro.
-  chat,
-
-  /// Echando una mano en la obra: sube y baja el brazo con la herramienta. Sólo
-  /// en los hitos, que es donde hay obra.
-  work,
-
-  /// Sentado en el suelo, que es lo que se hace cuando no hay nada que hacer.
-  rest,
-
-  /// Con la cometa en el aire. Sólo en el prado y sólo los críos.
-  kite,
-
-  /// Detrás de una mariposa. Igual.
-  chase,
 }
 
 /// La gente de un pueblo, guardada de un fotograma para el siguiente.
@@ -292,8 +259,8 @@ List<Townsfolk> _folkOf(TownLayout layout, int placed) {
   // se hace al llegar: en la plaza se charla, en una obra se arrima el hombro,
   // y en el prado se suelta la cometa. Un crío soltando una cometa en medio de
   // la plaza es lo que pasa cuando esto no se distingue.
-  final sitios = <(double x, double z, double reach, _Where kind)>[
-    (layout.cx, layout.cz, 0.9, _Where.square),
+  final sitios = <(double x, double z, double reach, Where kind)>[
+    (layout.cx, layout.cz, 0.9, Where.square),
   ];
   for (final b in layout.buildings) {
     if (!b.isLandmark) continue;
@@ -303,7 +270,7 @@ List<Townsfolk> _folkOf(TownLayout layout, int placed) {
       b.cx,
       b.cz,
       (c == null ? b.reach : _spanOf(c)) + 0.55,
-      _Where.work,
+      _wet.contains(b.landmark?.id) ? Where.water : Where.work,
     ));
   }
   // Y un paseo al borde del pueblo, para que no sea todo ir de un edificio a
@@ -315,7 +282,7 @@ List<Townsfolk> _folkOf(TownLayout layout, int placed) {
       layout.cx + math.sin(a) * borde,
       layout.cz + math.cos(a) * borde,
       0.6,
-      _Where.meadow,
+      Where.meadow,
     ));
   }
 
@@ -340,9 +307,14 @@ List<Townsfolk> _folkOf(TownLayout layout, int placed) {
 
     // Tres recados y a casa. Tres y no más porque una ronda más larga es una
     // ronda que no se ve entera de una sentada.
+    final crio = hash01(seed, 12) < 0.24;
+    // Su propia puerta es el único sitio de la ronda que es suyo, y por eso es
+    // donde pasan las cosas de casa: tomar el sol, hilar, partir leña. Casi la
+    // mitad se queda un rato; los demás pasan de largo, que también es verdad.
     final stops = <(double, double)>[door];
-    final dwell = <double>[0.0];
-    final doing = <FolkAct>[FolkAct.stand];
+    final encasa = hash01(seed, 61) < 0.45;
+    final dwell = <double>[encasa ? hashRange(12.0, 30.0, seed, 62) : 0.0];
+    final doing = <Doing>[_actAt(Where.door, seed, 9, crio)];
     // Al volver a casa mira a la puerta, que es lo suyo.
     final look = <double>[math.atan2(-dx, -dz)];
     for (var k = 0; k < 3; k++) {
@@ -363,7 +335,7 @@ List<Townsfolk> _folkOf(TownLayout layout, int placed) {
       // Las paradas son más largas ahora que en ellas pasa algo: charlar seis
       // segundos y marcharse no es charlar, es saludar de lejos.
       dwell.add(hashRange(9.0, 26.0, seed, 40 + k));
-      doing.add(_actAt(s.$4, seed, k));
+      doing.add(_actAt(s.$4, seed, k, crio));
     }
 
     // El camino de verdad: los recados, y los quiebros para no meterse por
@@ -374,7 +346,7 @@ List<Townsfolk> _folkOf(TownLayout layout, int placed) {
     final path = <(double, double)>[];
     final stay = <double>[];
     final facing = <double>[];
-    final acts = <FolkAct>[];
+    final acts = <Doing?>[];
     for (var i = 0; i < stops.length; i++) {
       final from = stops[i], to = stops[(i + 1) % stops.length];
       path.add(from);
@@ -387,7 +359,7 @@ List<Townsfolk> _folkOf(TownLayout layout, int placed) {
         // se queda mirando nada.
         stay.add(0);
         facing.add(look[i]);
-        acts.add(FolkAct.walk);
+        acts.add(null);
       }
     }
     var period = 0.0;
@@ -418,34 +390,69 @@ List<Townsfolk> _folkOf(TownLayout layout, int placed) {
 }
 
 /// Qué clase de sitio es un recado.
-enum _Where { square, work, meadow }
+/// Las obras que tienen agua.
+///
+/// Es lo que hace que se pueda pescar y echar barcos de papel sin inventarse
+/// un río: en un pueblo con pozo hay quien saca agua, y en uno sin pozo no.
+/// Un pueblo que todavía no ha levantado ninguna de éstas sencillamente no
+/// tiene a nadie haciendo cosas de agua, que es lo correcto.
+const Set<String> _wet = {
+  'pozo',
+  'fuente',
+  'lavadero',
+  'abrevadero',
+  'acena',
+  'noria',
+  'vado',
+  'barca',
+  'pasarela',
+  'puente',
+  'acueducto',
+  'presa',
+  'embarcadero',
+  'astillero',
+  'banos',
+  'aljibe',
+  'salinas',
+  'batan',
+  'tinte',
+  'pescaderia',
+  'teneria',
+};
+
+/// Lo que se puede hacer en cada clase de sitio, repartido una sola vez.
+final Map<Where, List<Doing>> _byWhere = {
+  for (final w in Where.values)
+    w: [
+      for (final d in Doing.all)
+        if (d.where == w) d,
+    ],
+};
 
 /// A qué se dedica alguien al llegar a un sitio de esta clase.
 ///
 /// Sale de la semilla, así que el mismo vecino hace lo mismo en el mismo
 /// recado siempre — no hay nadie cambiando de oficio cada vez que se repinta.
-FolkAct _actAt(_Where where, int seed, int k) {
-  final r = hash01(seed, 60 + k);
-  final crio = hash01(seed, 12) < 0.24;
-  return switch (where) {
-    // En la plaza se habla. Es para lo que existe una plaza.
-    _Where.square => r < 0.72 ? FolkAct.chat : FolkAct.rest,
-    // En una obra se mira y se arrima el hombro; los críos miran.
-    _Where.work =>
-      crio
-          ? (r < 0.6 ? FolkAct.stand : FolkAct.chat)
-          : (r < 0.45
-                ? FolkAct.work
-                : r < 0.80
-                ? FolkAct.chat
-                : FolkAct.stand),
-    // En el prado, los críos. Los mayores se sientan a mirar el campo, que
-    // también es algo que se hace.
-    _Where.meadow =>
-      crio
-          ? (r < 0.5 ? FolkAct.kite : FolkAct.chase)
-          : (r < 0.55 ? FolkAct.rest : FolkAct.stand),
-  };
+///
+/// Con peso: charlar en la plaza pasa mucho más que hacer malabares, y sin
+/// pesos un pueblo de cuarenta vecinos tiene cuatro malabaristas. La rareza de
+/// lo raro es lo que hace que valga la pena verlo.
+Doing _actAt(Where where, int seed, int k, bool kid) {
+  final puede = [
+    for (final d in _byWhere[where]!)
+      if (d.fits(kid)) d,
+  ];
+  if (puede.isEmpty) return Doing.walking;
+  var total = 0.0;
+  for (final d in puede) {
+    total += d.weight;
+  }
+  var r = hash01(seed, 60 + k) * total;
+  for (final d in puede) {
+    r -= d.weight;
+    if (r <= 0) return d;
+  }
+  return puede.last;
 }
 
 /// La semilla de quien viva en un edificio.
@@ -996,6 +1003,9 @@ const List<int> _kite = [
 /// Y las mariposas, que son blancas, amarillas o de las anaranjadas.
 const List<int> _wing = [0xFFF0EEE4, 0xFFEFCE52, 0xFFDC8434, 0xFFC9D8EC];
 
+/// La madera de los mangos y las varas, que es la misma en todo el valle.
+const int _wood2 = 0xFF6B5236;
+
 /// Una persona, en cajas cerradas como todo lo demás del valle.
 ///
 /// Cuatro piezas: dos piernas, el cuerpo y la cabeza. Con eso basta y sobra —
@@ -1111,52 +1121,39 @@ List<Solid> folkSolids(
   final act = at.act;
   final ph = at.phase;
 
-  // Sentado. No es otra figura: es la misma, más baja y más recogida, que a
-  // veinte píxeles es exactamente lo que se lee.
-  final sit = act == FolkAct.rest ? 1.0 : 0.0;
-  final baja = sit * 0.24;
+  // El cuerpo entero sale de cinco números de la tabla. No hay un caso por
+  // actividad: hay una manera de moverse, y sesenta juegos de números.
+  final sit = act?.sink ?? 0.0;
+  final baja = sit * 0.26;
 
   // Lo único que anima a alguien sin brazos ni piernas: que suba y baje, que
-  // se incline, y que se balancee. Y alcanza de sobra — el paso de unas
-  // piernas de dos píxeles no se ve, y el bamboleo de un cuerpo entero sí.
+  // se incline y que se balancee. Y alcanza de sobra — el paso de unas piernas
+  // de dos píxeles no se ve, y el bamboleo de un cuerpo entero sí.
   //
   // Andando sube y baja dos veces por zancada, una por pie que no está ahí.
+  // Parado, lo que diga lo que esté haciendo: el que habla se mueve, el que
+  // pica piedra dobla el espinazo, el que baila da saltos, y el que no hace
+  // nada respira.
+  final swing = act == null
+      ? 0.0
+      : math.sin(ph * act.rate + hash01(seed, 16) * 6);
   final bob = at.moving
       ? math.cos(at.gait * 2) * 0.016
-      : switch (act) {
-          // Detrás de una mariposa se dan saltitos.
-          FolkAct.chase => math.max(0.0, math.sin(ph * 4.3)) * 0.06,
-          // Arrimando el hombro se dobla el espinazo.
-          FolkAct.work => -math.max(0.0, math.sin(ph * 3.1)) * 0.05,
-          // Y el que habla se mueve un poco, siempre.
-          FolkAct.chat => math.sin(ph * 1.9 + hash01(seed, 16) * 6) * 0.010,
-          _ => math.sin(ph * 0.5 + hash01(seed, 15) * 6) * 0.004,
-        };
-
-  // El vaivén lateral, que es lo que hace que ande y no que patine.
-  final wag = at.moving ? math.sin(at.gait) * 0.014 : 0.0;
-
-  // Y la inclinación: hacia donde va, hacia lo que mira, o hacia atrás cuando
-  // lo que mira está en el cielo.
-  final lean = at.moving
-      ? 0.020
-      : switch (act) {
-          FolkAct.chase => 0.055,
-          FolkAct.work => 0.045,
-          FolkAct.kite => -0.030,
-          FolkAct.chat => math.sin(ph * 1.9 + hash01(seed, 16) * 6) * 0.012,
-          _ => 0.0,
-        };
+      : (act == null
+            ? 0.0
+            : act.bob * (act.bob < 0 ? math.max(0.0, swing) : swing));
+  final wag = at.moving ? math.sin(at.gait) * 0.014 : (act?.wag ?? 0.0) * swing;
+  final lean = at.moving ? 0.020 : (act?.lean ?? 0.0);
 
   /// Dónde le flota lo que lleva. No hay mano: hay un sitio a la altura y al
   /// lado de donde estaría, y lo que se sostiene se queda ahí. A esta
   /// distancia es lo mismo, y una mano de tres píxeles no es una mano.
   (double, double, double) hold(double s, double raise, double fwd) =>
-      (s * 0.155, 0.50 + raise * 0.34 + bob - baja, 0.13 + fwd + lean);
+      (s * 0.155 + wag, 0.50 + raise * 0.34 + bob - baja, 0.13 + fwd + lean);
 
   /// Una vara entre dos puntos: el hilo de la cometa, su cola, el mango de una
-  /// herramienta. [box] sólo sabe hacer cajas rectas en el sistema de la
-  /// persona, y un hilo va en diagonal.
+  /// herramienta, la cuerda de un caldero. [box] sólo sabe hacer cajas rectas
+  /// en el sistema de la persona, y una cuerda va en diagonal.
   void link(
     (double, double, double) a,
     (double, double, double) b,
@@ -1168,7 +1165,7 @@ List<Solid> folkSolids(
     final len = math.sqrt(dx * dx + dy * dy + dz * dz);
     if (len < 1e-5) return;
     final u = V3(dx / len, dy / len, dz / len);
-    // Un perpendicular cualquiera, evitando el caso en que el hilo es vertical.
+    // Un perpendicular cualquiera, evitando el caso en que la vara es vertical.
     var pv = u.y.abs() > 0.9 ? V3(1, 0, 0) : V3(0, 1, 0);
     pv = (pv - u * pv.dot(u)).normalized;
     final q = u.cross(pv).normalized;
@@ -1315,86 +1312,299 @@ List<Solid> folkSolids(
   }
 
   // Y lo que lleva, que flota donde lo tendría. De eso va la tarde.
-  if (act == FolkAct.work && detail > 0.25) {
-    // La herramienta, subiendo y bajando. No se distingue un martillo de una
-    // azuela y da igual: lo que se lee es que está dando golpes.
-    final g = math.sin(ph * 3.1) * 0.5 + 0.5;
-    final m = hold(1, 0.30 + g * 0.62, 0.05);
-    link(m, (m.$1 + 0.02, m.$2 + 0.17, m.$3 + 0.07), 0.020, 0xFF6B5236, 0.90);
-    box(
-      m.$1 - 0.020,
-      m.$2 + 0.15,
-      m.$3 + 0.035,
-      m.$1 + 0.075,
-      m.$2 + 0.205,
-      m.$3 + 0.115,
-      0xFF7E8189,
-      0.92,
-    );
-  }
+  //
+  // Quince formas para setenta actividades. La diferencia entre un gato y un
+  // cesto, a doce píxeles, es el tamaño y el color; gastar una geometría
+  // propia por cada cosa sería gastarla justo en lo que no se ve. Lo que sí se
+  // ve, y mucho, es que haya **algo** y que ese algo se mueva.
+  if (act == null || detail <= 0.1) return out;
+  final tinte = act.tint ?? pano;
+  final z = act.size;
+  final t = ph + hash01(seed, 17) * 40;
 
-  if (act == FolkAct.kite) {
-    // La cometa: un rombo de paño que se mueve solo, muy por encima y por
-    // delante, con su cola y su hilo. Es lo único de este valle que se mira
-    // hacia arriba, y desde lejos una cometa sobre un prado dice «aquí vive
-    // gente» mejor que cuarenta personas andando. Por eso no se va con la
-    // distancia aunque su dueño se quede en cuatro píxeles.
-    final t = ph + hash01(seed, 17) * 40;
-    final kx = math.sin(t * 0.43) * 0.95;
-    final ky = 3.10 + math.sin(t * 0.31 + 1.1) * 0.22;
-    final kz = 1.55 + math.cos(t * 0.37) * 0.30;
-    final tela = _kite[hashInt(_kite.length, seed, 18)];
-    // Un rombo, no un cuadrado: dos varas cruzadas y el paño entre ellas. Es
-    // lo que hace que se lea «cometa» y no «cartel flotando».
-    const ala = 0.30, alto = 0.40;
-    final papel = [
-      (kx, ky + alto, kz),
-      (kx + ala, ky, kz),
-      (kx, ky - alto, kz),
-      (kx - ala, ky, kz),
-    ];
-    panel(papel, 0.012, tela, 1.06);
-    // Las varas, un punto más oscuras que el paño, en cruz.
-    link(papel[0], papel[2], 0.016, 0xFF6B5236, 0.92);
-    link(papel[3], papel[1], 0.014, 0xFF6B5236, 0.92);
-    // La cola, tres nudos colgando y ondeando.
-    for (var k = 1; k <= 3; k++) {
-      final w2 = math.sin(t * 1.3 - k * 0.8) * 0.085 * k;
-      link(
-        (kx + w2 * 0.6, ky - alto - (k - 1) * 0.21, kz),
-        (kx + w2, ky - alto - k * 0.21, kz),
-        0.026,
-        tela,
+  switch (act.prop) {
+    case PropKind.none:
+      break;
+
+    case PropKind.hand:
+      // Lo que se lleva en la mano: un jarro, un pan, una flor, un farol.
+      final m = hold(1, 0.28 + swing * 0.10, 0.02);
+      final r = 0.052 * z;
+      box(
+        m.$1 - r,
+        m.$2 - r,
+        m.$3 - r,
+        m.$1 + r,
+        m.$2 + r * 1.5,
+        m.$3 + r,
+        tinte,
         1.0,
       );
-    }
-    // Y el hilo, de donde lo sostiene hasta la cometa.
-    link(hold(1, 0.85, 0.0), (kx, ky - alto, kz), 0.007, 0xFFEDE4D2, 1.05);
-  }
 
-  if (act == FolkAct.chase && detail > 0.5) {
-    // La mariposa, siempre un poco más lejos de donde llegaría la mano. Va por
-    // su cuenta: no la sigue él a ella, es ella la que se le escapa.
-    final t = ph + hash01(seed, 19) * 30;
-    final mx = math.sin(t * 1.05) * 0.34 + 0.12;
-    final my = 0.86 + math.sin(t * 1.7 + 0.7) * 0.22;
-    final mz = 0.42 + math.cos(t * 0.83) * 0.18;
-    final ala = _wing[hashInt(_wing.length, seed, 20)];
-    // El aleteo: las alas se abren y se cierran nueve veces por segundo, que
-    // es lo que hace que un punto de color sea una mariposa.
-    final flap = (math.sin(t * 9.0) * 0.5 + 0.5) * 0.060 + 0.014;
-    for (final s in [1.0, -1.0]) {
+    case PropKind.tool:
+      // Mango y cabeza. Sube y baja con el mismo compás que el espinazo, que
+      // es lo que hace que el golpe caiga cuando el cuerpo se dobla.
+      final g = math.sin(ph * act.rate) * 0.5 + 0.5;
+      final m = hold(1, 0.30 + g * 0.62, 0.05);
+      link(m, (m.$1 + 0.02, m.$2 + 0.17 * z, m.$3 + 0.07), 0.020, _wood2, 0.90);
       box(
-        mx + (s > 0 ? 0.005 : -0.005 - flap),
-        my - 0.005,
-        mz - 0.034,
-        mx + (s > 0 ? 0.005 + flap : -0.005),
-        my + 0.005,
-        mz + 0.034,
-        ala,
-        1.08,
+        m.$1 - 0.022 * z,
+        m.$2 + 0.15 * z,
+        m.$3 + 0.030,
+        m.$1 + 0.080 * z,
+        m.$2 + 0.205 * z,
+        m.$3 + 0.115,
+        tinte,
+        0.92,
       );
-    }
+
+    case PropKind.pole:
+      // Una vara larga que apunta a donde diga la tabla: la caña al agua, la
+      // escoba al suelo, el cayado al hombro.
+      final m = hold(1, 0.42, 0.02);
+      final largo = 0.95 * z;
+      link(
+        m,
+        (
+          m.$1 + 0.04,
+          m.$2 + math.sin(act.aim) * largo,
+          m.$3 + math.cos(act.aim) * largo,
+        ),
+        0.016,
+        tinte,
+        0.94,
+      );
+
+    case PropKind.kite:
+      // La cometa: un rombo de paño que se mueve solo, muy por encima y por
+      // delante, con su cola y su hilo. Es lo único de este valle que se mira
+      // hacia arriba, y desde lejos una cometa sobre un prado dice «aquí vive
+      // gente» mejor que cuarenta personas andando. Por eso no se va con la
+      // distancia aunque su dueño se quede en cuatro píxeles.
+      final kx = math.sin(t * 0.43) * 0.95;
+      final ky = 3.10 + math.sin(t * 0.31 + 1.1) * 0.22;
+      final kz = 1.55 + math.cos(t * 0.37) * 0.30;
+      final tela = _kite[hashInt(_kite.length, seed, 18)];
+      const ala = 0.30, alto = 0.40;
+      final papel = [
+        (kx, ky + alto, kz),
+        (kx + ala, ky, kz),
+        (kx, ky - alto, kz),
+        (kx - ala, ky, kz),
+      ];
+      panel(papel, 0.012, tela, 1.06);
+      link(papel[0], papel[2], 0.016, _wood2, 0.92);
+      link(papel[3], papel[1], 0.014, _wood2, 0.92);
+      for (var k = 1; k <= 3; k++) {
+        final w2 = math.sin(t * 1.3 - k * 0.8) * 0.085 * k;
+        link(
+          (kx + w2 * 0.6, ky - alto - (k - 1) * 0.21, kz),
+          (kx + w2, ky - alto - k * 0.21, kz),
+          0.026,
+          tela,
+          1.0,
+        );
+      }
+      link(hold(1, 0.85, 0.0), (kx, ky - alto, kz), 0.007, 0xFFEDE4D2, 1.05);
+
+    case PropKind.flyer:
+      // Lo que revolotea y no se deja: la mariposa, la abeja, el pájaro. Va
+      // por su cuenta — no la sigue él a ella, es ella la que se le escapa.
+      if (detail < 0.5) break;
+      final mx = math.sin(t * 1.05) * 0.34 * z + 0.12;
+      final my = 0.86 + math.sin(t * 1.7 + 0.7) * 0.22 * z;
+      final mz = 0.42 + math.cos(t * 0.83) * 0.18 * z;
+      final tono = act.tint ?? _wing[hashInt(_wing.length, seed, 20)];
+      // El aleteo: las alas se abren y se cierran nueve veces por segundo, que
+      // es lo que hace que un punto de color sea un bicho.
+      final flap = ((math.sin(t * 9.0) * 0.5 + 0.5) * 0.060 + 0.014) * z;
+      for (final w in [1.0, -1.0]) {
+        box(
+          mx + (w > 0 ? 0.005 : -0.005 - flap),
+          my - 0.005 * z,
+          mz - 0.034 * z,
+          mx + (w > 0 ? 0.005 + flap : -0.005),
+          my + 0.005 * z,
+          mz + 0.034 * z,
+          tono,
+          1.08,
+        );
+      }
+
+    case PropKind.floor:
+      // Algo en el suelo, delante: el barco de papel, el carrito, el gato, las
+      // gallinas, la peonza. Un bulto y un remate encima, que es todo lo que
+      // hace falta para que se lea un animal o un cacharro.
+      final bx = 0.10 + math.sin(t * 0.5) * 0.05 * z;
+      final bz = 0.40 + math.cos(t * 0.4) * 0.04 * z;
+      final w2 = 0.085 * z, alto2 = 0.10 * z;
+      box(
+        bx - w2,
+        0.0,
+        bz - w2 * 1.3,
+        bx + w2,
+        alto2,
+        bz + w2 * 1.3,
+        tinte,
+        0.9,
+      );
+      box(
+        bx - w2 * 0.55,
+        alto2 * 0.85,
+        bz + w2 * 0.3,
+        bx + w2 * 0.55,
+        alto2 * 1.85,
+        bz + w2 * 1.35,
+        tinte,
+        0.98,
+      );
+
+    case PropKind.seat:
+      // Una banqueta. Quien la tiene se sienta en ella, y por eso el asiento
+      // queda justo donde la tabla le ha bajado el cuerpo.
+      box(-0.130, 0.0, -0.115, 0.130, 0.26 - baja * 0.5, 0.115, tinte, 0.86);
+
+    case PropKind.back:
+      // El fardo: un haz de leña, un saco. A la espalda y un poco por encima
+      // del hombro, que es como se carga.
+      box(
+        -0.115 * z + wag,
+        0.46 - baja,
+        -0.20 * z - 0.06,
+        0.115 * z + wag,
+        0.80 - baja + bob,
+        -0.07,
+        tinte,
+        0.88,
+      );
+
+    case PropKind.board:
+      // Una tabla, de dos maneras según a dónde apunte: tendida delante —la
+      // artesa, la tabla de lavar, el madero que se sierra— o de canto y
+      // agarrada con las dos manos —la vihuela, el libro, el pregón, el
+      // tablero de las tablas—. Es el mismo sólido; lo que cambia es de qué
+      // canto se ve, y con eso se lee una cosa o la otra.
+      final m = hold(1, 0.22, 0.05);
+      final w2 = 0.15 * z, alto2 = 0.14 * z;
+      if (act.aim <= -0.5) {
+        box(
+          m.$1 - w2 - 0.12,
+          m.$2 - 0.02,
+          m.$3,
+          m.$1 + w2 - 0.12,
+          m.$2 + 0.02,
+          m.$3 + alto2 * 2,
+          tinte,
+          1.0,
+        );
+      } else {
+        box(
+          -w2 + wag,
+          m.$2 - alto2,
+          m.$3 + 0.01,
+          w2 + wag,
+          m.$2 + alto2,
+          m.$3 + 0.05,
+          tinte,
+          1.02,
+        );
+      }
+
+    case PropKind.ball:
+      // Algo redondo que sube y baja por el aire: las bolas de los malabares,
+      // la piedra antes de caer al agua, el palo del perro.
+      final k = (math.sin(t * 2.4) * 0.5 + 0.5);
+      final bx = 0.05 + k * 0.14;
+      final by = 0.62 + math.sin(t * 2.4) * 0.42 * z;
+      final r = 0.045 * z;
+      box(bx - r, by - r, 0.24, bx + r, by + r, 0.24 + r * 2, tinte, 1.05);
+
+    case PropKind.rope:
+      // Una cuerda de la mano a algo: el caldero del pozo, el cordel del
+      // carrito, la cabra, la cuerda de medir. [aim] dice si va al suelo por
+      // delante o hacia arriba.
+      final m = hold(1, 0.36 + swing * 0.12, 0.02);
+      final fin = act.aim >= 0
+          ? (0.16, 0.06 * z, 0.52 + 0.22 * z)
+          : (0.16, 0.95, 0.30);
+      link(m, fin, 0.008, 0xFFC9B999, 1.0);
+      final r = 0.070 * z;
+      box(
+        fin.$1 - r,
+        fin.$2,
+        fin.$3 - r,
+        fin.$1 + r,
+        fin.$2 + r * 1.6,
+        fin.$3 + r,
+        tinte,
+        0.94,
+      );
+
+    case PropKind.puff:
+      // Humo, o vaho: tres bocanadas que suben y se deshacen. Lo único de una
+      // persona que se ve cuando ya no se ve la persona.
+      for (var k = 0; k < 3; k++) {
+        final u = ((t * 0.55 + k / 3) % 1.0);
+        final r = (0.035 + u * 0.055) * z;
+        if (u > 0.86) continue;
+        box(
+          0.08 + math.sin(u * 5 + k) * 0.05 - r,
+          0.24 + u * 0.62,
+          0.34 - r,
+          0.08 + math.sin(u * 5 + k) * 0.05 + r,
+          0.24 + u * 0.62 + r,
+          0.34 + r,
+          0xFFD8D4CC,
+          1.10,
+        );
+      }
+
+    case PropKind.hoop:
+      // Un aro de canto, al lado, rodando. Ocho varas: a esta distancia es un
+      // círculo, y un círculo de verdad serían cuarenta caras por un crío.
+      if (detail < 0.35) break;
+      const r = 0.27;
+      final cx = 0.26, cy = r + 0.02, cz = 0.16;
+      final gira = t * 2.2;
+      final vueltas = [
+        for (var k = 0; k < 8; k++)
+          (
+            cx + math.cos(gira + k * math.pi / 4) * r * 0.35,
+            cy + math.sin(gira + k * math.pi / 4) * r,
+            cz + math.cos(gira + k * math.pi / 4) * r * 0.94,
+          ),
+      ];
+      for (var k = 0; k < 8; k++) {
+        link(vueltas[k], vueltas[(k + 1) % 8], 0.018, tinte, 0.96);
+      }
+
+    case PropKind.plant:
+      // Lo que crece delante, a ras de suelo: la mata de flores, el bancal del
+      // huerto.
+      for (var k = 0; k < 3; k++) {
+        final px = 0.02 + (k - 1) * 0.15;
+        final alto2 = (0.12 + hash01(seed, 40 + k) * 0.10) * z;
+        box(
+          px - 0.030,
+          0.0,
+          0.40 - 0.030,
+          px + 0.030,
+          alto2,
+          0.40 + 0.030,
+          0xFF4F7A34,
+          0.92,
+        );
+        box(
+          px - 0.042,
+          alto2,
+          0.40 - 0.042,
+          px + 0.042,
+          alto2 + 0.055 * z,
+          0.40 + 0.042,
+          tinte,
+          1.06,
+        );
+      }
   }
 
   return out;

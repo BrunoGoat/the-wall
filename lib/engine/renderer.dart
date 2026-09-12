@@ -1899,59 +1899,64 @@ class TownPainter extends CustomPainter {
       // worked out per town and not once for the valley.
       _tone.clear();
       _picking = w == scene.active;
-      final vecinos = _folkNow[w] ?? const <_Walker>[];
-      walkOrderWith<_Walker>(
-        root,
-        p.eye,
-        vecinos,
-        (v, axis) {
-          return switch (axis) {
-            0 => v.at.x,
-            1 => v.y,
-            _ => v.at.z,
-          };
-        },
-        (leaf, aqui) {
-          final box = leaf.bounds;
-          if (p.cameraOf(V3(box.cx, box.cy, box.cz)).z + box.radius < p.near) {
-            // Se salta la mampostería, no a la gente: alguien puede estar
-            // andando por delante de un edificio que la cámara ya dejó atrás.
-            _paintFolk(p, e, aqui, pal, light, size);
+      // La gente, ordenada contra lo que hay en pie y no repartida por el
+      // árbol.
+      //
+      // Repartirlos por el árbol era lo natural y estaba mal: el árbol separa
+      // **geometría**, no espacio, y la región que le toca a una hoja puede ser
+      // media plaza. Medido, con tres puntos a diez metros unos de otros: los
+      // tres caían en la misma hoja, la ciento treinta y siete de ciento
+      // cincuenta y cinco. O sea, casi al final — encima de casi todo. Eso era
+      // la gente de pie en los tejados.
+      //
+      // Las hojas ya vienen de lejos a cerca, así que basta con llevarlos
+      // pendientes e ir soltando, antes de pintar cada hoja, a los que queden
+      // **detrás** de ella: mismo criterio de eje separador que usa el árbol
+      // entre dos edificios. El que no queda detrás de nada se pinta al final,
+      // que es donde va quien no tiene nada delante.
+      final pendientes = List<_Walker>.of(_folkNow[w] ?? const <_Walker>[]);
+      void soltar(Aabb box) {
+        if (pendientes.isEmpty) return;
+        final ahora = <_Walker>[];
+        pendientes.removeWhere((v) {
+          if (!_behind(p.eye, box, v)) return false;
+          ahora.add(v);
+          return true;
+        });
+        if (ahora.isNotEmpty) _paintFolk(p, e, ahora, pal, light, size);
+      }
+
+      walkOrder(root, p.eye, (leaf) {
+        final box = leaf.bounds;
+        // Una hoja que no se pinta no tapa a nadie, así que tampoco adelanta a
+        // nadie: si soltáramos gente aquí, lo que viniera después se le
+        // pintaría encima sin motivo.
+        if (p.cameraOf(V3(box.cx, box.cy, box.cz)).z + box.radius < p.near) {
+          return;
+        }
+        final c = leaf.cluster;
+        if (c == null) {
+          soltar(box);
+          _emitWeather(p, e, e.layout.pieces[leaf.weather], pal, night, decay);
+          return;
+        }
+        if (_away(p, box) > cut) return;
+        final mine = w == scene.active && c.members.contains(_fallingPiece);
+        soltar(box);
+        c.tree.paint(p.eye, (f) {
+          // `f.piece >= 0` matters: the town's own furniture is filed under
+          // no achievement at all, and "no achievement" must not collide with
+          // "the achievement that is in the air right now".
+          if (w == scene.active && f.piece >= 0 && f.piece == _fallingPiece) {
             return;
           }
-          final c = leaf.cluster;
-          if (c == null) {
-            _emitWeather(
-              p,
-              e,
-              e.layout.pieces[leaf.weather],
-              pal,
-              night,
-              decay,
-            );
-            _paintFolk(p, e, aqui, pal, light, size);
-            return;
-          }
-          if (_away(p, box) > cut) {
-            _paintFolk(p, e, aqui, pal, light, size);
-            return;
-          }
-          final mine = w == scene.active && c.members.contains(_fallingPiece);
-          c.tree.paint(p.eye, (f) {
-            // `f.piece >= 0` matters: the town's own furniture is filed under
-            // no achievement at all, and "no achievement" must not collide with
-            // "the achievement that is in the air right now".
-            if (w == scene.active && f.piece >= 0 && f.piece == _fallingPiece) {
-              return;
-            }
-            _paint(p, e, f, pal, light, night, decay, size);
-          });
-          // Straight after the building it belongs to, and before any building
-          // nearer than that one.
-          if (mine) _paintFalling(p, e, pal, light, night, size);
-          _paintFolk(p, e, aqui, pal, light, size);
-        },
-      );
+          _paint(p, e, f, pal, light, night, decay, size);
+        });
+        // Straight after the building it belongs to, and before any building
+        // nearer than that one.
+        if (mine) _paintFalling(p, e, pal, light, night, size);
+      });
+      _paintFolk(p, e, pendientes, pal, light, size);
     }
 
     // If its own building never came up — filed away by the budget, or off
@@ -1963,6 +1968,38 @@ class TownPainter extends CustomPainter {
       _picking = true;
       _paintFalling(p, e, pal, light, night, size);
     }
+  }
+
+  /// Si alguien queda por detrás de una caja, o sea, si la caja se le mete
+  /// entre el ojo y él.
+  ///
+  /// Es la prueba de eje separador de una persona contra una caja alineada: el
+  /// mismo criterio exacto con el que el árbol decide el orden entre dos
+  /// edificios. Mientras haya un eje que los separe no hay heurística ninguna;
+  /// cuando no lo hay —alguien pegado a la pared, o debajo de un alero— se
+  /// decide por distancia al centro, que es lo único que queda y lo que menos
+  /// se nota.
+  static bool _behind(V3 eye, Aabb box, _Walker v) {
+    final x = v.at.x, z = v.at.z;
+    // De los pies a la coronilla, que es lo que ocupa de alto.
+    const suelo = 0.0;
+    final alto = v.size;
+    return (x <= box.x0 && eye.x >= box.x1) ||
+        (x >= box.x1 && eye.x <= box.x0) ||
+        (alto <= box.y0 && eye.y >= box.y1) ||
+        (suelo >= box.y1 && eye.y <= box.y0) ||
+        (z <= box.z0 && eye.z >= box.z1) ||
+        (z >= box.z1 && eye.z <= box.z0) ||
+        (x > box.x0 &&
+            x < box.x1 &&
+            z > box.z0 &&
+            z < box.z1 &&
+            _far(eye, x, v.y, z) > _far(eye, box.cx, box.cy, box.cz));
+  }
+
+  static double _far(V3 eye, double x, double y, double z) {
+    final dx = x - eye.x, dy = y - eye.y, dz = z - eye.z;
+    return dx * dx + dy * dy + dz * dz;
   }
 
   /// La gente que hay ahora mismo en la calle de este pueblo, ya colocada.
@@ -2005,7 +2042,7 @@ class TownPainter extends CustomPainter {
           at.moving && k < 0.9,
           // De camino a casa no se charla ni se suelta una cometa: lo que se
           // hace es andar. Quien ya estaba andando sigue andando.
-          FolkAct.walk,
+          null,
           at.phase,
         );
       }

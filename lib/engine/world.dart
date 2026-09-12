@@ -645,6 +645,19 @@ void walkOrder(Order node, V3 eye, void Function(OrderLeaf) visit) {
 /// hoja que les toca. Cuesta un reparto por vecino y por plano, que para
 /// cuarenta vecinos y un árbol de diez de fondo son cuatrocientas
 /// comparaciones por fotograma.
+/// Si lo que va montado cae dentro de una caja, mirándolo en planta.
+///
+/// En planta y no en tres dimensiones porque lo que va montado son personas:
+/// están de pie en el suelo y lo que dice con cuál de dos cosas van es dónde
+/// pisan, no a qué altura tienen la cabeza.
+bool _within<T>(Aabb box, T rider, double Function(T, int) coord) {
+  final x = coord(rider, 0), z = coord(rider, 2);
+  return x >= box.x0 - 0.5 &&
+      x <= box.x1 + 0.5 &&
+      z >= box.z0 - 0.5 &&
+      z <= box.z1 + 0.5;
+}
+
 void walkOrderWith<T>(
   Order node,
   V3 eye,
@@ -657,12 +670,27 @@ void walkOrderWith<T>(
     return;
   }
   if (node is OrderBoth) {
-    // Sin plano que los separe, los que van montados se pintan al final: lo
-    // que hay aquí son los sembrados y el agua, que están en el suelo, y las
-    // banderas, que están por encima de todo. Una persona no se mete debajo de
-    // un sembrado.
-    walkOrderWith<T>(node.first, eye, const [], coord, visit);
-    walkOrderWith(node.then, eye, riders, coord, visit);
+    // Sin plano que los separe no hay reparto exacto, pero **volcarlos a todos
+    // en la segunda rama es lo peor que se puede hacer**, y es lo que hacía.
+    // Aquí llegan los sembrados, el agua y las banderas; al no separar a nadie,
+    // toda la gente del pueblo caía en la misma hoja —la penúltima de ciento
+    // cincuenta y cinco— y se pintaba encima de casi todo. Con cuatro vecinos
+    // se veía de vez en cuando; con sesenta, gente de pie en los tejados en
+    // todos los fotogramas.
+    //
+    // Sin plano queda la caja: cada uno se va con la rama en cuya caja cae, y
+    // el que no cae en ninguna se queda con la segunda, que es lo de antes.
+    List<T> unos = const [], otros = riders;
+    if (riders.isNotEmpty) {
+      final a = <T>[], b = <T>[];
+      for (final r in riders) {
+        (_within(node.first.bounds, r, coord) ? a : b).add(r);
+      }
+      unos = a;
+      otros = b;
+    }
+    walkOrderWith<T>(node.first, eye, unos, coord, visit);
+    walkOrderWith(node.then, eye, otros, coord, visit);
     return;
   }
   final split = node as OrderSplit;
