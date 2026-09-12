@@ -46,3 +46,6 @@ app.*.map.json
 
 # Scratch scripts for inspecting a layout by hand.
 tool/tmp/
+
+# Capturas y scripts de un rato: nunca son parte del proyecto.
+test/tmp/
