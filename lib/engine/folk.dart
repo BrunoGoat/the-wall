@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/math3.dart';
 import '../core/rng.dart';
+import '../data/folknames.dart';
 import 'solid.dart';
 import 'town.dart';
 
@@ -30,15 +31,40 @@ class Townsfolk {
   Townsfolk._(
     this.home,
     this.seed,
+    this.name,
+    this.born,
     this._stops,
     this._stay,
     this._facing,
+    this._act,
     this.period,
   );
 
   /// El edificio en el que vive, que es el que lo puso en el mundo.
   final int home;
+
+  /// De donde sale todo lo suyo: la cara, el paño, la talla, la ronda y a qué
+  /// dedica la tarde. Viene del padrón cuando lo hay, y del plano cuando no.
   final int seed;
+
+  /// Cómo se llama.
+  final String name;
+
+  /// El día que se remató su casa, que es el día que nació. Nulo en el
+  /// expositor y en los tests, que no tienen un hábito detrás.
+  final DateTime? born;
+
+  /// Lo que hace en cada parada de su ronda.
+  final List<FolkAct> _act;
+
+  /// Si es un crío. Más chico, y es el que sale al prado a soltar la cometa o
+  /// a correr detrás de una mariposa — que es lo que hace un crío en un pueblo
+  /// donde no hay nada más que hacer.
+  bool get kid => hash01(seed, 12) < 0.24;
+
+  /// Lo que mide, contra lo que mide una persona hecha.
+  double get build =>
+      kid ? 0.66 + hash01(seed, 13) * 0.10 : 0.94 + hash01(seed, 14) * 0.15;
 
   /// Por dónde pasa: su puerta, sus recados, y los quiebros que da para
   /// rodear las casas que le quedan en medio.
@@ -64,6 +90,12 @@ class Townsfolk {
   /// distintos.
   @visibleForTesting
   List<(double x, double z)> get debugPath => _stops;
+
+  /// En qué anda cuando está parado. Para poder exigir en un test que un crío
+  /// no se ponga a martillear un puente y que nadie suelte una cometa dentro
+  /// de la plaza.
+  @visibleForTesting
+  List<FolkAct> get debugActs => _act;
 
   /// Lo que anda una persona en un segundo.
   ///
@@ -107,6 +139,8 @@ class Townsfolk {
           math.atan2(dx, dz),
           (walked + d * k) / stride * 2 * math.pi,
           true,
+          FolkAct.walk,
+          u - acc,
         );
       }
       acc += walk;
@@ -117,19 +151,35 @@ class Townsfolk {
         // lo que separa a alguien esperando de un poste.
         final look = _facing[(i + 1) % n];
         final sway = math.sin((u - acc) * 0.7 + hash01(seed, 9) * 6) * 0.18;
-        return FolkAt(to.$1, to.$2, look + sway, 0, false);
+        return FolkAt(
+          to.$1,
+          to.$2,
+          look + sway,
+          0,
+          false,
+          _act[(i + 1) % n],
+          u - acc,
+        );
       }
       acc += stay;
     }
     final last = _stops.first;
-    return FolkAt(last.$1, last.$2, _facing.first, 0, false);
+    return FolkAt(last.$1, last.$2, _facing.first, 0, false, _act.first, 0);
   }
 }
 
 /// Una persona en un instante: dónde está, hacia dónde mira, y por dónde va su
 /// paso.
 class FolkAt {
-  const FolkAt(this.x, this.z, this.heading, this.gait, this.moving);
+  const FolkAt(
+    this.x,
+    this.z,
+    this.heading,
+    this.gait,
+    this.moving, [
+    this.act = FolkAct.walk,
+    this.phase = 0,
+  ]);
   final double x, z;
 
   /// Hacia dónde mira, en radianes, como el `yaw` de la cámara.
@@ -138,6 +188,48 @@ class FolkAt {
   /// La fase del paso, en radianes. Cero cuando está quieto.
   final double gait;
   final bool moving;
+
+  /// Qué está haciendo ahora mismo.
+  final FolkAct act;
+
+  /// Cuántos segundos lleva haciéndolo. Es lo que mueve el gesto: sin esto,
+  /// alguien charlando es alguien con el brazo levantado y quieto, que es peor
+  /// que no levantarlo.
+  final double phase;
+}
+
+/// En qué anda un vecino.
+///
+/// Andar de un sitio a otro era todo lo que había, y un pueblo donde cuarenta
+/// personas sólo andan es un hormiguero: el movimiento se lee como tráfico y
+/// no como vida. Lo que hace que un sitio parezca habitado es que la gente
+/// **esté haciendo algo** cuando llega — y que lo que hace tenga que ver con
+/// dónde está, porque nadie suelta una cometa en medio de la plaza ni se pone
+/// a martillear un prado vacío.
+enum FolkAct {
+  /// De camino a la próxima parada.
+  walk,
+
+  /// Parado, mirando lo que vino a mirar.
+  stand,
+
+  /// Hablando con quien tenga al lado. Como todos se ponen en corro mirando al
+  /// medio del sitio, dos que coincidan quedan de cara: no hubo que emparejar
+  /// a nadie, salió del corro.
+  chat,
+
+  /// Echando una mano en la obra: sube y baja el brazo con la herramienta. Sólo
+  /// en los hitos, que es donde hay obra.
+  work,
+
+  /// Sentado en el suelo, que es lo que se hace cuando no hay nada que hacer.
+  rest,
+
+  /// Con la cometa en el aire. Sólo en el prado y sólo los críos.
+  kite,
+
+  /// Detrás de una mariposa. Igual.
+  chase,
 }
 
 /// La gente de un pueblo, guardada de un fotograma para el siguiente.
@@ -158,7 +250,13 @@ final Map<String, (int, List<Townsfolk>)> _folk = {};
 /// la misma gente en el mismo orden — que es lo que hace que su semilla les
 /// valga y que no cambien de ropa entre fotogramas.
 List<Townsfolk> folkOf(TownLayout layout, int placed) {
-  final key = '${layout.cx},${layout.cz},${layout.character.order}';
+  // Y el padrón entra en la llave. Sólo su tamaño: un padrón no se corrige
+  // nunca, sólo crece, así que si tiene los mismos renglones que antes dice lo
+  // mismo que antes. Sin esto, el primer arranque después de escribirlo se
+  // quedaba con la gente sin nombre que había calculado un momento antes.
+  final key =
+      '${layout.cx},${layout.cz},${layout.character.order},'
+      '${layout.folk.length}';
   final had = _folk[key];
   if (had != null && had.$1 == placed) return had.$2;
   final made = _folkOf(layout, placed);
@@ -189,14 +287,24 @@ List<Townsfolk> _folkOf(TownLayout layout, int placed) {
   final huella = _footprints(layout, placed);
   final estorbos = _blockers(layout, placed);
   final calles = _Streets.of(layout, estorbos);
-  final sitios = <(double x, double z, double reach)>[
-    (layout.cx, layout.cz, 0.9),
+  //
+  // Cada sitio dice además qué clase de sitio es, porque de eso depende lo que
+  // se hace al llegar: en la plaza se charla, en una obra se arrima el hombro,
+  // y en el prado se suelta la cometa. Un crío soltando una cometa en medio de
+  // la plaza es lo que pasa cuando esto no se distingue.
+  final sitios = <(double x, double z, double reach, _Where kind)>[
+    (layout.cx, layout.cz, 0.9, _Where.square),
   ];
   for (final b in layout.buildings) {
     if (!b.isLandmark) continue;
     if (b.firstPiece + b.cost > placed) continue;
     final c = huella[b.index];
-    sitios.add((b.cx, b.cz, (c == null ? b.reach : _spanOf(c)) + 0.55));
+    sitios.add((
+      b.cx,
+      b.cz,
+      (c == null ? b.reach : _spanOf(c)) + 0.55,
+      _Where.work,
+    ));
   }
   // Y un paseo al borde del pueblo, para que no sea todo ir de un edificio a
   // otro. Un pueblo también es la gente que sale a mirar el campo.
@@ -207,12 +315,19 @@ List<Townsfolk> _folkOf(TownLayout layout, int placed) {
       layout.cx + math.sin(a) * borde,
       layout.cz + math.cos(a) * borde,
       0.6,
+      _Where.meadow,
     ));
   }
 
+  // Lo que diga el padrón manda. Un vecino apuntado conserva su semilla —y con
+  // ella su cara, su ropa y su talla— y su nombre, pase lo que pase con el
+  // plano o con la lista de nombres.
+  final padron = _censusOf(layout.folk);
+
   final out = <Townsfolk>[];
   for (final b in casas) {
-    final seed = hash32(b.seed, 0xF01C, b.index);
+    final apuntado = padron[b.index];
+    final seed = apuntado?.$1 ?? folkSeedOf(b.seed, b.index);
     // La puerta, del lado por el que se sale al pueblo, y justo fuera de su
     // propia pared: si cae dentro, el vecino empieza el día dentro de su casa
     // y sale de ella atravesándola.
@@ -227,13 +342,17 @@ List<Townsfolk> _folkOf(TownLayout layout, int placed) {
     // ronda que no se ve entera de una sentada.
     final stops = <(double, double)>[door];
     final dwell = <double>[0.0];
+    final doing = <FolkAct>[FolkAct.stand];
     // Al volver a casa mira a la puerta, que es lo suyo.
     final look = <double>[math.atan2(-dx, -dz)];
     for (var k = 0; k < 3; k++) {
       final s = sitios[hashInt(sitios.length, seed, 20 + k)];
       // Alrededor del sitio y no encima: se ponen en corro mirando al medio,
       // que es lo que hace la gente delante de un tablón o de una fuente.
-      final a = hash01(seed, 30 + k) * 2 * math.pi;
+      // En ocho sitios alrededor y no en cualquiera: con el ángulo libre, dos
+      // que van al mismo pozo casi nunca quedan de cara, y con ocho puestos
+      // coinciden a menudo. El corro se forma solo.
+      final a = hashInt(8, seed, 30 + k) * math.pi / 4;
       stops.add(
         calles.onStreets((
           s.$1 + math.sin(a) * s.$3,
@@ -241,7 +360,10 @@ List<Townsfolk> _folkOf(TownLayout layout, int placed) {
         )),
       );
       look.add(math.atan2(-math.sin(a), -math.cos(a)));
-      dwell.add(hashRange(5.0, 15.0, seed, 40 + k));
+      // Las paradas son más largas ahora que en ellas pasa algo: charlar seis
+      // segundos y marcharse no es charlar, es saludar de lejos.
+      dwell.add(hashRange(9.0, 26.0, seed, 40 + k));
+      doing.add(_actAt(s.$4, seed, k));
     }
 
     // El camino de verdad: los recados, y los quiebros para no meterse por
@@ -252,17 +374,20 @@ List<Townsfolk> _folkOf(TownLayout layout, int placed) {
     final path = <(double, double)>[];
     final stay = <double>[];
     final facing = <double>[];
+    final acts = <FolkAct>[];
     for (var i = 0; i < stops.length; i++) {
       final from = stops[i], to = stops[(i + 1) % stops.length];
       path.add(from);
       stay.add(dwell[i]);
       facing.add(look[i]);
+      acts.add(doing[i]);
       for (final q in calles.route(from, to)) {
         path.add(q);
         // Un paso del camino no es un sitio al que se va: ni se para en él ni
         // se queda mirando nada.
         stay.add(0);
         facing.add(look[i]);
+        acts.add(FolkAct.walk);
       }
     }
     var period = 0.0;
@@ -276,7 +401,78 @@ List<Townsfolk> _folkOf(TownLayout layout, int placed) {
       period += stay[(i + 1) % path.length];
     }
     out.add(
-      Townsfolk._(b.index, seed, path, stay, facing, math.max(period, 1)),
+      Townsfolk._(
+        b.index,
+        seed,
+        apuntado?.$2 ?? folkName(seed),
+        apuntado?.$3,
+        path,
+        stay,
+        facing,
+        acts,
+        math.max(period, 1),
+      ),
+    );
+  }
+  return out;
+}
+
+/// Qué clase de sitio es un recado.
+enum _Where { square, work, meadow }
+
+/// A qué se dedica alguien al llegar a un sitio de esta clase.
+///
+/// Sale de la semilla, así que el mismo vecino hace lo mismo en el mismo
+/// recado siempre — no hay nadie cambiando de oficio cada vez que se repinta.
+FolkAct _actAt(_Where where, int seed, int k) {
+  final r = hash01(seed, 60 + k);
+  final crio = hash01(seed, 12) < 0.24;
+  return switch (where) {
+    // En la plaza se habla. Es para lo que existe una plaza.
+    _Where.square => r < 0.72 ? FolkAct.chat : FolkAct.rest,
+    // En una obra se mira y se arrima el hombro; los críos miran.
+    _Where.work =>
+      crio
+          ? (r < 0.6 ? FolkAct.stand : FolkAct.chat)
+          : (r < 0.45
+                ? FolkAct.work
+                : r < 0.80
+                ? FolkAct.chat
+                : FolkAct.stand),
+    // En el prado, los críos. Los mayores se sientan a mirar el campo, que
+    // también es algo que se hace.
+    _Where.meadow =>
+      crio
+          ? (r < 0.5 ? FolkAct.kite : FolkAct.chase)
+          : (r < 0.55 ? FolkAct.rest : FolkAct.stand),
+  };
+}
+
+/// La semilla de quien viva en un edificio.
+///
+/// Aparte y pública porque el padrón la tiene que calcular igual el día que
+/// apunta a alguien, y a partir de ahí es lo guardado lo que manda.
+int folkSeedOf(int buildingSeed, int index) =>
+    hash32(buildingSeed, 0xF01C, index);
+
+/// El padrón de [layout], leído.
+///
+/// Formato: `casa|semilla|nacimiento|nombre`. Se lee aquí y se escribe en el
+/// modelo, que es quien tiene el hábito y las fechas de las piezas; el motor
+/// sólo necesita saber leerlo.
+Map<int, (int, String, DateTime)> _censusOf(List<String> book) {
+  final out = <int, (int, String, DateTime)>{};
+  for (final line in book) {
+    final bits = line.split('|');
+    if (bits.length < 4) continue;
+    final home = int.tryParse(bits[0]);
+    final seed = int.tryParse(bits[1]);
+    final born = int.tryParse(bits[2]);
+    if (home == null || seed == null || born == null) continue;
+    out[home] = (
+      seed,
+      bits.sublist(3).join('|'),
+      DateTime.fromMillisecondsSinceEpoch(born),
     );
   }
   return out;
@@ -752,13 +948,53 @@ const List<int> _cloth = [
 ];
 
 /// Y la piel, que también tiene más de un color.
+///
+/// Doce y no cinco, y repartidos de verdad por todo el rango en vez de cuatro
+/// tonos medios y uno oscuro. Un pueblo de cuarenta vecinos con cinco tonos se
+/// ve como cinco personas repetidas ocho veces; con doce no se nota que haya
+/// una lista detrás, que es justo lo que hay que conseguir.
 const List<int> _skin = [
+  0xFFF2D7BC,
+  0xFFE8C4A0,
+  0xFFDCB088,
   0xFFC79B77,
+  0xFFBE8C68,
+  0xFFAD7F5C,
+  0xFF9C6E4E,
   0xFF8C6247,
-  0xFFE3BE9B,
+  0xFF7A533C,
   0xFF6A4630,
-  0xFFA87A57,
+  0xFF573827,
+  0xFF462C1E,
 ];
+
+/// Y el pelo, que es lo que se ve de una cabeza a esta distancia: una mancha
+/// de color encima de la cara, que separa a dos vecinos mejor que la cara.
+const List<int> _hair = [
+  0xFF2B211A,
+  0xFF3E2C1E,
+  0xFF5A3C24,
+  0xFF7A5330,
+  0xFF9A7040,
+  0xFFB89055,
+  0xFF8A8178,
+  0xFFD8D2C6,
+  0xFF6B3A22,
+];
+
+/// El paño de la cometa. Tiene que cantar contra el cielo o no es una cometa:
+/// es lo único de este valle que se mira desde abajo.
+const List<int> _kite = [
+  0xFFC94F3B,
+  0xFFE08A2E,
+  0xFF4C7FB5,
+  0xFFD9B441,
+  0xFF7E4B86,
+  0xFFCC5E7E,
+];
+
+/// Y las mariposas, que son blancas, amarillas o de las anaranjadas.
+const List<int> _wing = [0xFFF0EEE4, 0xFFEFCE52, 0xFFDC8434, 0xFFC9D8EC];
 
 /// Una persona, en cajas cerradas como todo lo demás del valle.
 ///
@@ -784,13 +1020,25 @@ List<Solid> folkSolids(
   double lift = 0.0,
 }) {
   final seed = who.seed;
-  final h = size * (0.93 + hash01(seed, 1) * 0.15);
+  // Lo que mide éste. Un crío mide dos tercios de lo que mide su madre, y un
+  // pueblo donde todos miden lo mismo es un pueblo de maniquíes.
+  final h = size * who.build;
   final cos = math.cos(at.heading), sin = math.sin(at.heading);
 
   // Del sistema de la persona —adelante en +z, a su izquierda en +x— al del
   // valle. Girar aquí y no en cada caja es lo que mantiene esto legible.
-  V3 world(double x, double y, double z) =>
-      V3(at.x + x * cos + z * sin, lift + y * h, at.z - x * sin + z * cos);
+  //
+  // **Todo va en partes de lo que mide.** Lo ancho estaba en unidades del
+  // valle y lo alto en partes de la persona, y eso quiere decir dos cosas
+  // malas a la vez: que un crío sale tan ancho como su madre —o sea, un
+  // barril— y que en la Sierra, donde las plantas son más altas, la gente sale
+  // más alta pero igual de ancha. Con una sola unidad, una persona es la misma
+  // persona en las seis regiones y a cualquier talla.
+  V3 world(double x, double y, double z) => V3(
+    at.x + (x * cos + z * sin) * h,
+    lift + y * h,
+    at.z + (-x * sin + z * cos) * h,
+  );
 
   final out = <Solid>[];
   void box(
@@ -856,62 +1104,298 @@ List<Solid> folkSolids(
 
   final pano = _cloth[hashInt(_cloth.length, seed, 2)];
   final piel = _skin[hashInt(_skin.length, seed, 3)];
-  // Las piernas de otro tono: calzas, o el mismo paño más sucio de andar.
+  // La falda del sayo, de otro tono: el mismo paño más sucio de andar.
   final calzas = _cloth[hashInt(_cloth.length, seed, 4)];
+  final pelo = _hair[hashInt(_hair.length, seed, 5)];
 
-  // El bamboleo. Un cuerpo que anda sube y baja dos veces por zancada —una por
-  // pierna— y se inclina un punto hacia adelante. Sin esto, una persona es una
-  // pieza de ajedrez que se desliza.
-  final bob = at.moving ? math.cos(at.gait * 2) * 0.012 : 0.0;
-  final lean = at.moving ? 0.02 : 0.0;
+  final act = at.act;
+  final ph = at.phase;
 
-  if (detail > 0.5) {
-    final swing = math.sin(at.gait) * 0.13;
+  // Sentado. No es otra figura: es la misma, más baja y más recogida, que a
+  // veinte píxeles es exactamente lo que se lee.
+  final sit = act == FolkAct.rest ? 1.0 : 0.0;
+  final baja = sit * 0.24;
+
+  // Lo único que anima a alguien sin brazos ni piernas: que suba y baje, que
+  // se incline, y que se balancee. Y alcanza de sobra — el paso de unas
+  // piernas de dos píxeles no se ve, y el bamboleo de un cuerpo entero sí.
+  //
+  // Andando sube y baja dos veces por zancada, una por pie que no está ahí.
+  final bob = at.moving
+      ? math.cos(at.gait * 2) * 0.016
+      : switch (act) {
+          // Detrás de una mariposa se dan saltitos.
+          FolkAct.chase => math.max(0.0, math.sin(ph * 4.3)) * 0.06,
+          // Arrimando el hombro se dobla el espinazo.
+          FolkAct.work => -math.max(0.0, math.sin(ph * 3.1)) * 0.05,
+          // Y el que habla se mueve un poco, siempre.
+          FolkAct.chat => math.sin(ph * 1.9 + hash01(seed, 16) * 6) * 0.010,
+          _ => math.sin(ph * 0.5 + hash01(seed, 15) * 6) * 0.004,
+        };
+
+  // El vaivén lateral, que es lo que hace que ande y no que patine.
+  final wag = at.moving ? math.sin(at.gait) * 0.014 : 0.0;
+
+  // Y la inclinación: hacia donde va, hacia lo que mira, o hacia atrás cuando
+  // lo que mira está en el cielo.
+  final lean = at.moving
+      ? 0.020
+      : switch (act) {
+          FolkAct.chase => 0.055,
+          FolkAct.work => 0.045,
+          FolkAct.kite => -0.030,
+          FolkAct.chat => math.sin(ph * 1.9 + hash01(seed, 16) * 6) * 0.012,
+          _ => 0.0,
+        };
+
+  /// Dónde le flota lo que lleva. No hay mano: hay un sitio a la altura y al
+  /// lado de donde estaría, y lo que se sostiene se queda ahí. A esta
+  /// distancia es lo mismo, y una mano de tres píxeles no es una mano.
+  (double, double, double) hold(double s, double raise, double fwd) =>
+      (s * 0.155, 0.50 + raise * 0.34 + bob - baja, 0.13 + fwd + lean);
+
+  /// Una vara entre dos puntos: el hilo de la cometa, su cola, el mango de una
+  /// herramienta. [box] sólo sabe hacer cajas rectas en el sistema de la
+  /// persona, y un hilo va en diagonal.
+  void link(
+    (double, double, double) a,
+    (double, double, double) b,
+    double r,
+    int tint,
+    double ao,
+  ) {
+    final dx = b.$1 - a.$1, dy = b.$2 - a.$2, dz = b.$3 - a.$3;
+    final len = math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (len < 1e-5) return;
+    final u = V3(dx / len, dy / len, dz / len);
+    // Un perpendicular cualquiera, evitando el caso en que el hilo es vertical.
+    var pv = u.y.abs() > 0.9 ? V3(1, 0, 0) : V3(0, 1, 0);
+    pv = (pv - u * pv.dot(u)).normalized;
+    final q = u.cross(pv).normalized;
+    V3 corner(double sa, double sp, double sq) {
+      final at0 = sa < 0 ? a : b;
+      return world(
+        at0.$1 + (pv.x * sp + q.x * sq) * r,
+        at0.$2 + (pv.y * sp + q.y * sq) * r,
+        at0.$3 + (pv.z * sp + q.z * sq) * r,
+      );
+    }
+
+    // Índice = extremo * 4 + p * 2 + q.
+    final c = [
+      for (final sa in [-1.0, 1.0])
+        for (final sp in [-1.0, 1.0])
+          for (final sq in [-1.0, 1.0]) corner(sa, sp, sq),
+    ];
+    V3 turn(V3 v) =>
+        V3(v.x * cos + v.z * sin, v.y, -v.x * sin + v.z * cos).normalized;
+    final pw = turn(pv), qw = turn(q), uw = turn(u);
+    out.add(
+      Solid(-1, [
+        Facet([c[2], c[3], c[7], c[6]], pw, Surface.cloth, ao: ao, tint: tint),
+        Facet(
+          [c[1], c[0], c[4], c[5]],
+          V3(-pw.x, -pw.y, -pw.z),
+          Surface.cloth,
+          ao: ao,
+          tint: tint,
+        ),
+        Facet([c[3], c[1], c[5], c[7]], qw, Surface.cloth, ao: ao, tint: tint),
+        Facet(
+          [c[0], c[2], c[6], c[4]],
+          V3(-qw.x, -qw.y, -qw.z),
+          Surface.cloth,
+          ao: ao,
+          tint: tint,
+        ),
+        Facet([c[5], c[4], c[6], c[7]], uw, Surface.cloth, ao: ao, tint: tint),
+        Facet(
+          [c[0], c[1], c[3], c[2]],
+          V3(-uw.x, -uw.y, -uw.z),
+          Surface.cloth,
+          ao: ao,
+          tint: tint,
+        ),
+      ]),
+    );
+  }
+
+  /// Un paño plano, dado por sus esquinas en el plano de delante de la
+  /// persona. La vela de la cometa, que es un rombo y no una caja: [box] sólo
+  /// sabe hacer cajas rectas y un rombo está girado cuarenta y cinco grados.
+  void panel(
+    List<(double, double, double)> pts,
+    double thick,
+    int tint,
+    double ao,
+  ) {
+    final fwd = V3(sin, 0, cos);
+    final back = V3(-fwd.x, 0, -fwd.z);
+    final a = [for (final q in pts) world(q.$1, q.$2, q.$3 - thick)];
+    final b = [for (final q in pts) world(q.$1, q.$2, q.$3 + thick)];
+    final faces = <Facet>[
+      Facet(b, fwd, Surface.cloth, ao: ao, tint: tint),
+      Facet(a.reversed.toList(), back, Surface.cloth, ao: ao, tint: tint),
+    ];
+    for (var i = 0; i < pts.length; i++) {
+      final j = (i + 1) % pts.length;
+      // El canto: hacia afuera en el plano del paño.
+      final dx = pts[j].$1 - pts[i].$1, dy = pts[j].$2 - pts[i].$2;
+      final len = math.sqrt(dx * dx + dy * dy);
+      if (len < 1e-6) continue;
+      final nx = dy / len, ny = -dx / len;
+      faces.add(
+        Facet(
+          [a[i], a[j], b[j], b[i]],
+          V3(nx * cos, ny, -nx * sin).normalized,
+          Surface.cloth,
+          ao: ao * 0.94,
+          tint: tint,
+        ),
+      );
+    }
+    out.add(Solid(-1, faces));
+  }
+
+  // La figura: el sayo abajo, los hombros arriba, la cabeza y el pelo. Cuatro
+  // cajas y ninguna extremidad.
+  //
+  // Sin brazos y sin piernas a propósito, y no por ahorrar caras. Un vecino
+  // ocupa entre tres y veinte píxeles: unas piernas ahí son dos rayas que
+  // parpadean y unos brazos son una mancha que ensancha la silueta hasta que
+  // deja de parecer una persona. Lo que se lee a esa distancia es **la
+  // silueta, el color y el movimiento**, y los tres salen mejor de una figura
+  // limpia. Es además lo que hace el resto del valle: una casa tampoco tiene
+  // picaporte.
+  final pie = math.max(0.0, 0.44 - sit * 0.16);
+  box(
+    -0.140 + wag,
+    0.0,
+    -0.106,
+    0.140 + wag,
+    pie + bob * 0.4,
+    0.106,
+    calzas,
+    0.90,
+  );
+  box(
+    -0.116 + wag * 0.6,
+    pie - 0.05 + bob * 0.7,
+    -0.088 + lean * 0.7,
+    0.116 + wag * 0.6,
+    0.80 + bob - baja,
+    0.088 + lean * 0.7,
+    pano,
+    1.0,
+  );
+  box(
+    -0.074,
+    0.775 + bob - baja,
+    -0.070 + lean * 1.6,
+    0.074,
+    0.975 + bob - baja,
+    0.070 + lean * 1.6,
+    piel,
+    1.02,
+  );
+  // El pelo, que es media caja encima de la cara. A quince píxeles la cara es
+  // un punto y el pelo es la mitad de la cabeza: es lo que hace que dos
+  // vecinos no se confundan de lejos.
+  if (detail > 0.25) {
+    box(
+      -0.078,
+      0.912 + bob - baja,
+      -0.074 + lean * 1.6,
+      0.078,
+      0.995 + bob - baja,
+      0.074 + lean * 1.6,
+      pelo,
+      1.0,
+    );
+  }
+
+  // Y lo que lleva, que flota donde lo tendría. De eso va la tarde.
+  if (act == FolkAct.work && detail > 0.25) {
+    // La herramienta, subiendo y bajando. No se distingue un martillo de una
+    // azuela y da igual: lo que se lee es que está dando golpes.
+    final g = math.sin(ph * 3.1) * 0.5 + 0.5;
+    final m = hold(1, 0.30 + g * 0.62, 0.05);
+    link(m, (m.$1 + 0.02, m.$2 + 0.17, m.$3 + 0.07), 0.020, 0xFF6B5236, 0.90);
+    box(
+      m.$1 - 0.020,
+      m.$2 + 0.15,
+      m.$3 + 0.035,
+      m.$1 + 0.075,
+      m.$2 + 0.205,
+      m.$3 + 0.115,
+      0xFF7E8189,
+      0.92,
+    );
+  }
+
+  if (act == FolkAct.kite) {
+    // La cometa: un rombo de paño que se mueve solo, muy por encima y por
+    // delante, con su cola y su hilo. Es lo único de este valle que se mira
+    // hacia arriba, y desde lejos una cometa sobre un prado dice «aquí vive
+    // gente» mejor que cuarenta personas andando. Por eso no se va con la
+    // distancia aunque su dueño se quede en cuatro píxeles.
+    final t = ph + hash01(seed, 17) * 40;
+    final kx = math.sin(t * 0.43) * 0.95;
+    final ky = 3.10 + math.sin(t * 0.31 + 1.1) * 0.22;
+    final kz = 1.55 + math.cos(t * 0.37) * 0.30;
+    final tela = _kite[hashInt(_kite.length, seed, 18)];
+    // Un rombo, no un cuadrado: dos varas cruzadas y el paño entre ellas. Es
+    // lo que hace que se lea «cometa» y no «cartel flotando».
+    const ala = 0.30, alto = 0.40;
+    final papel = [
+      (kx, ky + alto, kz),
+      (kx + ala, ky, kz),
+      (kx, ky - alto, kz),
+      (kx - ala, ky, kz),
+    ];
+    panel(papel, 0.012, tela, 1.06);
+    // Las varas, un punto más oscuras que el paño, en cruz.
+    link(papel[0], papel[2], 0.016, 0xFF6B5236, 0.92);
+    link(papel[3], papel[1], 0.014, 0xFF6B5236, 0.92);
+    // La cola, tres nudos colgando y ondeando.
+    for (var k = 1; k <= 3; k++) {
+      final w2 = math.sin(t * 1.3 - k * 0.8) * 0.085 * k;
+      link(
+        (kx + w2 * 0.6, ky - alto - (k - 1) * 0.21, kz),
+        (kx + w2, ky - alto - k * 0.21, kz),
+        0.026,
+        tela,
+        1.0,
+      );
+    }
+    // Y el hilo, de donde lo sostiene hasta la cometa.
+    link(hold(1, 0.85, 0.0), (kx, ky - alto, kz), 0.007, 0xFFEDE4D2, 1.05);
+  }
+
+  if (act == FolkAct.chase && detail > 0.5) {
+    // La mariposa, siempre un poco más lejos de donde llegaría la mano. Va por
+    // su cuenta: no la sigue él a ella, es ella la que se le escapa.
+    final t = ph + hash01(seed, 19) * 30;
+    final mx = math.sin(t * 1.05) * 0.34 + 0.12;
+    final my = 0.86 + math.sin(t * 1.7 + 0.7) * 0.22;
+    final mz = 0.42 + math.cos(t * 0.83) * 0.18;
+    final ala = _wing[hashInt(_wing.length, seed, 20)];
+    // El aleteo: las alas se abren y se cierran nueve veces por segundo, que
+    // es lo que hace que un punto de color sea una mariposa.
+    final flap = (math.sin(t * 9.0) * 0.5 + 0.5) * 0.060 + 0.014;
     for (final s in [1.0, -1.0]) {
-      final paso = swing * s;
-      // La pierna adelantada se levanta un poco del suelo, que es de donde
-      // sale la sensación de que pisa y no de que patina.
-      final alza = math.max(0.0, paso) * 0.22;
       box(
-        s * 0.072 - 0.058,
-        alza,
-        paso - 0.05,
-        s * 0.072 + 0.058,
-        // Hasta por encima de donde empieza el tronco: solapadas, porque dos
-        // cajas que se tocan justo dejan una raya de fondo entre ellas en
-        // cuanto la cámara se mueve un grado.
-        0.50 + bob,
-        paso + 0.05,
-        calzas,
-        0.88,
+        mx + (s > 0 ? 0.005 : -0.005 - flap),
+        my - 0.005,
+        mz - 0.034,
+        mx + (s > 0 ? 0.005 + flap : -0.005),
+        my + 0.005,
+        mz + 0.034,
+        ala,
+        1.08,
       );
     }
   }
 
-  // El cuerpo, más ancho de hombros que de cintura sin gastar otra caja: se
-  // inclina hacia adelante y basta.
-  box(
-    -0.15,
-    (detail > 0.5 ? 0.44 : 0.0) + bob,
-    -0.093 + lean,
-    0.15,
-    0.83 + bob,
-    0.093 + lean,
-    pano,
-    1.0,
-  );
-  // La cabeza, de una séptima parte del alto: menos que eso y no se ve, más y
-  // es un muñeco. Y un poco más adelantada que el tronco, porque el tronco va
-  // inclinado hacia donde anda.
-  box(
-    -0.088,
-    0.82 + bob,
-    -0.082 + lean * 1.7,
-    0.088,
-    0.99 + bob,
-    0.082 + lean * 1.7,
-    piel,
-    1.02,
-  );
   return out;
 }

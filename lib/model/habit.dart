@@ -21,9 +21,11 @@ class Habit {
     int? character,
     List<Piece>? pieces,
     List<String>? chronicle,
+    List<String>? folk,
   }) : character = character ?? TownCharacter.forSlot(slot).order,
        pieces = pieces ?? [],
-       chronicle = chronicle ?? [];
+       chronicle = chronicle ?? [],
+       folk = folk ?? [];
 
   /// Never reused and never changed: it is what a saved town is filed under.
   final String id;
@@ -63,6 +65,15 @@ class Habit {
   /// Con esto, lo que ya se empezó está escrito y no se vuelve a decidir; lo
   /// que se decide es sólo lo que todavía no empezó, y ahí sí entra lo nuevo.
   final List<String> chronicle;
+
+  /// Quién vive en este pueblo: una línea por vecino, escrita el día que se
+  /// remató su casa y no tocada nunca más.
+  ///
+  /// Es lo mismo que hace [chronicle] con las obras, y por la misma razón. La
+  /// diferencia es que una obra se puede volver a decidir mientras no se haya
+  /// empezado, y una persona no: en cuanto existe, existe con ese nombre y esa
+  /// cara. Ver [Villager].
+  final List<String> folk;
 
   int get total => pieces.length;
 
@@ -109,6 +120,7 @@ class Habit {
     'c': createdAt.millisecondsSinceEpoch,
     'p': pieces.map((p) => p.toJson()).toList(),
     'w': chronicle,
+    'f': folk,
   };
 
   static Habit fromJson(Map<String, dynamic> j) {
@@ -138,6 +150,10 @@ class Habit {
       // Una copia vieja no la trae: se rellena al cargar, a partir del
       // catálogo de hoy, y desde entonces queda escrita.
       chronicle: [for (final e in (j['w'] as List?) ?? []) e.toString()],
+      // Una copia vieja tampoco lo trae: se rellena al cargar con las fechas
+      // de las piezas que remataron cada casa, así que nadie pierde su
+      // cumpleaños por haber empezado a usar la app antes de que existiera.
+      folk: [for (final e in (j['f'] as List?) ?? []) e.toString()],
       // A save from before towns could be chosen keeps the one its plot was
       // given, so nobody's town changes shape under them.
       character: (j['ch'] as num?)?.toInt(),

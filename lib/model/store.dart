@@ -9,6 +9,7 @@ import '../data/symbols.dart';
 import '../data/character.dart';
 import '../data/landmarks.dart';
 import '../engine/town.dart';
+import 'census.dart';
 import 'habit.dart';
 import 'piece.dart';
 
@@ -157,6 +158,22 @@ class Store extends ChangeNotifier {
   }
 
   /// Y de todos, que es lo que hace falta al abrir la app y al importar.
+  /// Apunta en el padrón a los vecinos que hayan nacido en [layout].
+  ///
+  /// Lo llama la vista con el plano que ya tiene construido, que es lo que
+  /// evita levantar un pueblo entero otra vez sólo para contar casas. Se llama
+  /// una vez por cada cuenta de piezas, que es exactamente cuando puede haber
+  /// nacido alguien.
+  ///
+  /// Nunca sobre un plano a medio enseñar: mientras cae una pieza la vista
+  /// dibuja el pueblo de antes, y apuntar a alguien contra ese plano le daría
+  /// la fecha de la pieza que todavía no ha caído.
+  void enrol(Habit h, TownLayout layout) {
+    if (layout.placed != h.total) return;
+    if (enrolFolk(h, layout).isEmpty) return;
+    _save();
+  }
+
   bool _writeUpAll() {
     var moved = false;
     for (final h in habits) {

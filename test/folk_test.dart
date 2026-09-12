@@ -245,6 +245,112 @@ void main() {
     });
   });
 
+  group('cada uno en lo suyo', () {
+    test('la cometa y las mariposas son cosa de críos', () {
+      // Un maestro cantero de cincuenta años corriendo detrás de una mariposa
+      // es gracioso una vez y raro siempre.
+      final t = _town(400);
+      for (final w in folkOf(t, 400)) {
+        if (w.kid) continue;
+        expect(w.debugActs, isNot(contains(FolkAct.kite)));
+        expect(w.debugActs, isNot(contains(FolkAct.chase)));
+      }
+    });
+
+    test('y sólo en el prado, nunca en medio de la plaza', () {
+      // La regla de la que sale todo esto: lo que se hace depende de dónde se
+      // está. Los sitios del prado están al borde del pueblo, así que basta
+      // con mirar lo lejos que queda del centro.
+      final t = _town(400);
+      final borde = t.radius * 0.55;
+      for (final w in folkOf(t, 400)) {
+        final donde = w.debugPath;
+        final quehace = w.debugActs;
+        for (var i = 0; i < quehace.length; i++) {
+          if (quehace[i] != FolkAct.kite && quehace[i] != FolkAct.chase) {
+            continue;
+          }
+          final d = math.sqrt(
+            math.pow(donde[i].$1 - t.cx, 2) + math.pow(donde[i].$2 - t.cz, 2),
+          );
+          expect(
+            d,
+            greaterThan(borde),
+            reason: 'alguien suelta una cometa dentro del pueblo',
+          );
+        }
+      }
+    });
+
+    test('andando no se está haciendo otra cosa', () {
+      // Lo que esto caza: un gesto que se queda pegado mientras la persona
+      // cruza el pueblo, que es alguien martilleando el aire mientras anda.
+      final t = _town(200);
+      for (final w in folkOf(t, 200)) {
+        for (var k = 0; k < 300; k++) {
+          final at = w.at(w.period * k / 300);
+          if (at.moving) expect(at.act, FolkAct.walk);
+        }
+      }
+    });
+
+    test('en una parada se hace siempre lo mismo, y se ve entero', () {
+      // El gesto se mueve con [phase], así que una parada tiene que durar lo
+      // bastante como para que se vea el gesto y no un fotograma suelto.
+      final t = _town(200);
+      var visto = 0;
+      for (final w in folkOf(t, 200)) {
+        FolkAct? antes;
+        var seguidos = 0;
+        for (var k = 0; k < 600; k++) {
+          final at = w.at(w.period * k / 600);
+          if (at.moving) {
+            antes = null;
+            seguidos = 0;
+            continue;
+          }
+          if (at.act == antes) {
+            seguidos++;
+            if (seguidos > 1) visto++;
+          }
+          antes = at.act;
+          expect(at.phase, greaterThanOrEqualTo(0));
+        }
+      }
+      expect(visto, greaterThan(100), reason: 'las paradas duran un suspiro');
+    });
+
+    test('el mismo vecino hace lo mismo dos veces', () {
+      final a = folkOf(_town(200), 200), b = folkOf(_town(200), 200);
+      for (var i = 0; i < a.length; i++) {
+        expect(a[i].debugActs, b[i].debugActs);
+        expect(a[i].kid, b[i].kid);
+        expect(a[i].build, b[i].build);
+      }
+    });
+
+    test('hay críos, y son más chicos', () {
+      final gente = folkOf(_town(400), 400);
+      final crios = gente.where((w) => w.kid).toList();
+      expect(crios.length, greaterThan(3));
+      expect(crios.length, lessThan(gente.length ~/ 2));
+      for (final w in crios) {
+        expect(w.build, lessThan(0.85));
+      }
+      for (final w in gente.where((w) => !w.kid)) {
+        expect(w.build, greaterThan(0.85));
+      }
+    });
+
+    test('nadie se llama igual que su vecino de al lado', () {
+      // No es que no puedan repetirse dos en un pueblo de trescientas casas;
+      // es que con una lista corta se repetirían todo el rato.
+      final gente = folkOf(_town(400), 400);
+      final nombres = {for (final w in gente) w.name};
+      expect(nombres.length, greaterThan(gente.length * 0.8));
+    });
+  });
+
   group('el día y la noche', () {
     double luz(double hora, {Season season = Season.none}) =>
         Palette.forMoment(hora, 1.0, season: season).daylight;

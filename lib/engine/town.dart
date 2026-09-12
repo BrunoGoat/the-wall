@@ -590,6 +590,7 @@ class TownLayout {
     this.cx = 0,
     this.cz = 0,
     this.chronicle = const [],
+    this.folk = const [],
     this.notices = const [0, 3, 6],
   }) : plan = TownPlan.of(character),
        plotPitch = character.plotPitch,
@@ -614,6 +615,14 @@ class TownLayout {
   /// puede mover ningún cambio del catálogo.
   final List<String> chronicle;
 
+  /// El padrón: quién vive aquí, cómo se llama y desde cuándo.
+  ///
+  /// Una línea por vecino, escrita el día que se remató su casa y no tocada
+  /// nunca más. Vacía quiere decir «sacalo del plano», que es lo que hace el
+  /// expositor y lo que hacen los tests: la gente sale igual, sólo que sin
+  /// fecha de nacimiento y con el nombre que le tocaría hoy.
+  final List<String> folk;
+
   /// One structure on its own, in an empty world.
   ///
   /// Nothing about the catalogue is visible from inside a town: a landmark
@@ -633,6 +642,7 @@ class TownLayout {
        cx = 0,
        cz = 0,
        chronicle = const [],
+       folk = const [],
        notices = const [0, 3, 6],
        solo = true {
     final building = TownBuilding(

@@ -203,12 +203,15 @@ class _TownViewState extends State<TownView>
     _valley.removeWhere((k, _) => k.startsWith('${h.id}:'));
     final (cx, cz) = Habit.centreOf(h.slot);
     final said = boardNotices(h, valley: widget.store.habits);
-    return _valley[key] = TownLayout(
+    final made = TownLayout(
       n,
       h.place,
       cx: cx,
       cz: cz,
       chronicle: h.chronicle,
+      // La misma lista que guarda el hábito, no una copia: lo que se apunte
+      // justo debajo lo tiene que ver el plano sin volver a construirlo.
+      folk: h.folk,
       // En qué huecos de su tablón hay papel. Sale de las mismas dos cuentas
       // que lo clavan al acercarse —qué hay que decir, y dónde quedó clavado
       // cada papel—, así que la silueta que se ve desde el valle es la de lo
@@ -221,6 +224,12 @@ class _TownViewState extends State<TownView>
         slots: NoticeBoard.capacity,
       ),
     );
+    // Quién ha nacido. Aquí y no en el almacén porque aquí ya está el plano
+    // construido —levantarlo otra vez para contar casas cuesta lo que cuesta
+    // un pueblo— y porque esto pasa exactamente una vez por cada cuenta de
+    // piezas, que es cuando puede haber nacido alguien.
+    widget.store.enrol(h, made);
+    return _valley[key] = made;
   }
 
   /// Puts the camera where a town is best first seen: from its own plaza,

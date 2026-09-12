@@ -2003,6 +2003,10 @@ class TownPainter extends CustomPainter {
           at.heading,
           at.gait,
           at.moving && k < 0.9,
+          // De camino a casa no se charla ni se suelta una cometa: lo que se
+          // hace es andar. Quien ya estaba andando sigue andando.
+          FolkAct.walk,
+          at.phase,
         );
       }
       // Y en el umbral se meten dentro: se hunden en su propia puerta en vez
@@ -2048,7 +2052,14 @@ class TownPainter extends CustomPainter {
         v.who,
         v.at,
         v.size,
-        detail: v.pixels > 14 ? 1.0 : 0.0,
+        // Tres escalones y no dos: por debajo de catorce píxeles se van las
+        // piernas y las mariposas, y por debajo de ocho se van también los
+        // brazos. La cometa no se va nunca — es lo que se ve desde lejos.
+        detail: v.pixels > 14
+            ? 1.0
+            : v.pixels > 8
+            ? 0.35
+            : 0.05,
       )) {
         for (final f in solid.faces) {
           _plain(p, f, pal, light, 0);
