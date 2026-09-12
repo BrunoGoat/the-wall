@@ -627,6 +627,76 @@ void walkOrder(Order node, V3 eye, void Function(OrderLeaf) visit) {
   walkOrder(near, eye, visit);
 }
 
+/// Lo mismo, pero llevando de la mano cosas que se mueven.
+///
+/// El árbol de orden se corta y se archiva cuando cae una pieza, y los vecinos
+/// no están en él: andan. Meterlos dentro querría decir volver a cortarlo
+/// sesenta veces por segundo, que es justo lo que este archivo existe para no
+/// hacer.
+///
+/// Pero tampoco hace falta. El árbol no es una lista ordenada: es una pila de
+/// planos que **parten el espacio**, y un plano que parte el espacio parte
+/// también lo que anda por él. Un vecino que está del lado bajo de un plano se
+/// pinta con todo lo del lado bajo, y eso es exacto — no es una aproximación
+/// ni un orden por distancia: es el mismo criterio con el que se ordenó la
+/// mampostería, aplicado a un punto.
+///
+/// Así que bajan con el recorrido, repartiéndose en cada plano, y salen por la
+/// hoja que les toca. Cuesta un reparto por vecino y por plano, que para
+/// cuarenta vecinos y un árbol de diez de fondo son cuatrocientas
+/// comparaciones por fotograma.
+void walkOrderWith<T>(
+  Order node,
+  V3 eye,
+  List<T> riders,
+  double Function(T rider, int axis) coord,
+  void Function(OrderLeaf leaf, List<T> here) visit,
+) {
+  if (node is OrderLeaf) {
+    visit(node, riders);
+    return;
+  }
+  if (node is OrderBoth) {
+    // Sin plano que los separe, los que van montados se pintan al final: lo
+    // que hay aquí son los sembrados y el agua, que están en el suelo, y las
+    // banderas, que están por encima de todo. Una persona no se mete debajo de
+    // un sembrado.
+    walkOrderWith<T>(node.first, eye, const [], coord, visit);
+    walkOrderWith(node.then, eye, riders, coord, visit);
+    return;
+  }
+  final split = node as OrderSplit;
+  final e = switch (split.axis) {
+    0 => eye.x,
+    1 => eye.y,
+    _ => eye.z,
+  };
+  List<T> low = const [], high = const [];
+  if (riders.isNotEmpty) {
+    final lo = <T>[], hi = <T>[];
+    for (final r in riders) {
+      (coord(r, split.axis) >= split.at ? hi : lo).add(r);
+    }
+    low = lo;
+    high = hi;
+  }
+  final nearFirst = e >= split.at;
+  walkOrderWith(
+    nearFirst ? split.low : split.high,
+    eye,
+    nearFirst ? low : high,
+    coord,
+    visit,
+  );
+  walkOrderWith(
+    nearFirst ? split.high : split.low,
+    eye,
+    nearFirst ? high : low,
+    coord,
+    visit,
+  );
+}
+
 /// Every face of a town in the exact order it will be painted, culled the way
 /// the renderer culls it.
 ///

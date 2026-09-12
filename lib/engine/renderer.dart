@@ -19,6 +19,7 @@ import 'town.dart';
 import 'world.dart';
 import 'landscape.dart';
 import 'palette.dart';
+import 'folk.dart';
 import 'season.dart';
 
 int _ch(double v) {
@@ -155,6 +156,7 @@ class TownScene {
     this.tonight,
     this.tonightKnown = false,
     this.skyNight = 0,
+    this.folk = true,
   });
 
   /// How many achievements have been laid.
@@ -168,6 +170,13 @@ class TownScene {
   /// hay cosas que necesitan el número y no el color: una fugaz no sale a las
   /// siete de la tarde aunque en invierno a esa hora ya esté oscuro.
   final double hourOfDay;
+
+  /// Si el pueblo tiene gente dentro.
+  ///
+  /// Se apaga para el expositor y para los tests que miden geometría: un test
+  /// que cuenta caras no puede llevar a cuarenta vecinos andando dentro.
+  final bool folk;
+
   final EffectSystem effects;
 
   /// How many faces are worth drawing this frame, trimmed to hold the frame
@@ -325,8 +334,25 @@ class TownPainter extends CustomPainter {
     // píxeles: aunque saliera donde se está mirando, se veía la mitad de una
     // y a veces ninguna. Delante de los montes, además, su luz les cae encima.
     _drawShootingStar(canvas, size, p, horizonY);
-    for (final e in scene.towns) {
-      _drawTownGround(canvas, p, e.layout);
+    // La gente se resuelve una vez por fotograma y se usa dos: para su sombra
+    // en el suelo, que va debajo de todo, y para pintarla en su sitio del
+    // orden, que va entre los edificios. Resolverla dos veces sería que la
+    // sombra estuviera medio paso por detrás del pie.
+    _folkNow.clear();
+    for (var i = 0; i < scene.towns.length; i++) {
+      final e = scene.towns[i];
+      final take = math.min(e.placed, e.layout.pieces.length);
+      if (take > 0) {
+        _folkNow[i] = _folkOut(p, e, scene.palette, take, size);
+      }
+    }
+    for (var i = 0; i < scene.towns.length; i++) {
+      _drawTownGround(
+        canvas,
+        p,
+        scene.towns[i].layout,
+        _folkNow[i] ?? const [],
+      );
     }
     _drawRings(canvas, p, town, overlay: false);
     _collectTown(p, size);
@@ -1154,7 +1180,12 @@ class TownPainter extends CustomPainter {
   }
 
   /// The lanes between the blocks, and the shadow each building sits in.
-  void _drawTownGround(Canvas canvas, Projector p, TownLayout town) {
+  void _drawTownGround(
+    Canvas canvas,
+    Projector p,
+    TownLayout town, [
+    List<_Walker> folk = const [],
+  ]) {
     final pal = scene.palette;
     // A yard of packed earth around each house: the ground people walk on,
     // worn bare by the door and ragged at the edges where the grass wins.
@@ -1228,6 +1259,28 @@ class TownPainter extends CustomPainter {
         Paint()
           ..shader = ui.Gradient.radial(Offset(at.x, at.y), r, [
             pal.ink.withValues(alpha: 0.20 * scene.integrity.clamp(0.5, 1.0)),
+            pal.ink.withValues(alpha: 0),
+          ]),
+      );
+    }
+
+    // Y una debajo de cada vecino, que es lo único que lo pega al suelo.
+    //
+    // Va aquí, con las de los edificios y antes de la mampostería, y no
+    // después: una sombra pintada al final es una mancha encima de la hierba
+    // y de todo lo que haya en medio. Pintada aquí la tapa cualquier cosa que
+    // esté delante, que es lo que hace una sombra.
+    for (final v in folk) {
+      final at = p.project(V3(v.at.x, 0.007, v.at.z));
+      if (at == null) continue;
+      final r = p.focal / at.depth * v.size * 0.42;
+      if (r < 1.1) continue;
+      canvas.drawCircle(
+        Offset(at.x, at.y),
+        r,
+        Paint()
+          ..shader = ui.Gradient.radial(Offset(at.x, at.y), r, [
+            pal.ink.withValues(alpha: 0.30 * pal.daylight),
             pal.ink.withValues(alpha: 0),
           ]),
       );
@@ -1846,31 +1899,59 @@ class TownPainter extends CustomPainter {
       // worked out per town and not once for the valley.
       _tone.clear();
       _picking = w == scene.active;
-      walkOrder(root, p.eye, (leaf) {
-        final box = leaf.bounds;
-        if (p.cameraOf(V3(box.cx, box.cy, box.cz)).z + box.radius < p.near) {
-          return;
-        }
-        final c = leaf.cluster;
-        if (c == null) {
-          _emitWeather(p, e, e.layout.pieces[leaf.weather], pal, night, decay);
-          return;
-        }
-        if (_away(p, box) > cut) return;
-        final mine = w == scene.active && c.members.contains(_fallingPiece);
-        c.tree.paint(p.eye, (f) {
-          // `f.piece >= 0` matters: the town's own furniture is filed under
-          // no achievement at all, and "no achievement" must not collide with
-          // "the achievement that is in the air right now".
-          if (w == scene.active && f.piece >= 0 && f.piece == _fallingPiece) {
+      final vecinos = _folkNow[w] ?? const <_Walker>[];
+      walkOrderWith<_Walker>(
+        root,
+        p.eye,
+        vecinos,
+        (v, axis) {
+          return switch (axis) {
+            0 => v.at.x,
+            1 => v.y,
+            _ => v.at.z,
+          };
+        },
+        (leaf, aqui) {
+          final box = leaf.bounds;
+          if (p.cameraOf(V3(box.cx, box.cy, box.cz)).z + box.radius < p.near) {
+            // Se salta la mampostería, no a la gente: alguien puede estar
+            // andando por delante de un edificio que la cámara ya dejó atrás.
+            _paintFolk(p, e, aqui, pal, light, size);
             return;
           }
-          _paint(p, e, f, pal, light, night, decay, size);
-        });
-        // Straight after the building it belongs to, and before any building
-        // nearer than that one.
-        if (mine) _paintFalling(p, e, pal, light, night, size);
-      });
+          final c = leaf.cluster;
+          if (c == null) {
+            _emitWeather(
+              p,
+              e,
+              e.layout.pieces[leaf.weather],
+              pal,
+              night,
+              decay,
+            );
+            _paintFolk(p, e, aqui, pal, light, size);
+            return;
+          }
+          if (_away(p, box) > cut) {
+            _paintFolk(p, e, aqui, pal, light, size);
+            return;
+          }
+          final mine = w == scene.active && c.members.contains(_fallingPiece);
+          c.tree.paint(p.eye, (f) {
+            // `f.piece >= 0` matters: the town's own furniture is filed under
+            // no achievement at all, and "no achievement" must not collide with
+            // "the achievement that is in the air right now".
+            if (w == scene.active && f.piece >= 0 && f.piece == _fallingPiece) {
+              return;
+            }
+            _paint(p, e, f, pal, light, night, decay, size);
+          });
+          // Straight after the building it belongs to, and before any building
+          // nearer than that one.
+          if (mine) _paintFalling(p, e, pal, light, night, size);
+          _paintFolk(p, e, aqui, pal, light, size);
+        },
+      );
     }
 
     // If its own building never came up — filed away by the budget, or off
@@ -1881,6 +1962,98 @@ class TownPainter extends CustomPainter {
       _tone.clear();
       _picking = true;
       _paintFalling(p, e, pal, light, night, size);
+    }
+  }
+
+  /// La gente que hay ahora mismo en la calle de este pueblo, ya colocada.
+  ///
+  /// Se resuelve una vez por pueblo y por fotograma, no una vez por hoja del
+  /// árbol: el recorrido los reparte, no los vuelve a calcular.
+  /// La gente de cada pueblo, ya resuelta para este fotograma.
+  final Map<int, List<_Walker>> _folkNow = {};
+
+  List<_Walker> _folkOut(
+    Projector p,
+    TownEntry e,
+    Palette pal,
+    int take,
+    Size size,
+  ) {
+    if (!scene.folk) return const [];
+    final dentro = folkHome(pal.daylight);
+    if (dentro > 0.985) return const [];
+    final cuantos = folkOut(e.integrity);
+    final talla = 0.58 * e.layout.character.storey;
+    final out = <_Walker>[];
+    for (final who in folkOf(e.layout, take)) {
+      // Los que hoy no salen. Por la semilla y no al azar, para que no haya
+      // uno parpadeando entre existir y no existir cada fotograma.
+      if (hash01(who.seed, 11) > cuantos) continue;
+      var at = who.at(scene.time);
+      if (dentro > 0.001) {
+        // Cae la tarde: cada uno tira para su puerta. No es un camino
+        // calculado, es la línea recta a su casa — y como todos arrancan
+        // desde donde estaban, se ve un pueblo entero yéndose a casa a la vez,
+        // que es exactamente lo que pasa a esa hora.
+        final k = smoothstep(0.0, 0.86, dentro);
+        final d = who.door;
+        at = FolkAt(
+          lerpD(at.x, d.$1, k),
+          lerpD(at.z, d.$2, k),
+          at.heading,
+          at.gait,
+          at.moving && k < 0.9,
+        );
+      }
+      // Y en el umbral se meten dentro: se hunden en su propia puerta en vez
+      // de apagarse en el aire.
+      final hunde = clampD((dentro - 0.86) / 0.14, 0, 1);
+      if (hunde >= 0.999) continue;
+      final screen = p.project(V3(at.x, talla * 0.6, at.z));
+      if (screen == null) continue;
+      if (screen.x < -60 ||
+          screen.y < -60 ||
+          screen.x > size.width + 60 ||
+          screen.y > size.height + 60) {
+        continue;
+      }
+      // Cuánto se lee de él en pantalla, para no gastar piernas en dos
+      // píxeles. Un vecino mide `talla` de alto: esto es lo que ocupa.
+      final alto = p.focal / math.max(screen.depth, 0.01) * talla;
+      if (alto < 2.2) continue;
+      out.add(_Walker(who, at, talla * (1 - hunde), alto));
+      if (out.length >= _folkCap) break;
+    }
+    return out;
+  }
+
+  /// Cuántos se pintan como mucho.
+  ///
+  /// Un pueblo de dos mil piezas tiene cuatrocientas casas, y cuatrocientas
+  /// personas son doce mil caras que se mueven todos los fotogramas. Sesenta
+  /// es más gente de la que se distingue en una pantalla de teléfono.
+  static const int _folkCap = 60;
+
+  void _paintFolk(
+    Projector p,
+    TownEntry e,
+    List<_Walker> folk,
+    Palette pal,
+    V3 light,
+    Size size,
+  ) {
+    if (folk.isEmpty) return;
+    for (final v in folk) {
+      for (final solid in folkSolids(
+        v.who,
+        v.at,
+        v.size,
+        detail: v.pixels > 14 ? 1.0 : 0.0,
+      )) {
+        for (final f in solid.faces) {
+          _plain(p, f, pal, light, 0);
+        }
+      }
     }
   }
 
@@ -1981,9 +2154,12 @@ class TownPainter extends CustomPainter {
   /// A face with no achievement behind it: the town's own furniture.
   void _plain(Projector p, Facet f, Palette pal, V3 light, double decay) {
     final at = f.v.first;
-    final albedo = _weather(_plainTone(f, at, pal), decay, 0);
+    // La ropa no se desgasta: quien la lleva no es del pueblo, vive en él. Y
+    // en un pueblo apagado hace falta que a los pocos que quedan se los vea.
+    final tono = _plainTone(f, at, pal);
+    final albedo = f.surface == Surface.cloth ? tono : _weather(tono, decay, 0);
     final colour = _hazeAt(
-      _shade(f.n, albedo, light, pal, f.ao, 0, 0),
+      _shade(f.n, albedo, light, pal, f.ao, 0, 0, f.surface),
       p,
       at.x,
       at.z,
@@ -1996,12 +2172,15 @@ class TownPainter extends CustomPainter {
       final c = _hazeAt(
         _shade(
           g.n,
-          _weather(_plainTone(g, at, pal), decay, 0),
+          g.surface == Surface.cloth
+              ? _plainTone(g, at, pal)
+              : _weather(_plainTone(g, at, pal), decay, 0),
           light,
           pal,
           g.ao,
           0,
           0,
+          g.surface,
         ),
         p,
         at.x,
@@ -2141,6 +2320,10 @@ class TownPainter extends CustomPainter {
         albedo = _weather(const Color(0xFF8C6A52), decay, s);
       case Surface.own:
         albedo = _weather(Color(f.tint ?? 0xFF808080), decay, s);
+      case Surface.cloth:
+        // La ropa no se desgasta con el abandono del pueblo, porque quien la
+        // lleva no es del pueblo: es quien vive en él.
+        albedo = Color(f.tint ?? 0xFF808080);
       case Surface.leaf:
         final leaf = leafOfYear(
           Color.lerp(
@@ -2181,7 +2364,7 @@ class TownPainter extends CustomPainter {
         ).toARGB32();
     }
     return _hazeAt(
-      _shade(f.n, albedo, light, pal, f.ao, flash, 0),
+      _shade(f.n, albedo, light, pal, f.ao, flash, 0, f.surface),
       p,
       piece.cx,
       piece.cz,
@@ -2623,11 +2806,12 @@ class TownPainter extends CustomPainter {
     Palette pal,
     double ao,
     double flash,
-    double repairGlow,
-  ) {
+    double repairGlow, [
+    Surface? on,
+  ]) {
     final ndl = math.max(0.0, n.dot(light));
     final skyTerm = 0.5 + 0.5 * n.y;
-    albedo = _snowed(albedo, n, pal);
+    albedo = _snowed(albedo, n, pal, on);
     // Stone in shadow is still stone: the sky term is modulated by the albedo
     // so unlit faces stay pale limestone instead of collapsing to black.
     final k = (0.44 + 0.58 * ndl + 0.26 * skyTerm) * ao * pal.contrast;
@@ -2719,7 +2903,8 @@ class TownPainter extends CustomPainter {
   ///
   /// Y no cuaja del todo: queda algo de tejado asomando, que es lo que hace
   /// que se lea «tejado con nieve» y no «bloque blanco».
-  Color _snowed(Color albedo, V3 n, Palette pal) {
+  Color _snowed(Color albedo, V3 n, Palette pal, [Surface? on]) {
+    if (on == Surface.cloth) return albedo;
     final snow = pal.season.snow;
     if (snow < 0.004) return albedo;
     final up = n.y;
@@ -2976,4 +3161,16 @@ class TownPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant TownPainter old) => true;
+}
+
+/// Un vecino resuelto para este fotograma: quién es, dónde está, lo que mide
+/// y lo que ocupa en la pantalla.
+class _Walker {
+  _Walker(this.who, this.at, this.size, this.pixels);
+  final Townsfolk who;
+  final FolkAt at;
+  final double size, pixels;
+
+  /// A media altura, que es por donde se le parte con un plano horizontal.
+  double get y => size * 0.5;
 }

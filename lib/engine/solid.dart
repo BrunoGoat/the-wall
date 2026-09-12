@@ -41,8 +41,18 @@ enum Surface {
   leaf,
 
   /// A colour of its own, carried in [Facet.tint]: timber, bark, leaves, crop,
-  /// water, cloth. Things whose colour is not the town's to decide.
+  /// water. Things whose colour is not the town's to decide.
   own,
+
+  /// Un vecino: paño, lana y piel, con su color en [Facet.tint].
+  ///
+  /// Aparte de [own] por dos motivos, y los dos se ven. Uno: encima de una
+  /// persona no cuaja la nieve, y por la normal de la cara sola sí cuajaba —
+  /// en enero el pueblo entero salía con la cabeza blanca. Dos: la ropa no es
+  /// piedra. Una cara de tela en sombra que se apaga como se apaga un muro
+  /// convierte a una persona de tres píxeles en una mancha oscura, y lo que
+  /// hace falta es justo lo contrario: que se la vea.
+  cloth,
 }
 
 /// One flat face of something built.
