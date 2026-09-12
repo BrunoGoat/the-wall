@@ -130,16 +130,11 @@ void main() {
     // notice board in the middle of it, and the order between all of that is
     // the same question asked of a much messier scene.
     test('nothing in a real town is painted over what is in front of it', () {
-      // Dos regiones y no una. La primera es un pueblo corriente; el Coloso es
-      // el caso difícil, porque sus edificios son más anchos que la calle que
-      // los separa y se meten unos dentro de otros de verdad. Ahí es donde un
-      // orden por la media entre dos cajas que se cruzan da lo que le da la
-      // gana según desde dónde se mire.
+      // Dos regiones y no una: la más ancha y la más apretada no plantean el
+      // mismo problema. Donde esto se rompe es entre dos cajas que se solapan
+      // en profundidad, y eso depende de lo juntas que estén las casas.
       final bad = <String>[];
-      for (final c in [
-        TownCharacter.all.first,
-        TownCharacter.all.firstWhere((x) => x.grand),
-      ]) {
+      for (final c in [TownCharacter.all.first, TownCharacter.all.last]) {
         for (final n in [1, 12, 90, 300]) {
           final layout = TownLayout(n, c);
           for (var yi = 0; yi < 6 && bad.isEmpty; yi++) {
@@ -198,11 +193,11 @@ void main() {
       // Dos edificios se ordenan solos cuando un plano los separa. Cuando se
       // atraviesan no lo hay, y hay que meterlos en el mismo árbol y cortarlos
       // entre sí — y ese árbol se vuelve a cortar entero cada vez que el
-      // pueblo crece. Al ensanchar las casas del Coloso sin ensancharle el
-      // solar, todos los edificios se tocaban: el pueblo entero era un nudo de
-      // cinco grupos, y poner una pieza pasó de once a quinientos doce
-      // milisegundos con cuatrocientas piezas, y a casi cinco segundos con mil
-      // ochocientas.
+      // pueblo crece. Al probar una región de casas mucho más anchas sin
+      // ensancharle el solar, todos los edificios se tocaban: el pueblo entero
+      // era un nudo de cinco grupos, y poner una pieza pasó de once a
+      // quinientos doce milisegundos con cuatrocientas piezas, y a casi cinco
+      // segundos con mil ochocientas.
       //
       // Eso lo cazó el cronómetro de aquí abajo, pero sólo con mil ochocientas
       // piezas y por el peor de los seis, que es tarde y es vago. Esto lo dice
@@ -212,9 +207,8 @@ void main() {
       //
       // El umbral es un suelo contra el desastre, no una medida de lo apretado
       // que está el pueblo: un pueblo sano saca del orden de un grupo por
-      // edificio o más —los contrafuertes cuentan aparte cuando no tocan—, y
-      // el nudo que hubo sacaba trece para ciento trece. Cualquier cosa por
-      // debajo de la mitad es que se están atravesando.
+      // edificio o más, y el nudo que hubo sacaba trece para ciento trece.
+      // Cualquier cosa por debajo de la mitad es que se están atravesando.
       for (final c in TownCharacter.all) {
         final layout = TownLayout(400, c);
         final casas = layout.buildings.length;

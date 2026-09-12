@@ -1,14 +1,10 @@
-import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:la_muralla/core/rng.dart';
 import 'package:la_muralla/data/character.dart';
 import 'package:la_muralla/engine/palette.dart';
-import 'package:la_muralla/engine/solid.dart';
-import 'package:la_muralla/engine/solids.dart';
 import 'package:la_muralla/engine/town.dart';
-import 'package:la_muralla/model/habit.dart';
 
 /// What one region's town actually comes out as, measured off the pieces.
 ///
@@ -84,12 +80,6 @@ class Measured {
   /// lo que «inclinado» quiere decir.
   double get slope => footprint == 0 ? 0 : roofRise / footprint;
 
-  /// Lo que abulta un edificio: alto por ancho por ancho.
-  ///
-  /// No es el volumen —nadie mide el volumen de una casa a ojo— sino la única
-  /// manera de decir «grande» que no se pueda cumplir estirando. Lo alto solo
-  /// premia la aguja; lo ancho solo premia el galpón; esto pide las dos cosas.
-  double get bulk => height * footprint * footprint;
   double get gardenShare => houses == 0 ? 0 : gardens / houses;
   double get treeShare => houses == 0 ? 0 : trees / houses;
 
@@ -109,17 +99,7 @@ int _windowsPerWall(TownCharacter place) {
 void main() {
   final towns = {for (final c in TownCharacter.all) c.region: Measured(c, 400)};
 
-  /// Las seis regiones, sin el Coloso.
-  ///
-  /// El Coloso no es un sitio, es una escala: está pensado para ganar en todos
-  /// los ejes a la vez, así que metiéndolo en la comparación se lleva todos
-  /// los superlativos y las seis regiones podrían haberse ido pareciendo entre
-  /// ellas sin que nada fallara — que es justo lo que este archivo existe para
-  /// impedir. Se le exige lo suyo aparte, más abajo.
-  final regions = {
-    for (final MapEntry(key: k, value: v) in towns.entries)
-      if (!v.place.grand) k: v,
-  };
+  final regions = towns;
 
   ({String most, String least, double ratio}) rank(
     double Function(Measured) of,
@@ -194,230 +174,6 @@ void main() {
     });
   });
 
-  group('el Coloso', () {
-    final coloso = towns['Coloso']!;
-
-    test('gana en tamaño a las seis regiones, no por poco', () {
-      // Lo que promete su descripción: enorme. Si no le saca de largo a la más
-      // grande, es una región más y no hacía falta.
-      //
-      // Lo que se mide es el bulto —alto por ancho por ancho— y no sólo lo
-      // alto. Cuando esto exigía altura y nada más, la manera barata de
-      // pasarlo era estirar: salieron torres de tres de ancho por cincuenta de
-      // alto, con el test en verde y una esbeltez de dieciséis. Una aguja así
-      // no se lee como colosal, se lee como un lápiz, y encima no pegaba con
-      // el resto de la app, que está hecha de cuerpos anchos con tejado. El
-      // bulto no se deja engañar por eso: estirar sin ensanchar no lo sube.
-      for (final r in regions.values) {
-        expect(
-          coloso.bulk / r.bulk,
-          greaterThan(25.0),
-          reason:
-              'el Coloso abulta ${coloso.bulk.toStringAsFixed(0)} y '
-              '${r.place.region} ${r.bulk.toStringAsFixed(0)}',
-        );
-        expect(
-          coloso.height / r.height,
-          greaterThan(3.0),
-          reason:
-              'el Coloso mide ${coloso.height.toStringAsFixed(1)} de alto y '
-              '${r.place.region} ${r.height.toStringAsFixed(1)}',
-        );
-        expect(
-          coloso.footprint / r.footprint,
-          greaterThan(2.0),
-          reason:
-              'el Coloso mide ${coloso.footprint.toStringAsFixed(1)} de ancho '
-              'y ${r.place.region} ${r.footprint.toStringAsFixed(1)}',
-        );
-      }
-    });
-
-    test('y no gana estirándose: no es un lápiz', () {
-      // La otra mitad de lo mismo, dicha como se ve. Un edificio de este sitio
-      // tiene que poder ser un edificio: si su alto es diez veces su ancho, es
-      // una columna, y una columna no combina con nada de lo que hay alrededor
-      // —ni con las casas, ni con los hitos, que son todos siluetas compuestas
-      // de cuerpos anchos.
-      expect(
-        coloso.height / coloso.footprint,
-        lessThan(3.0),
-        reason:
-            'sale a ${(coloso.height / coloso.footprint).toStringAsFixed(1)} '
-            'de alto por cada uno de ancho',
-      );
-      // Y la comparación es justa: las seis regiones andan por ahí también.
-      for (final r in regions.values) {
-        expect(r.height / r.footprint, lessThan(3.0), reason: r.place.region);
-      }
-    });
-
-    test('y sus muros llevan varias filas de ventanas', () {
-      // Lo que hace que un edificio se lea como alto. Una planta del Coloso
-      // mide seis, y una sola fila de ventanas ahí dentro sale de dos metros y
-      // medio de alto: el muro deja de leerse como alto y pasa a leerse como
-      // un muro normal visto de cerca, que es lo contrario de lo que se busca.
-      //
-      // Se cuenta sobre la geometría de verdad: cuántas alturas distintas de
-      // ventana hay en una misma fachada.
-      int filasDe(TownCharacter c) {
-        final t = TownLayout(30, c);
-        final caseros = {
-          for (final b in t.buildings)
-            if (!b.isLandmark) b.index,
-        };
-        var mas = 0;
-        for (final p in t.pieces) {
-          if (!caseros.contains(p.building)) continue;
-          for (final s in solidsOf(p, place: c)) {
-            for (final f in s.faces) {
-              final alturas = <int>{};
-              for (final d in f.decals ?? const <Facet>[]) {
-                if (d.surface != Surface.window) continue;
-                var lo = 1e9;
-                for (final v in d.v) {
-                  if (v.y < lo) lo = v.y;
-                }
-                alturas.add((lo * 20).round());
-              }
-              if (alturas.length > mas) mas = alturas.length;
-            }
-          }
-        }
-        return mas;
-      }
-
-      final suyas = filasDe(towns['Coloso']!.place);
-      expect(
-        suyas,
-        greaterThanOrEqualTo(2),
-        reason: 'la fachada más poblada del Coloso tiene $suyas fila',
-      );
-      // Y las seis regiones se quedan con una, que es lo que tenían: una
-      // planta corriente mide entre uno y uno y medio y no llega al umbral.
-      for (final r in regions.values) {
-        expect(
-          filasDe(r.place),
-          lessThanOrEqualTo(1),
-          reason: '${r.place.region} ganó filas de ventanas sin pedirlo',
-        );
-      }
-    });
-
-    test('y con pocas piezas por edificio, que es de lo que se trata', () {
-      // Para un hábito que hacés poco: diez piezas al mes no levantan nada si
-      // cada casa cuesta cinco. Acá cuestan dos o tres.
-      double porEdificio(TownCharacter c) {
-        final t = TownLayout(200, c);
-        var suma = 0;
-        var n = 0;
-        for (final b in t.buildings) {
-          if (b.isLandmark) continue;
-          suma += b.cost;
-          n++;
-        }
-        return suma / n;
-      }
-
-      final suyo = porEdificio(towns['Coloso']!.place);
-      expect(suyo, lessThan(3.7), reason: 'sale a $suyo piezas por edificio');
-      for (final r in regions.values) {
-        expect(
-          suyo,
-          lessThan(porEdificio(r.place)),
-          reason: 'en ${r.place.region} cuesta menos que en el Coloso',
-        );
-      }
-    });
-
-    test('pero sigue siendo una pieza por logro, y entera', () {
-      // La regla que no se negocia. Y la geometría completa: abaratar un
-      // edificio habría sido recortarlo por arriba, porque el mason lo corta
-      // en tantas piezas como cuesta y lo que sobra se tira.
-      // Ciento veinte puestas más la que está por caer, que el pueblo siempre
-      // tiene lista para enseñar dónde va.
-      final t = TownLayout(120, TownCharacter.byOrder(0xC01A));
-      expect(t.pieces.length, 121);
-      for (final b in t.buildings) {
-        if (b.firstPiece + b.cost > 120) continue;
-        final suyas = t.pieces.where((p) => p.building == b.index).length;
-        expect(suyas, b.cost, reason: '${b.name} se quedó a medias');
-      }
-    });
-
-    test('y sus edificios tienen sus propios nombres', () {
-      // Un cobertizo del Coloso mide once metros y tiene dos filas de
-      // ventanas. Llamarlo cobertizo es mentirle a quien lo está mirando.
-      final c = towns['Coloso']!.place;
-      final t = TownLayout(400, c);
-      final vistos = <String>{};
-      for (final b in t.buildings) {
-        if (b.isLandmark) continue;
-        vistos.add(b.name);
-        expect(
-          buildingName.values,
-          isNot(contains(b.name)),
-          reason: 'el Coloso levantó un ${b.name}, que es de otro sitio',
-        );
-      }
-      // Y los siete, no dos: la Ciudadela y el Coloso son el remate de la
-      // ciudad y tienen que llegar alguna vez.
-      expect(
-        vistos.length,
-        BuildingKind.values.length,
-        reason: 'sólo salieron $vistos',
-      );
-
-      // Lo que dice el cartel de «se está levantando» tiene que ser lo mismo
-      // que dirá el edificio cuando esté en pie. Son dos caminos distintos y
-      // antes uno de los dos no sabía de la región.
-      final plan = TownPlan.of(c);
-      for (var placed = 1; placed < 120; placed += 7) {
-        final dice = plan.underway(placed)?.$1;
-        final b = t.buildings.firstWhere((b) => b.firstPiece <= placed - 1);
-        expect(dice, isNotNull);
-        if (b.isLandmark) continue;
-        expect(
-          buildingName.values,
-          isNot(contains(dice)),
-          reason: 'con $placed piezas el cartel dice «$dice»',
-        );
-      }
-
-      // Y las seis regiones se quedan con los nombres de siempre.
-      for (final r in regions.values) {
-        expect(r.place.houseNames, isNull, reason: r.place.region);
-      }
-    });
-
-    test('y dos pueblos de gigantes no se pisan en el valle', () {
-      // El anillo del valle tiene un pueblo en el centro, así que dos pueblos
-      // se tocan en cuanto la suma de sus radios pasa de lo que mide el
-      // anillo. Con ochocientas piezas, que en un hábito de los que van en un
-      // Coloso son años, tiene que caber el más grande junto al más grande de
-      // los otros seis.
-      //
-      // Esto es lo que obligó a ensanchar el anillo de setenta y ocho a ciento
-      // veinticuatro. No cabía ni lo de antes: dos Valles de ochocientas suman
-      // ochenta y dos. Como la posición sale del hueco y no está guardada,
-      // ensancharlo no le mueve una piedra a nadie.
-      final (x, z) = Habit.centreOf(1);
-      final anillo = math.sqrt(x * x + z * z);
-      final coloso = TownLayout(800, towns['Coloso']!.place).radius;
-      for (final r in towns.values) {
-        final otro = TownLayout(800, r.place).radius;
-        expect(
-          coloso + otro,
-          lessThan(anillo),
-          reason:
-              'un Coloso de radio ${coloso.toStringAsFixed(1)} y un '
-              '${r.place.region} de ${otro.toStringAsFixed(1)} se tocan '
-              'en un anillo de ${anillo.toStringAsFixed(0)}',
-        );
-      }
-    });
-  });
-
   group('cada uno cumple lo que su descripción dice', () {
     test('Sierra es la más alta y la más apretada', () {
       expect(rank((m) => m.height).most, 'Sierra');
@@ -436,7 +192,7 @@ void main() {
     test('Marca tiene los muros más gruesos y las menos ventanas', () {
       expect(rank((m) => m.place.wallThick).most, 'Marca');
       for (final c in TownCharacter.all) {
-        if (c.region == 'Marca' || c.grand) continue;
+        if (c.region == 'Marca') continue;
         expect(
           _windowsPerWall(c),
           greaterThanOrEqualTo(_windowsPerWall(towns['Marca']!.place)),

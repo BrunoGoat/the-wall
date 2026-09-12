@@ -664,11 +664,12 @@ class _TownViewState extends State<TownView>
     _cam.focusZTarget = _town.cz;
     _cam.focusYTarget = 1.8;
     _cam.pitchTarget = 0.52;
-    // El radio por dos coma cuatro encuadraba el suelo que ocupa el pueblo, y
-    // eso valía mientras lo más alto de un pueblo midiera dos o tres. En el
-    // Coloso mide dieciséis: «ver todo el pueblo» dejaba las torres cortadas
-    // por arriba, que es exactamente lo que el botón promete que no pasa. Se
-    // mide sobre la proyección de verdad, con las cumbres dentro.
+    // El radio por dos coma cuatro encuadraba el suelo que ocupa el pueblo y
+    // nada más, así que valía mientras lo más alto midiera dos o tres. Con
+    // cualquier cosa alta dentro —una catedral, un faro, un observatorio— «ver
+    // todo el pueblo» dejaba la punta cortada, que es exactamente lo que el
+    // botón promete que no pasa. Se mide sobre la proyección de verdad, con
+    // las cumbres dentro.
     _cam.distanceTarget = clampD(_townDistance(), 9, 90);
     _cam.follow = false;
     Sensory.instance.tick();

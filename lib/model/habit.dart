@@ -78,15 +78,16 @@ class Habit {
   /// El anillo mide ciento veinticuatro. Medía setenta y ocho, y setenta y
   /// ocho era poco: el pueblo del centro y uno del anillo se tocan en cuanto
   /// la suma de sus radios pasa del anillo, y un Valle de ochocientas piezas
-  /// ya mide cuarenta y uno. Es decir que dos Valles de ochocientas no cabían,
-  /// y eso era así desde antes de que existiera el Coloso —que con las mismas
-  /// ochocientas mide sesenta y uno y no cabría de ninguna manera.
+  /// ya mide cuarenta y uno. Dos Valles de ochocientas no cabían, y eso era
+  /// así desde el principio: el comentario que había aquí decía que dos
+  /// pueblos de treinta mil logros seguirían sin tocarse, y no era verdad ni
+  /// de lejos.
   ///
-  /// Con ciento veinticuatro caben dos Colosos de ochocientas piezas, que es
-  /// el peor caso del catálogo. Donde vuelve a quedarse corto es en dos
-  /// pueblos de dos mil, que son años de dos hábitos a la vez; ensancharlo más
-  /// se paga en la vista del valle, donde seis pueblos chicos quedarían
-  /// perdidos en el prado.
+  /// Ciento veinticuatro es holgado a propósito. Le sobra sitio a los seis que
+  /// hay —a los que les llega con la mitad— y le da margen a lo que se
+  /// invente después, que casi seguro sea más grande que un Valle. Lo que se
+  /// paga por ensancharlo es la vista del valle: seis pueblos chicos quedan
+  /// más perdidos en el prado, y por eso tampoco conviene pasarse.
   ///
   /// Nada de esto está guardado: la posición sale del número de hueco, así que
   /// ensanchar el anillo no le mueve una piedra a ningún pueblo, sólo los

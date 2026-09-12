@@ -31,8 +31,7 @@ List<Solid> solidsOf(
     case PieceKind.floor:
       final faces = boxFaces(x0, y0, z0, x1, y1, z1, Surface.wall);
       _hangWindows(faces, y0, y1, place);
-      if (place?.grand != true) return [Solid(i, faces)];
-      return [Solid(i, faces), ..._buttresses(i, x0, y0, z0, x1, y1, z1)];
+      return [Solid(i, faces)];
 
     case PieceKind.porch:
       return [
@@ -1022,98 +1021,6 @@ List<Solid> _wheel(TownPiece piece, double y0, double y1) {
 /// back far enough to be ringed by its own shadow. A frontier town on the
 /// Marca would rather have wall than window and gets both; on the Costa the
 /// glass is almost flush and there is twice as much of it.
-/// Los contrafuertes de un muro de gigantes.
-///
-/// Un cuerpo de un pueblo corriente mide dos metros y pico y con sus ventanas
-/// y su tejado ya es un edificio. Estirado cinco veces es un prisma liso de
-/// doce metros con unos agujeros, y no hay nada en él que diga de qué está
-/// hecho ni de qué tamaño es. El resto de la app no tiene ese problema porque
-/// no tiene nada tan grande: sus muros son cortos y lo que se ve es la
-/// chimenea, la buhardilla, los soportales.
-///
-/// Así que a los muros de este sitio se les pone lo que llevan los muros que
-/// aguantan de verdad: una pilastra por cara, del suelo al alero. No cuesta
-/// ninguna pieza —no es algo que se gane, es de qué está hecha la pared— y le
-/// da al muro dos aristas verticales con su sombra, que es lo único que
-/// distingue una torre de un bloque.
-///
-/// Van **pegadas por fuera**, no metidas dentro: el plano del muro las separa
-/// exactamente, así que no hay nada que cortar y el orden de pintado sigue
-/// saliendo solo.
-List<Solid> _buttresses(
-  int i,
-  double x0,
-  double y0,
-  double z0,
-  double x1,
-  double y1,
-  double z1,
-) {
-  final w = x1 - x0, d = z1 - z0, h = y1 - y0;
-  // Sólo donde tienen sentido: un cuerpo bajo y ancho no es un muro alto.
-  if (h < 2.4 || math.min(w, d) < 0.9) return const [];
-  final ancho = math.min(w, d) * 0.24;
-  final vuelo = math.min(w, d) * 0.085;
-  // Se quedan un poco por debajo del alero, para que no peleen con lo que
-  // remata arriba —un adarve que vuela, una aguja que se apoya.
-  final alto = y0 + h * 0.94;
-  final cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
-  return [
-    Solid(
-      i,
-      boxFaces(
-        cx - ancho / 2,
-        y0,
-        z1,
-        cx + ancho / 2,
-        alto,
-        z1 + vuelo,
-        Surface.wall,
-        ao: 0.94,
-      ),
-    ),
-    Solid(
-      i,
-      boxFaces(
-        cx - ancho / 2,
-        y0,
-        z0 - vuelo,
-        cx + ancho / 2,
-        alto,
-        z0,
-        Surface.wall,
-        ao: 0.94,
-      ),
-    ),
-    Solid(
-      i,
-      boxFaces(
-        x1,
-        y0,
-        cz - ancho / 2,
-        x1 + vuelo,
-        alto,
-        cz + ancho / 2,
-        Surface.wall,
-        ao: 0.94,
-      ),
-    ),
-    Solid(
-      i,
-      boxFaces(
-        x0 - vuelo,
-        y0,
-        cz - ancho / 2,
-        x0,
-        alto,
-        cz + ancho / 2,
-        Surface.wall,
-        ao: 0.94,
-      ),
-    ),
-  ];
-}
-
 void _hangWindows(
   List<Facet> faces,
   double y0,
@@ -1128,15 +1035,15 @@ void _hangWindows(
   // Cuántas filas de ventanas lleva este cuerpo.
   //
   // Una por cuerpo mientras el cuerpo mida lo que mide una planta, que es como
-  // está construido casi todo. Pero en el Coloso una planta mide cinco metros
-  // y pico, y una sola fila de ventanas ahí dentro sale de dos metros de alto:
-  // el muro deja de leerse como alto y pasa a leerse como un muro normal visto
-  // de cerca, que es justo lo contrario de lo que se quiere. Un edificio se ve
-  // grande porque tiene muchas filas de ventanas chicas, no una grande.
+  // está construido todo lo que hay hoy. Pero un cuerpo de cinco metros con
+  // una sola fila de ventanas tiene ventanas de dos metros de alto, y entonces
+  // deja de leerse como alto y pasa a leerse como un muro normal visto de
+  // cerca. Un edificio se ve grande porque tiene muchas filas de ventanas
+  // chicas, no una grande.
   //
   // El umbral está donde está para no tocar nada de lo que ya estaba: una
-  // planta corriente mide entre uno y uno y medio, así que nada de las seis
-  // regiones llega a dos filas.
+  // planta corriente mide entre uno y uno y medio, así que ninguna de las seis
+  // regiones llega a dos filas. Está de antemano, para lo que venga.
   final filas = math.max(1, (h / 2.6).floor());
   final alto = h / filas;
   final hw = 0.15 * (1 - 0.28 * thick);
