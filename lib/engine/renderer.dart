@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../data/character.dart';
 import '../data/constellations.dart';
 import '../core/math3.dart';
 import '../core/rng.dart';
@@ -2020,7 +2021,7 @@ class TownPainter extends CustomPainter {
     final dentro = folkHome(pal.daylight);
     if (dentro > 0.985) return const [];
     final cuantos = folkOut(e.integrity);
-    final talla = 0.58 * e.layout.character.storey;
+    final talla = folkHeight(e.layout.character);
     final out = <_Walker>[];
     for (final who in folkOf(e.layout, take)) {
       // Los que hoy no salen. Por la semilla y no al azar, para que no haya
@@ -2067,6 +2068,26 @@ class TownPainter extends CustomPainter {
     }
     return out;
   }
+
+  /// Lo que mide una persona hecha, en un pueblo de esta región.
+  ///
+  /// Medido contra el propio pueblo y no a ojo, que es como estaba y por eso
+  /// eran enanos. Las dos reglas salen de lo que el pueblo ya construye:
+  ///
+  ///  - una planta mide `1.155 * storey` de suelo a techo, y una persona son
+  ///    dos tercios largos de eso;
+  ///  - una ventana mide el cuarenta por ciento de la planta, o sea
+  ///    `0.46 * storey`, y una persona es una ventana y media.
+  ///
+  /// Las dos dan el mismo número, que es la señal de que el número es ése. Con
+  /// el 0.58 que tenía, una persona medía **media planta** y era más baja que
+  /// la ventana por la que se asoma. Probado también a 1.0, y ahí pasa lo
+  /// contrario: gigantes que le llegan al alero a su propia casa.
+  ///
+  /// Pública para poder exigirlo en un test contra las medidas de verdad de un
+  /// pueblo levantado. Un número a ojo en mitad del render es exactamente la
+  /// clase de cosa que nadie vuelve a mirar.
+  static double folkHeight(TownCharacter place) => 0.80 * place.storey;
 
   /// Cuántos se pintan como mucho.
   ///

@@ -6,6 +6,7 @@ import 'package:la_muralla/data/doings.dart';
 import 'package:la_muralla/engine/folk.dart';
 import 'package:la_muralla/engine/palette.dart';
 import 'package:la_muralla/engine/season.dart';
+import 'package:la_muralla/engine/renderer.dart';
 import 'package:la_muralla/engine/town.dart';
 
 TownLayout _town(int pieces, [String region = 'Ribera']) =>
@@ -400,6 +401,70 @@ void main() {
       final gente = folkOf(_town(400), 400);
       final nombres = {for (final w in gente) w.name};
       expect(nombres.length, greaterThan(gente.length * 0.8));
+    });
+  });
+
+  group('lo que mide una persona', () {
+    /// Lo que mide una planta de suelo a techo, y una ventana, en un pueblo de
+    /// verdad de esta región. Medido de la mampostería y no de una constante:
+    /// si mañana cambia el carácter, el test cambia con él.
+    (double planta, double ventana) medidas(TownCharacter c) {
+      final t = TownLayout(300, c);
+      var planta = 0.0;
+      for (var i = 0; i < math.min(300, t.pieces.length); i++) {
+        final p = t.pieces[i];
+        if (t.buildings[p.building].isLandmark) continue;
+        // La planta baja: lo que arranca del suelo y llega a donde llega.
+        if (p.y0 < 0.05 && p.y1 > planta && p.y1 < 3) planta = p.y1;
+      }
+      // Una ventana ocupa el cuarenta por ciento de su planta: lo dice la
+      // receta que las abre, `wy0 = base + alto * 0.34`, `wy1 = + 0.74`.
+      return (planta, planta * 0.40);
+    }
+
+    test(
+      'no son enanos: una persona pasa de la ventana por la que se asoma',
+      () {
+        // El fallo que esto existe para cazar se ve a simple vista en cuanto uno
+        // se acerca, y estuvo ahí desde el primer día: la talla era un 0.58
+        // puesto a ojo en mitad del render, y con él una persona medía media
+        // planta y no llegaba a lo alto de su propia ventana.
+        for (final c in TownCharacter.all) {
+          final (planta, ventana) = medidas(c);
+          final alto = TownPainter.folkHeight(c);
+          expect(
+            alto,
+            greaterThan(ventana * 1.35),
+            reason: '${c.region}: una persona no llega a su ventana',
+          );
+          expect(
+            alto,
+            lessThan(ventana * 1.9),
+            reason: '${c.region}: una persona es más alta que la pared',
+          );
+          expect(
+            alto / planta,
+            inInclusiveRange(0.62, 0.78),
+            reason: '${c.region}: una persona no cabe por su propia puerta',
+          );
+        }
+      },
+    );
+
+    test('y los críos son críos, no adultos encogidos', () {
+      final t = _town(400);
+      final gente = folkOf(t, 400);
+      final alto = TownPainter.folkHeight(t.character);
+      for (final w in gente) {
+        final suyo = alto * w.build;
+        if (w.kid) {
+          expect(suyo, lessThan(alto * 0.8));
+          expect(suyo, greaterThan(alto * 0.6));
+        } else {
+          expect(suyo, greaterThan(alto * 0.9));
+          expect(suyo, lessThan(alto * 1.12));
+        }
+      }
     });
   });
 
